@@ -1,22 +1,18 @@
 // components/dashboard/MessageModal.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   FaBuilding, 
   FaUsers, 
   FaArrowLeft, 
   FaPaperPlane, 
   FaSpinner, 
-  FaTimes,
-  FaUserTie,
-  FaUser
+  FaTimes
 } from "react-icons/fa";
 import { 
   collection, 
   getDocs, 
   addDoc, 
-  serverTimestamp, 
-  query, 
-  where 
+  serverTimestamp
 } from "firebase/firestore";
 import { db } from "../../pages/firebase/firebase";
 import "../../styles/messageModal.css";
@@ -31,13 +27,7 @@ const MessageModal = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && messageType && step === "composeMessage") {
-      fetchRecipients();
-    }
-  }, [isOpen, messageType, step]);
-
-  const fetchRecipients = async () => {
+  const fetchRecipients = useCallback(async () => {
     setLoadingRecipients(true);
     try {
       let recipientsList = [];
@@ -66,26 +56,31 @@ const MessageModal = ({ isOpen, onClose }) => {
       } else if (messageType === 'tenant') {
         console.log("📋 Fetching tenants...");
         
-        // Fetch from users collection where role = "tenant"
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where("role", "==", "tenant"));
-        const querySnapshot = await getDocs(q);
+        // Fetch from TENANTS collection (CHANGED FROM 'users' to 'tenants')
+        const tenantsRef = collection(db, 'tenants');
+        const querySnapshot = await getDocs(tenantsRef);
         
         console.log(`✅ Found ${querySnapshot.size} tenants`);
         
         recipientsList = querySnapshot.docs.map(doc => {
           const data = doc.data();
-          const fullName = data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim();
           
           return {
             id: doc.id,
-            name: fullName || "Unnamed Tenant",
+            name: data.fullName || "Unnamed Tenant", // Changed from data.name to data.fullName
             email: data.email || "",
             phone: data.phone || "",
             type: "tenant",
+            status: data.status || "active",
+            propertyId: data.propertyId || "",
+            unitId: data.unitId || "",
             ...data
           };
         });
+        
+        // Optional: Filter only active tenants
+        // recipientsList = recipientsList.filter(tenant => tenant.status === "active");
+        console.log("📊 Active tenants:", recipientsList.filter(t => t.status === "active").length);
       }
       
       console.log("📊 Recipients list:", recipientsList);
@@ -97,7 +92,13 @@ const MessageModal = ({ isOpen, onClose }) => {
     } finally {
       setLoadingRecipients(false);
     }
-  };
+  }, [messageType]);
+
+  useEffect(() => {
+    if (isOpen && messageType && step === "composeMessage") {
+      fetchRecipients();
+    }
+  }, [isOpen, messageType, step, fetchRecipients]);
 
   const handleSelectType = (type) => {
     setMessageType(type);
@@ -135,7 +136,7 @@ const MessageModal = ({ isOpen, onClose }) => {
       const messageRef = await addDoc(collection(db, 'messages'), messageData);
       console.log("✅ Message saved to global collection:", messageRef.id);
 
-      // 2. Also save to recipient's messages subcollection
+      // 2. Also save to tenant's messages subcollection
       if (messageType === 'landlord') {
         // Save to landlord's messages subcollection
         await addDoc(
@@ -148,16 +149,16 @@ const MessageModal = ({ isOpen, onClose }) => {
         );
         console.log("✅ Message saved to landlord's subcollection");
       } else {
-        // Save to user's messages subcollection (for tenants)
+        // Save to TENANT's messages subcollection (CHANGED from 'users' to 'tenants')
         await addDoc(
-          collection(db, 'users', selectedRecipient, 'messages'),
+          collection(db, 'tenants', selectedRecipient, 'messages'),
           {
             ...messageData,
             messageId: messageRef.id,
             receivedAt: serverTimestamp()
           }
         );
-        console.log("✅ Message saved to user's subcollection");
+        console.log("✅ Message saved to tenant's subcollection");
       }
 
       alert('✅ Message sent successfully!');
@@ -269,7 +270,7 @@ const MessageModal = ({ isOpen, onClose }) => {
                       <p>No {messageType}s found in the system.</p>
                       <p className="empty-subtext">
                         {messageType === 'tenant' 
-                          ? "Tenants will appear here after being approved by admin." 
+                          ? "Tenants will appear here after being added via 'Add Tenant' form." 
                           : "Register landlords first to send them messages."}
                       </p>
                     </div>
@@ -286,7 +287,7 @@ const MessageModal = ({ isOpen, onClose }) => {
                           {recipient.name} 
                           {recipient.email && ` - ${recipient.email}`}
                           {!recipient.email && recipient.phone && ` - ${recipient.phone}`}
-                          {recipient.type && ` (${recipient.type})`}
+                          {recipient.status && ` (${recipient.status})`}
                         </option>
                       ))}
                     </select>
@@ -310,6 +311,13 @@ const MessageModal = ({ isOpen, onClose }) => {
                         recipients.find(r => r.id === selectedRecipient)?.phone || "Not provided"
                       }
                     </div>
+                    {messageType === 'tenant' && (
+                      <div className="info-item">
+                        <strong>Status:</strong> {
+                          recipients.find(r => r.id === selectedRecipient)?.status || "Not specified"
+                        }
+                      </div>
+                    )}
                   </div>
                 )}
 
