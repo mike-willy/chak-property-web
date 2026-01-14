@@ -9,6 +9,7 @@ import {
   FaCog,
   FaLifeRing,
   FaCamera,
+  FaEnvelope,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db, storage } from "../pages/firebase/firebase";
@@ -111,6 +112,7 @@ const Sidebar = () => {
     { icon: <FaHome />, label: "Properties", path: "/properties" },
     { icon: <FaUsers />, label: "Tenants", path: "/tenants" },
     { icon: <FaUserTie />, label: "Landlords", path: "/landlords" },
+    { icon: <FaEnvelope />, label: "Messages", path: "/messages" },
     { icon: <FaTools />, label: "Maintenance", path: "/maintenance" },
     { icon: <FaMoneyBillWave />, label: "Finance", path: "/finance" },
   ];
