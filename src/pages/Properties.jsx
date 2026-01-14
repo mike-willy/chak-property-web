@@ -1,4 +1,4 @@
-// src/pages/Properties.jsx - UPDATED WITH FLEXIBLE GRID BY LANDLORD
+// src/pages/Properties.jsx - UPDATED WITH FLEXIBLE GRID BY LANDLORD AND FEE INFORMATION
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -23,7 +23,15 @@ import {
   FaCheckCircle,
   FaTools,
   FaUsers,
-  FaUser
+  FaUser,
+  FaMoneyBillWave,
+  FaFileSignature,
+  FaPaw,
+  FaClock,
+  FaTint,
+  FaBolt,
+  FaWifi,
+  FaWrench
 } from "react-icons/fa";
 
 const Properties = () => {
@@ -194,6 +202,21 @@ const Properties = () => {
           units: totalUnits,
           // Always have unitDetails with consistent structure
           unitDetails: normalizedUnitDetails,
+          // Ensure fee-related fields exist
+          applicationFee: data.applicationFee || 0,
+          securityDeposit: data.securityDeposit || 0,
+          petDeposit: data.petDeposit || 0,
+          otherFees: data.otherFees || "",
+          leaseTerm: data.leaseTerm || 12,
+          noticePeriod: data.noticePeriod || 30,
+          latePaymentFee: data.latePaymentFee || 0,
+          gracePeriod: data.gracePeriod || 5,
+          feeDetails: data.feeDetails || {
+            includesWater: false,
+            includesElectricity: false,
+            includesInternet: false,
+            includesMaintenance: false
+          },
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
           // Ensure status has a default value and is lowercase
@@ -485,6 +508,102 @@ const Properties = () => {
                             )}
                           </div>
                           
+                          {/* Fee Information Section - NEW */}
+                          <div className="properties-card-info properties-fees-info">
+                            <div className="properties-info-row">
+                              <span className="properties-label">
+                                <FaMoneyBillWave className="properties-fee-icon" /> Security Deposit
+                              </span>
+                              <span className="properties-value properties-fee-amount">
+                                {formatCurrency(property.securityDeposit) || "Not set"}
+                              </span>
+                            </div>
+                            <div className="properties-info-row">
+                              <span className="properties-label">
+                                <FaFileSignature className="properties-fee-icon" /> Application Fee
+                              </span>
+                              <span className="properties-value properties-fee-amount">
+                                {formatCurrency(property.applicationFee) || "Not set"}
+                              </span>
+                            </div>
+                            {property.petDeposit > 0 && (
+                              <div className="properties-info-row">
+                                <span className="properties-label">
+                                  <FaPaw className="properties-fee-icon" /> Pet Deposit
+                                </span>
+                                <span className="properties-value properties-fee-amount">
+                                  {formatCurrency(property.petDeposit)}
+                                </span>
+                              </div>
+                            )}
+                            {property.leaseTerm && (
+                              <div className="properties-info-row">
+                                <span className="properties-label">
+                                  <FaClock className="properties-fee-icon" /> Lease Term
+                                </span>
+                                <span className="properties-value">
+                                  {property.leaseTerm} months
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* What's Included Section - NEW */}
+                          {property.feeDetails && (
+                            <div className="properties-card-info properties-included-info">
+                              <div className="properties-label properties-included-label">What's Included:</div>
+                              <div className="properties-included-items">
+                                {property.feeDetails.includesWater && (
+                                  <span className="properties-included-item">
+                                    <FaTint className="properties-included-icon" /> Water
+                                  </span>
+                                )}
+                                {property.feeDetails.includesElectricity && (
+                                  <span className="properties-included-item">
+                                    <FaBolt className="properties-included-icon" /> Electricity
+                                  </span>
+                                )}
+                                {property.feeDetails.includesInternet && (
+                                  <span className="properties-included-item">
+                                    <FaWifi className="properties-included-icon" /> Internet
+                                  </span>
+                                )}
+                                {property.feeDetails.includesMaintenance && (
+                                  <span className="properties-included-item">
+                                    <FaWrench className="properties-included-icon" /> Maintenance
+                                  </span>
+                                )}
+                                {!property.feeDetails.includesWater && 
+                                 !property.feeDetails.includesElectricity && 
+                                 !property.feeDetails.includesInternet && 
+                                 !property.feeDetails.includesMaintenance && (
+                                  <span className="properties-included-item properties-included-none">
+                                    No utilities included
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Late Payment Info - NEW */}
+                          {property.latePaymentFee > 0 && (
+                            <div className="properties-card-info properties-late-payment-info">
+                              <div className="properties-info-row">
+                                <span className="properties-label">
+                                  <FaClock className="properties-fee-icon" /> Late Payment Fee
+                                </span>
+                                <span className="properties-value properties-fee-warning">
+                                  {formatCurrency(property.latePaymentFee)} per day
+                                  {property.gracePeriod > 0 && (
+                                    <span className="properties-grace-period">
+                                      (After {property.gracePeriod} days grace)
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Unit Statistics - Unified Approach */}
                           {isMultiUnitProperty(property) ? (
                             // Multi-unit properties: Show detailed statistics

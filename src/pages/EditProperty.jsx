@@ -1,16 +1,14 @@
-// src/pages/EditProperty.jsx
+// src/pages/EditProperty.jsx - UPDATED TO MATCH AddProperty.jsx STRUCTURE
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { 
   doc, 
   getDoc, 
   updateDoc,
-  arrayUnion,
-  arrayRemove,
   Timestamp
 } from "firebase/firestore";
 import { db, storage } from "../pages/firebase/firebase";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import "../styles/EditProperty.css";
 import { 
   FaSave, 
@@ -18,31 +16,30 @@ import {
   FaHome, 
   FaBed, 
   FaBath, 
-  FaRulerCombined,
-  FaDollarSign,
-  FaUser,
-  FaPhone,
-  FaEnvelope,
-  FaCalendar,
-  FaImages,
-  FaFileAlt,
-  FaPlus,
-  FaTrash,
-  FaChevronUp,
-  FaChevronDown,
-  FaCalculator,
-  FaChartLine,
-  FaUpload,
-  FaCheck,
-  FaBuilding,
-  FaKey,
-  FaWifi,
-  FaCar,
+  FaWifi, 
+  FaCar, 
+  FaTv, 
+  FaSnowflake,
   FaSwimmingPool,
   FaDumbbell,
-  FaDog,
-  FaSmokingBan,
-  FaParking
+  FaBuilding,
+  FaDoorClosed,
+  FaCheckCircle,
+  FaTrash,
+  FaUpload,
+  FaMapMarkerAlt,
+  FaUser,
+  FaEye,
+  FaEdit,
+  FaPlus,
+  FaSearch,
+  FaMoneyBillWave,
+  FaFileSignature,
+  FaPaw,
+  FaClock,
+  FaTint,
+  FaBolt,
+  FaWrench
 } from "react-icons/fa";
 
 const EditProperty = () => {
@@ -51,41 +48,77 @@ const EditProperty = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [propertyImages, setPropertyImages] = useState([]);
 
-  // Property state with all fields
-  const [property, setProperty] = useState({
-    // Basic Information
-    name: '',
-    address: '',
-    city: '',
-    postalCode: '',
-    country: 'Kenya',
-    propertyType: 'apartment',
-    description: '',
-    
-    // Financial Details
-    rentAmount: 0,
-    depositAmount: 0,
-    securityDeposit: 0,
-    paymentFrequency: 'monthly',
-    utilitiesIncluded: [],
-    additionalFees: [],
-    
-    // Property Specifications
+  // Property types with icons and descriptions - MUST MATCH AddProperty.jsx
+  const propertyTypes = [
+    { value: "single", label: "Single Room", icon: "🏠", description: "Single self-contained room", hasBedrooms: false },
+    { value: "bedsitter", label: "Bedsitter", icon: "🛌", description: "Bed-sitting room with kitchenette", hasBedrooms: false },
+    { value: "one-bedroom", label: "One Bedroom", icon: "1️⃣", description: "One bedroom apartment", hasBedrooms: true },
+    { value: "two-bedroom", label: "Two Bedroom", icon: "2️⃣", description: "Two bedroom apartment", hasBedrooms: true },
+    { value: "three-bedroom", label: "Three Bedroom", icon: "3️⃣", description: "Three bedroom apartment", hasBedrooms: true },
+    { value: "one-two-bedroom", label: "1BR + 2BR", icon: "🏘️", description: "Mix of 1BR and 2BR units", hasBedrooms: true },
+    { value: "apartment", label: "Apartment Complex", icon: "🏢", description: "Multi-unit apartment building", hasBedrooms: false },
+    { value: "commercial", label: "Commercial", icon: "🏪", description: "Commercial property", hasBedrooms: false },
+  ];
+
+  // Amenities options - MUST MATCH AddProperty.jsx
+  const amenitiesOptions = [
+    { id: "wifi", label: "WiFi", icon: <FaWifi /> },
+    { id: "parking", label: "Parking", icon: <FaCar /> },
+    { id: "tv", label: "TV", icon: <FaTv /> },
+    { id: "ac", label: "A/C", icon: <FaSnowflake /> },
+    { id: "pool", label: "Swimming Pool", icon: <FaSwimmingPool /> },
+    { id: "gym", label: "Gym", icon: <FaDumbbell /> },
+    { id: "water", label: "24/7 Water", icon: "💧" },
+    { id: "security", label: "Security", icon: "👮" },
+    { id: "backup", label: "Power Backup", icon: "⚡" },
+    { id: "laundry", label: "Laundry", icon: "🧺" },
+  ];
+
+  // State structure - MUST MATCH AddProperty.jsx
+  const [form, setForm] = useState({
+    name: "",
+    address: "",
+    type: "apartment",
+    units: 1,
+    rentAmount: "",
+    landlordId: "",
+    landlordName: "",
+    status: "available",
+    description: "",
+    location: "",
+    city: "",
+    country: "Kenya",
+    amenities: [],
+    propertyType: "apartment",
     bedrooms: 1,
     bathrooms: 1,
-    size: 0,
-    sizeUnit: 'sqft',
-    yearBuilt: new Date().getFullYear(),
-    floor: '',
-    totalFloors: 1,
-    parkingSpaces: 0,
-    furnished: false,
-    furnishedDetails: '',
-    
-    // Units Management
-    units: 1,
+    size: "",
+    images: [],
+    pricing: {
+      single: "",
+      bedsitter: "",
+      oneBedroom: "",
+      twoBedroom: "",
+      threeBedroom: ""
+    },
+    // NEW: Application and fee-related fields - MUST MATCH AddProperty.jsx
+    applicationFee: "",
+    securityDeposit: "",
+    petDeposit: "",
+    otherFees: "",
+    leaseTerm: 12, // Default 12 months
+    noticePeriod: 30, // Default 30 days
+    latePaymentFee: "",
+    gracePeriod: 5, // Default 5 days
+    feeDetails: {
+      includesWater: false,
+      includesElectricity: false,
+      includesInternet: false,
+      includesMaintenance: false
+    },
+    // Unit tracking fields
     unitDetails: {
       totalUnits: 1,
       vacantCount: 1,
@@ -93,75 +126,8 @@ const EditProperty = () => {
       maintenanceCount: 0,
       occupancyRate: 0,
       units: []
-    },
-    
-    // Landlord/Owner Information
-    landlordName: '',
-    landlordPhone: '',
-    landlordEmail: '',
-    landlordAddress: '',
-    managementCompany: '',
-    managementContact: '',
-    
-    // Status & Availability
-    status: 'available',
-    dateAvailable: '',
-    minimumLease: 12,
-    maximumLease: 24,
-    availableFrom: '',
-    applicationFee: 0,
-    screeningRequired: true,
-    
-    // Media
-    images: [],
-    documents: [],
-    floorPlans: [],
-    virtualTour: '',
-    
-    // Amenities & Features
-    amenities: [],
-    features: [],
-    rules: [],
-    
-    // Advanced Details
-    propertyTax: 0,
-    insurance: 0,
-    maintenanceCost: 0,
-    hoaFees: 0,
-    notes: '',
-    
-    // Timestamps
-    createdAt: new Date(),
-    updatedAt: new Date()
+    }
   });
-
-  // Available options
-  const propertyTypes = [
-    'apartment', 'house', 'condo', 'townhouse', 'studio', 
-    'commercial', 'office', 'retail', 'industrial', 'land'
-  ];
-  
-  const utilitiesOptions = [
-    'water', 'electricity', 'gas', 'internet', 'cable_tv',
-    'trash', 'sewage', 'heating', 'cooling', 'maintenance'
-  ];
-  
-  const amenitiesOptions = [
-    { id: 'parking', label: 'Parking', icon: <FaParking /> },
-    { id: 'wifi', label: 'WiFi', icon: <FaWifi /> },
-    { id: 'pool', label: 'Swimming Pool', icon: <FaSwimmingPool /> },
-    { id: 'gym', label: 'Gym', icon: <FaDumbbell /> },
-    { id: 'security', label: 'Security', icon: <FaKey /> },
-    { id: 'elevator', label: 'Elevator', icon: <FaBuilding /> },
-    { id: 'laundry', label: 'Laundry Facilities', icon: <FaBuilding /> },
-    { id: 'pets', label: 'Pet Friendly', icon: <FaDog /> },
-    { id: 'smoke_free', label: 'Smoke Free', icon: <FaSmokingBan /> },
-    { id: 'furnished', label: 'Furnished', icon: <FaHome /> }
-  ];
-
-  const paymentFrequencies = [
-    'monthly', 'quarterly', 'biannually', 'annually'
-  ];
 
   // Fetch property data
   useEffect(() => {
@@ -176,36 +142,71 @@ const EditProperty = () => {
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+        console.log("Fetched property data:", data); // Debug log
         
-        // Format dates
-        const formatDate = (date) => {
-          if (!date) return '';
-          if (date.toDate) return date.toDate().toISOString().split('T')[0];
-          return new Date(date).toISOString().split('T')[0];
-        };
+        // Load images for preview
+        if (data.images && data.images.length > 0) {
+          setPropertyImages(data.images.map(url => ({ url, name: "Property Image" })));
+        }
 
-        setProperty({
-          ...data,
-          dateAvailable: formatDate(data.dateAvailable),
-          availableFrom: formatDate(data.availableFrom),
-          // Ensure arrays exist
-          utilitiesIncluded: data.utilitiesIncluded || [],
+        // Set form with all fields - MUST MATCH AddProperty.jsx structure
+        setForm({
+          // Basic info
+          name: data.name || "",
+          address: data.address || "",
+          city: data.city || "",
+          country: data.country || "Kenya",
+          rentAmount: data.rentAmount || "",
+          units: data.units || 1,
+          propertyType: data.propertyType || "apartment",
+          bedrooms: data.bedrooms || 1,
+          bathrooms: data.bathrooms || 1,
+          size: data.size || "",
+          description: data.description || "",
           amenities: data.amenities || [],
-          features: data.features || [],
-          rules: data.rules || [],
-          additionalFees: data.additionalFees || [],
           images: data.images || [],
-          documents: data.documents || [],
-          floorPlans: data.floorPlans || [],
-          // Ensure unitDetails has proper structure
+          
+          // Landlord info
+          landlordId: data.landlordId || "",
+          landlordName: data.landlordName || "",
+          
+          // NEW: Fee-related fields
+          applicationFee: data.applicationFee || "",
+          securityDeposit: data.securityDeposit || "",
+          petDeposit: data.petDeposit || "",
+          otherFees: data.otherFees || "",
+          leaseTerm: data.leaseTerm || 12,
+          noticePeriod: data.noticePeriod || 30,
+          latePaymentFee: data.latePaymentFee || "",
+          gracePeriod: data.gracePeriod || 5,
+          feeDetails: data.feeDetails || {
+            includesWater: false,
+            includesElectricity: false,
+            includesInternet: false,
+            includesMaintenance: false
+          },
+          
+          // Pricing
+          pricing: data.pricing || {
+            single: "",
+            bedsitter: "",
+            oneBedroom: "",
+            twoBedroom: "",
+            threeBedroom: ""
+          },
+          
+          // Unit details
           unitDetails: {
-            totalUnits: data.unitDetails?.totalUnits || data.units || 1,
-            vacantCount: data.unitDetails?.vacantCount || (data.units || 1),
+            totalUnits: data.units || 1,
+            vacantCount: data.unitDetails?.vacantCount || data.units || 1,
             leasedCount: data.unitDetails?.leasedCount || 0,
             maintenanceCount: data.unitDetails?.maintenanceCount || 0,
             occupancyRate: data.unitDetails?.occupancyRate || 0,
             units: data.unitDetails?.units || []
-          }
+          },
+          
+          // Status
+          status: data.status || "available"
         });
       } else {
         alert("Property not found");
@@ -219,205 +220,77 @@ const EditProperty = () => {
     }
   };
 
-  // Handle input changes
+  // Handle input changes - MUST MATCH AddProperty.jsx logic
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     
-    setProperty(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : 
-              type === 'number' ? parseFloat(value) || 0 : 
-              value
-    }));
-  };
-
-  // Handle nested object changes
-  const handleNestedChange = (parent, field, value) => {
-    setProperty(prev => ({
-      ...prev,
-      [parent]: {
-        ...prev[parent],
-        [field]: value
-      }
-    }));
-  };
-
-  // Handle array toggles (for amenities, utilities, etc.)
-  const handleArrayToggle = (arrayName, value) => {
-    setProperty(prev => {
-      const currentArray = prev[arrayName] || [];
-      const newArray = currentArray.includes(value)
-        ? currentArray.filter(item => item !== value)
-        : [...currentArray, value];
-      
-      return {
+    if (name.startsWith("pricing.")) {
+      const pricingField = name.split(".")[1];
+      setForm(prev => ({
         ...prev,
-        [arrayName]: newArray
-      };
-    });
-  };
-
-  // UNITS MANAGEMENT FUNCTIONS
-
-  // Handle total units change
-  const handleUnitsChange = (newTotalUnits) => {
-    const currentUnits = property.unitDetails.units || [];
-    const currentTotal = property.units || 1;
-    
-    if (newTotalUnits === currentTotal) return;
-    
-    if (newTotalUnits > currentTotal) {
-      // Add new units
-      const unitsToAdd = newTotalUnits - currentTotal;
-      const newUnits = [...currentUnits];
-      
-      for (let i = 0; i < unitsToAdd; i++) {
-        const unitNumber = currentTotal + i + 1;
-        newUnits.push({
-          id: `unit-${Date.now()}-${i}`,
-          unitNumber: `Unit ${unitNumber}`,
-          rent: property.rentAmount,
-          status: 'vacant',
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          size: property.size,
-          notes: ''
-        });
-      }
-      
-      setProperty(prev => ({
-        ...prev,
-        units: newTotalUnits,
-        unitDetails: {
-          ...prev.unitDetails,
-          totalUnits: newTotalUnits,
-          vacantCount: (prev.unitDetails.vacantCount || 0) + unitsToAdd,
-          units: newUnits
+        pricing: {
+          ...prev.pricing,
+          [pricingField]: value
         }
       }));
-      
+    } else if (name === "units") {
+      const totalUnits = parseInt(value) || 1;
+      setForm(prev => ({
+        ...prev,
+        units: totalUnits,
+        unitDetails: {
+          ...prev.unitDetails,
+          totalUnits: totalUnits,
+          vacantCount: totalUnits - (prev.unitDetails.leasedCount || 0) - (prev.unitDetails.maintenanceCount || 0)
+        }
+      }));
     } else {
-      // Remove units (with confirmation)
-      if (window.confirm(`Remove ${currentTotal - newTotalUnits} units? This will delete unit data.`)) {
-        const newUnits = currentUnits.slice(0, newTotalUnits);
-        
-        setProperty(prev => ({
-          ...prev,
-          units: newTotalUnits,
-          unitDetails: {
-            ...prev.unitDetails,
-            totalUnits: newTotalUnits,
-            vacantCount: Math.min(prev.unitDetails.vacantCount || 0, newTotalUnits),
-            leasedCount: Math.min(prev.unitDetails.leasedCount || 0, newTotalUnits),
-            maintenanceCount: Math.min(prev.unitDetails.maintenanceCount || 0, newTotalUnits),
-            units: newUnits
-          }
-        }));
-      }
+      setForm(prev => ({ ...prev, [name]: value }));
     }
   };
 
-  // Edit individual unit
-  const editIndividualUnit = (index, updates) => {
-    setProperty(prev => {
-      const newUnits = [...prev.unitDetails.units];
-      newUnits[index] = { ...newUnits[index], ...updates };
-      
-      // Recalculate counts based on status changes
-      if (updates.status) {
-        const vacantCount = newUnits.filter(u => u.status === 'vacant').length;
-        const leasedCount = newUnits.filter(u => u.status === 'leased').length;
-        const maintenanceCount = newUnits.filter(u => u.status === 'maintenance').length;
-        
-        return {
-          ...prev,
-          unitDetails: {
-            ...prev.unitDetails,
-            vacantCount,
-            leasedCount,
-            maintenanceCount,
-            occupancyRate: Math.round((leasedCount / newUnits.length) * 100),
-            units: newUnits
-          }
-        };
-      }
-      
-      return {
-        ...prev,
-        unitDetails: {
-          ...prev.unitDetails,
-          units: newUnits
-        }
-      };
-    });
+  // Handle property type selection - MUST MATCH AddProperty.jsx
+  const handlePropertyTypeSelect = (type) => {
+    setForm(prev => ({ ...prev, propertyType: type }));
   };
 
-  // Bulk update unit statuses
-  const bulkUpdateUnitStatus = (status, count = null) => {
-    setProperty(prev => {
-      const newUnits = [...prev.unitDetails.units];
-      const unitsToUpdate = count ? newUnits.slice(0, count) : newUnits;
-      
-      unitsToUpdate.forEach((unit, index) => {
-        newUnits[index] = { ...unit, status };
-      });
-      
-      const vacantCount = newUnits.filter(u => u.status === 'vacant').length;
-      const leasedCount = newUnits.filter(u => u.status === 'leased').length;
-      const maintenanceCount = newUnits.filter(u => u.status === 'maintenance').length;
-      
-      return {
-        ...prev,
-        unitDetails: {
-          ...prev.unitDetails,
-          vacantCount,
-          leasedCount,
-          maintenanceCount,
-          occupancyRate: Math.round((leasedCount / newUnits.length) * 100),
-          units: newUnits
-        }
-      };
-    });
+  // Handle amenities toggle - MUST MATCH AddProperty.jsx
+  const toggleAmenity = (amenityId) => {
+    const newAmenities = form.amenities.includes(amenityId)
+      ? form.amenities.filter(id => id !== amenityId)
+      : [...form.amenities, amenityId];
+    
+    setForm(prev => ({
+      ...prev,
+      amenities: newAmenities
+    }));
   };
 
-  // Bulk update rents
-  const bulkUpdateRents = (percentageChange) => {
-    setProperty(prev => {
-      const newUnits = prev.unitDetails.units.map(unit => ({
-        ...unit,
-        rent: Math.round(unit.rent * (1 + percentageChange / 100))
-      }));
-      
-      return {
-        ...prev,
-        unitDetails: {
-          ...prev.unitDetails,
-          units: newUnits
-        }
-      };
-    });
-  };
-
-  // IMAGE MANAGEMENT
-
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files);
+  // Handle image upload - MUST MATCH AddProperty.jsx
+  const handleImageUpload = async (files) => {
     if (files.length === 0) return;
-
+    
     setUploadingImages(true);
+    const uploadedUrls = [];
+    
     try {
-      const uploadPromises = files.map(async (file) => {
-        const storageRef = ref(storage, `properties/${id}/images/${Date.now()}-${file.name}`);
+      for (let i = 0; i < Math.min(files.length, 10); i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        
+        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name}`;
+        const storageRef = ref(storage, `properties/${fileName}`);
+        
         await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(storageRef);
-        return downloadURL;
-      });
-
-      const uploadedURLs = await Promise.all(uploadPromises);
+        uploadedUrls.push(downloadURL);
+        
+        setPropertyImages(prev => [...prev, { url: downloadURL, name: file.name }]);
+      }
       
-      setProperty(prev => ({
+      setForm(prev => ({
         ...prev,
-        images: [...prev.images, ...uploadedURLs]
+        images: [...prev.images, ...uploadedUrls]
       }));
       
     } catch (error) {
@@ -428,127 +301,137 @@ const EditProperty = () => {
     }
   };
 
+  // Remove image - MUST MATCH AddProperty.jsx
   const removeImage = (index) => {
-    setProperty(prev => ({
+    setPropertyImages(prev => prev.filter((_, i) => i !== index));
+    setForm(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
     }));
   };
 
-  const moveImage = (index, direction) => {
-    if (
-      (direction === -1 && index === 0) ||
-      (direction === 1 && index === property.images.length - 1)
-    ) return;
-
-    const newImages = [...property.images];
-    [newImages[index], newImages[index + direction]] = 
-    [newImages[index + direction], newImages[index]];
-    
-    setProperty(prev => ({
-      ...prev,
-      images: newImages
-    }));
+  // Check if property type requires pricing input - MUST MATCH AddProperty.jsx
+  const requiresPricingInput = () => {
+    const noPricingTypes = ['apartment', 'commercial', 'one-two-bedroom'];
+    return !noPricingTypes.includes(form.propertyType);
   };
 
-  // FINANCIAL CALCULATIONS
-
-  const calculateTotalMonthlyRevenue = () => {
-    if (property.units === 1) return property.rentAmount;
-    
-    return property.unitDetails.units.reduce((total, unit) => {
-      return total + (unit.status === 'leased' ? unit.rent : 0);
-    }, 0);
-  };
-
-  const calculatePotentialRevenue = () => {
-    if (property.units === 1) return property.rentAmount;
-    
-    return property.unitDetails.units.reduce((total, unit) => {
-      return total + unit.rent;
-    }, 0);
-  };
-
-  const calculateVacancyCost = () => {
-    if (property.units === 1) {
-      return property.status === 'vacant' ? property.rentAmount : 0;
-    }
-    
-    const vacantUnits = property.unitDetails.units.filter(u => u.status === 'vacant');
-    return vacantUnits.reduce((total, unit) => total + unit.rent, 0);
-  };
-
-  // ADDITIONAL FEES MANAGEMENT
-
-  const addAdditionalFee = () => {
-    const feeName = prompt("Enter fee name:");
-    const feeAmount = parseFloat(prompt("Enter fee amount:"));
-    
-    if (feeName && !isNaN(feeAmount)) {
-      setProperty(prev => ({
-        ...prev,
-        additionalFees: [...prev.additionalFees, { name: feeName, amount: feeAmount, frequency: 'monthly' }]
-      }));
+  // Get price based on property type - MUST MATCH AddProperty.jsx
+  const getPriceForType = () => {
+    switch(form.propertyType) {
+      case 'single': return form.pricing.single;
+      case 'bedsitter': return form.pricing.bedsitter;
+      case 'one-bedroom': return form.pricing.oneBedroom;
+      case 'two-bedroom': return form.pricing.twoBedroom;
+      case 'three-bedroom': return form.pricing.threeBedroom;
+      default: return form.rentAmount;
     }
   };
 
-  const removeAdditionalFee = (index) => {
-    setProperty(prev => ({
-      ...prev,
-      additionalFees: prev.additionalFees.filter((_, i) => i !== index)
-    }));
-  };
+  // Get current property type details
+  const currentPropertyType = propertyTypes.find(t => t.value === form.propertyType);
 
-  // SAVE PROPERTY
-
-  const handleSave = async () => {
-    if (!property.name.trim()) {
-      alert("Property name is required");
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!form.landlordId) {
+      alert("Please select a landlord");
       return;
     }
-
+    
+    // Validate pricing based on property type - MUST MATCH AddProperty.jsx
+    if (requiresPricingInput()) {
+      const selectedPrice = getPriceForType();
+      if (!selectedPrice || selectedPrice <= 0) {
+        const propertyTypeLabel = propertyTypes.find(t => t.value === form.propertyType)?.label;
+        alert(`Please enter a valid price for ${propertyTypeLabel}`);
+        return;
+      }
+    } else if (form.propertyType === 'apartment' || form.propertyType === 'commercial') {
+      if (!form.rentAmount || form.rentAmount <= 0) {
+        alert("Please enter a valid monthly rent amount");
+        return;
+      }
+    }
+    
     setSaving(true);
+    
     try {
-      const propertyRef = doc(db, "properties", id);
+      // Calculate price for units
+      const priceForUnits = requiresPricingInput() ? getPriceForType() : form.rentAmount;
       
-      // Prepare data for Firestore
-      const updateData = {
-        ...property,
-        updatedAt: Timestamp.now(),
-        // Convert date strings to Timestamps
-        dateAvailable: property.dateAvailable ? Timestamp.fromDate(new Date(property.dateAvailable)) : null,
-        availableFrom: property.availableFrom ? Timestamp.fromDate(new Date(property.availableFrom)) : null
+      // Prepare property data - MUST MATCH AddProperty.jsx structure
+      const propertyData = {
+        // Basic info
+        name: form.name,
+        address: form.address,
+        city: form.city,
+        country: form.country,
+        rentAmount: Number(priceForUnits),
+        units: Number(form.units),
+        propertyType: form.propertyType,
+        bedrooms: Number(form.bedrooms),
+        bathrooms: Number(form.bathrooms),
+        size: form.size,
+        description: form.description,
+        amenities: form.amenities,
+        images: form.images,
+        
+        // Landlord info
+        landlordId: form.landlordId,
+        landlordName: form.landlordName,
+        
+        // NEW: Application and fee-related fields
+        applicationFee: Number(form.applicationFee) || 0,
+        securityDeposit: Number(form.securityDeposit) || 0,
+        petDeposit: Number(form.petDeposit) || 0,
+        otherFees: form.otherFees || "",
+        leaseTerm: Number(form.leaseTerm),
+        noticePeriod: Number(form.noticePeriod),
+        latePaymentFee: Number(form.latePaymentFee) || 0,
+        gracePeriod: Number(form.gracePeriod),
+        feeDetails: form.feeDetails,
+        
+        // Unit details
+        unitDetails: {
+          totalUnits: Number(form.units),
+          vacantCount: form.unitDetails.vacantCount,
+          leasedCount: form.unitDetails.leasedCount,
+          maintenanceCount: form.unitDetails.maintenanceCount,
+          occupancyRate: form.unitDetails.occupancyRate,
+          units: form.unitDetails.units
+        },
+        
+        // Status and timestamps
+        status: form.status,
+        updatedAt: Timestamp.now()
       };
-
-      await updateDoc(propertyRef, updateData);
       
-      alert("Property updated successfully!");
-      navigate(`/property/${id}/units`);
+      // Add pricing if exists
+      if (form.pricing && (Object.values(form.pricing).some(val => val !== ""))) {
+        propertyData.pricing = form.pricing;
+      }
+      
+      // Update in Firestore
+      const propertyRef = doc(db, "properties", id);
+      await updateDoc(propertyRef, propertyData);
+      
+      alert("✅ Property updated successfully!");
+      navigate("/properties");
       
     } catch (error) {
       console.error("Error updating property:", error);
-      alert("Failed to update property");
+      alert("Error updating property: " + error.message);
     } finally {
       setSaving(false);
     }
   };
 
-  // CANCEL
-
   const handleCancel = () => {
-    if (window.confirm("Are you sure you want to cancel? All unsaved changes will be lost.")) {
-      navigate(-1);
+    if (window.confirm("Are you sure? Any unsaved changes will be lost.")) {
+      navigate("/properties");
     }
-  };
-
-  // FORMAT CURRENCY
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount || 0);
   };
 
   if (loading) {
@@ -561,785 +444,635 @@ const EditProperty = () => {
   }
 
   return (
-    <div className="edit-property-container">
-      {/* Header */}
-      <div className="edit-property-header">
-        <div className="header-left">
-          <h1>
-            <FaHome /> Edit Property: <span className="property-name-highlight">{property.name}</span>
-          </h1>
-          <p className="header-subtitle">
-            Update property details, manage units, and configure advanced settings.
-          </p>
-        </div>
-        <div className="header-actions">
-          <button 
-            className="btn-cancel"
-            onClick={handleCancel}
-            disabled={saving}
-          >
-            <FaTimes /> Cancel
-          </button>
-          <button 
-            className="btn-save"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <div className="spinner-small"></div> Saving...
-              </>
-            ) : (
-              <>
-                <FaSave /> Save Changes
-              </>
-            )}
-          </button>
-        </div>
+    <div className="add-property-container">
+      <div className="add-property-header">
+        <h1>Edit Property: {form.name}</h1>
+        <button className="back-button" onClick={handleCancel}>
+          ← Cancel
+        </button>
       </div>
-
-      {/* Main Form */}
-      <div className="edit-property-form">
-        {/* Quick Navigation Tabs */}
-        <div className="form-tabs">
-          <button 
-            className={`tab ${!showAdvanced ? 'active' : ''}`}
-            onClick={() => setShowAdvanced(false)}
-          >
-            Basic Information
-          </button>
-          <button 
-            className={`tab ${showAdvanced ? 'active' : ''}`}
-            onClick={() => setShowAdvanced(true)}
-          >
-            Advanced Management
-          </button>
-        </div>
-
-        {!showAdvanced ? (
-          /* BASIC INFORMATION TAB */
-          <div className="basic-info-tab">
-            {/* Section 1: Basic Information */}
-            <div className="form-section">
-              <h2><FaHome /> Basic Information</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="required">Property Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={property.name}
-                    onChange={handleChange}
-                    required
-                    className="form-input"
-                    placeholder="e.g., Maisha Apartments"
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Property Type</label>
-                  <select
-                    name="propertyType"
-                    value={property.propertyType}
-                    onChange={handleChange}
-                    className="form-input"
-                  >
-                    {propertyTypes.map(type => (
-                      <option key={type} value={type}>
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Address</label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={property.address}
-                    onChange={handleChange}
-                    className="form-input"
-                    placeholder="Street address"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>City</label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={property.city}
-                    onChange={handleChange}
-                    className="form-input"
-                    placeholder="City"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Postal Code</label>
-                  <input
-                    type="text"
-                    name="postalCode"
-                    value={property.postalCode}
-                    onChange={handleChange}
-                    className="form-input"
-                    placeholder="e.g., 80100"
-                  />
-                </div>
-
-                <div className="form-group full-width">
-                  <label>Description</label>
-                  <textarea
-                    name="description"
-                    value={property.description}
-                    onChange={handleChange}
-                    className="form-input form-textarea"
-                    rows="3"
-                    placeholder="Describe the property, features, and neighborhood..."
-                  />
-                </div>
+      
+      <div className="add-property-card">
+        <h2>Edit Property Details</h2>
+        <p className="form-subtitle">Update property details and fees</p>
+        
+        <form onSubmit={handleSubmit} className="add-property-form">
+          
+          {/* IMAGE UPLOAD SECTION */}
+          <div className="form-section">
+            <h3>Property Images</h3>
+            <div className="image-upload-section">
+              <div 
+                className="drop-zone"
+                onClick={() => document.getElementById('image-upload-input').click()}
+              >
+                <FaUpload className="upload-icon" />
+                <p>Click to add more images or drag & drop</p>
+                <p className="upload-hint">Recommended: 5-10 images, max 5MB each</p>
+                <input
+                  id="image-upload-input"
+                  type="file"
+                  onChange={(e) => handleImageUpload(Array.from(e.target.files))}
+                  multiple
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
               </div>
-            </div>
-
-            {/* Section 2: Financial Details */}
-            <div className="form-section">
-              <h2><FaDollarSign /> Financial Details</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Monthly Rent (KES)</label>
-                  <input
-                    type="number"
-                    name="rentAmount"
-                    value={property.rentAmount}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
+              
+              {uploadingImages && (
+                <div className="uploading-status">
+                  <div className="spinner"></div>
+                  <p>Uploading images...</p>
                 </div>
-
-                <div className="form-group">
-                  <label>Security Deposit</label>
-                  <input
-                    type="number"
-                    name="securityDeposit"
-                    value={property.securityDeposit}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Payment Frequency</label>
-                  <select
-                    name="paymentFrequency"
-                    value={property.paymentFrequency}
-                    onChange={handleChange}
-                    className="form-input"
-                  >
-                    {paymentFrequencies.map(freq => (
-                      <option key={freq} value={freq}>
-                        {freq.charAt(0).toUpperCase() + freq.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Application Fee</label>
-                  <input
-                    type="number"
-                    name="applicationFee"
-                    value={property.applicationFee}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              {/* Additional Fees */}
-              <div className="form-subsection">
-                <h3>Additional Fees</h3>
-                <button 
-                  type="button" 
-                  className="btn-add-fee"
-                  onClick={addAdditionalFee}
-                >
-                  <FaPlus /> Add Fee
-                </button>
-                
-                {property.additionalFees.length > 0 && (
-                  <div className="fees-list">
-                    {property.additionalFees.map((fee, index) => (
-                      <div key={index} className="fee-item">
-                        <span>{fee.name}: {formatCurrency(fee.amount)}</span>
-                        <button 
+              )}
+              
+              {propertyImages.length > 0 && (
+                <div className="image-preview-container">
+                  <h4>Property Images ({propertyImages.length})</h4>
+                  <div className="image-grid">
+                    {propertyImages.map((image, index) => (
+                      <div key={index} className="image-preview">
+                        <img src={image.url} alt={`Property ${index + 1}`} />
+                        <button
                           type="button"
-                          className="btn-remove-fee"
-                          onClick={() => removeAdditionalFee(index)}
+                          className="remove-image-btn"
+                          onClick={() => removeImage(index)}
                         >
                           <FaTrash />
                         </button>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Section 3: Property Specifications */}
-            <div className="form-section">
-              <h2><FaBuilding /> Property Specifications</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label><FaBed /> Bedrooms</label>
-                  <input
-                    type="number"
-                    name="bedrooms"
-                    value={property.bedrooms}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label><FaBath /> Bathrooms</label>
-                  <input
-                    type="number"
-                    name="bathrooms"
-                    value={property.bathrooms}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label><FaRulerCombined /> Size (sqft)</label>
-                  <input
-                    type="number"
-                    name="size"
-                    value={property.size}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Parking Spaces</label>
-                  <input
-                    type="number"
-                    name="parkingSpaces"
-                    value={property.parkingSpaces}
-                    onChange={handleChange}
-                    min="0"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Year Built</label>
-                  <input
-                    type="number"
-                    name="yearBuilt"
-                    value={property.yearBuilt}
-                    onChange={handleChange}
-                    min="1800"
-                    max={new Date().getFullYear()}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Floor</label>
-                  <input
-                    type="text"
-                    name="floor"
-                    value={property.floor}
-                    onChange={handleChange}
-                    className="form-input"
-                    placeholder="e.g., 3rd Floor"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      name="furnished"
-                      checked={property.furnished}
-                      onChange={handleChange}
-                    />
-                    <span className="checkbox-text">Furnished</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 4: Amenities */}
-            <div className="form-section">
-              <h2>Amenities & Features</h2>
-              <div className="amenities-grid">
-                {amenitiesOptions.map(amenity => (
-                  <label 
-                    key={amenity.id} 
-                    className={`amenity-checkbox ${property.amenities.includes(amenity.id) ? 'checked' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={property.amenities.includes(amenity.id)}
-                      onChange={() => handleArrayToggle('amenities', amenity.id)}
-                    />
-                    <span className="amenity-icon">{amenity.icon}</span>
-                    <span className="amenity-label">{amenity.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Section 5: Utilities Included */}
-            <div className="form-section">
-              <h2>Utilities Included</h2>
-              <div className="utilities-grid">
-                {utilitiesOptions.map(utility => (
-                  <label 
-                    key={utility} 
-                    className={`utility-checkbox ${property.utilitiesIncluded.includes(utility) ? 'checked' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={property.utilitiesIncluded.includes(utility)}
-                      onChange={() => handleArrayToggle('utilitiesIncluded', utility)}
-                    />
-                    <span className="utility-label">
-                      {utility.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Section 6: Landlord Information */}
-            <div className="form-section">
-              <h2><FaUser /> Landlord Information</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Landlord Name</label>
-                  <input
-                    type="text"
-                    name="landlordName"
-                    value={property.landlordName}
-                    onChange={handleChange}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label><FaPhone /> Phone</label>
-                  <input
-                    type="tel"
-                    name="landlordPhone"
-                    value={property.landlordPhone}
-                    onChange={handleChange}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label><FaEnvelope /> Email</label>
-                  <input
-                    type="email"
-                    name="landlordEmail"
-                    value={property.landlordEmail}
-                    onChange={handleChange}
-                    className="form-input"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* ADVANCED MANAGEMENT TAB */
-          <div className="advanced-info-tab">
-            {/* Section 1: Units Management */}
-            <div className="form-section">
-              <h2><FaBuilding /> Units Management</h2>
-              
-              <div className="units-management-section">
-                <div className="units-control-row">
-                  <span className="units-control-label">Total Units:</span>
-                  <div className="units-input-control">
-                    <input
-                      type="number"
-                      value={property.units}
-                      onChange={(e) => handleUnitsChange(parseInt(e.target.value) || 1)}
-                      min="1"
-                      max="1000"
-                      className="units-count-input"
-                    />
-                    <span className="units-status">
-                      Currently managing {property.unitDetails.units.length} units
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bulk Actions */}
-                <div className="bulk-actions-section">
-                  <div className="bulk-actions-label">Bulk Actions</div>
-                  <div className="bulk-actions-buttons">
-                    <button 
-                      onClick={() => bulkUpdateUnitStatus('vacant')}
-                      className="bulk-action-btn"
-                    >
-                      Mark All as Vacant
-                    </button>
-                    <button 
-                      onClick={() => bulkUpdateRents(10)}
-                      className="bulk-action-btn"
-                    >
-                      Increase All Rents by 10%
-                    </button>
-                    <button 
-                      onClick={() => bulkUpdateRents(-10)}
-                      className="bulk-action-btn"
-                    >
-                      Decrease All Rents by 10%
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Units Table */}
-              {property.units > 1 && property.unitDetails.units.length > 0 && (
-                <div className="units-table-container">
-                  <h3>Individual Units</h3>
-                  <div className="units-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Unit #</th>
-                          <th>Rent (KES)</th>
-                          <th>Status</th>
-                          <th>Bedrooms</th>
-                          <th>Bathrooms</th>
-                          <th>Size</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {property.unitDetails.units.map((unit, index) => (
-                          <tr key={unit.id || index}>
-                            <td>
-                              <input
-                                type="text"
-                                value={unit.unitNumber}
-                                onChange={(e) => editIndividualUnit(index, { unitNumber: e.target.value })}
-                                className="unit-input"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                value={unit.rent}
-                                onChange={(e) => editIndividualUnit(index, { rent: parseFloat(e.target.value) || 0 })}
-                                className="unit-input"
-                              />
-                            </td>
-                            <td>
-                              <select
-                                value={unit.status}
-                                onChange={(e) => editIndividualUnit(index, { status: e.target.value })}
-                                className={`status-select status-${unit.status}`}
-                              >
-                                <option value="vacant">Vacant</option>
-                                <option value="leased">Leased</option>
-                                <option value="maintenance">Maintenance</option>
-                              </select>
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                value={unit.bedrooms || property.bedrooms}
-                                onChange={(e) => editIndividualUnit(index, { bedrooms: parseInt(e.target.value) || 0 })}
-                                className="unit-input"
-                                min="0"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                value={unit.bathrooms || property.bathrooms}
-                                onChange={(e) => editIndividualUnit(index, { bathrooms: parseInt(e.target.value) || 0 })}
-                                className="unit-input"
-                                min="0"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                value={unit.size || property.size}
-                                onChange={(e) => editIndividualUnit(index, { size: parseFloat(e.target.value) || 0 })}
-                                className="unit-input"
-                                min="0"
-                              />
-                            </td>
-                            <td>
-                              <button 
-                                onClick={() => {
-                                  if (window.confirm(`Remove ${unit.unitNumber}?`)) {
-                                    const newUnits = [...property.unitDetails.units];
-                                    newUnits.splice(index, 1);
-                                    setProperty(prev => ({
-                                      ...prev,
-                                      units: prev.units - 1,
-                                      unitDetails: {
-                                        ...prev.unitDetails,
-                                        totalUnits: prev.units - 1,
-                                        units: newUnits
-                                      }
-                                    }));
-                                  }
-                                }}
-                                className="btn-remove-unit"
-                              >
-                                <FaTrash />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
               )}
             </div>
-
-            {/* Section 2: Financial Calculator */}
+          </div>
+          
+          {/* PROPERTY TYPE SELECTION */}
+          <div className="form-section">
+            <h3>Property Type</h3>
+            <div className="property-type-grid">
+              {propertyTypes.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  className={`property-type-card ${form.propertyType === type.value ? 'selected' : ''}`}
+                  onClick={() => handlePropertyTypeSelect(type.value)}
+                >
+                  <span className="property-icon">{type.icon}</span>
+                  <span className="property-label">{type.label}</span>
+                  <span className="property-desc">{type.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* PRICING SECTION - Dynamic based on property type */}
+          {requiresPricingInput() ? (
             <div className="form-section">
-              <h2><FaCalculator /> Financial Calculator</h2>
-              <div className="financial-calculator-section">
-                <div className="financial-stats-grid">
-                  <div className="financial-stat">
-                    <span className="stat-label">TOTAL MONTHLY REVENUE:</span>
-                    <span className="stat-value">
-                      {formatCurrency(calculateTotalMonthlyRevenue())}
-                    </span>
-                  </div>
-                  <div className="financial-stat">
-                    <span className="stat-label">POTENTIAL REVENUE:</span>
-                    <span className="stat-value">
-                      {formatCurrency(calculatePotentialRevenue())}
-                    </span>
-                  </div>
-                  <div className="financial-stat">
-                    <span className="stat-label">VACANCY COST:</span>
-                    <span className="stat-value warning">
-                      {formatCurrency(calculateVacancyCost())}
-                    </span>
-                  </div>
-                  <div className="financial-stat">
-                    <span className="stat-label">OCCUPANCY RATE:</span>
-                    <span className="stat-value">
-                      {property.unitDetails.occupancyRate}%
-                    </span>
+              <h3>Pricing</h3>
+              <div className="pricing-section">
+                <div className="selected-type-display">
+                  <h4>Selected: {currentPropertyType?.label}</h4>
+                  <p>{currentPropertyType?.description}</p>
+                </div>
+                
+                <div className="price-input-container">
+                  {form.propertyType === 'single' && (
+                    <div className="form-group">
+                      <label className="required">Monthly Rent for Single Room (KSh)</label>
+                      <input
+                        type="number"
+                        name="pricing.single"
+                        value={form.pricing.single}
+                        onChange={handleChange}
+                        placeholder="e.g., 8,000"
+                        required
+                        disabled={saving}
+                      />
+                    </div>
+                  )}
+                  
+                  {form.propertyType === 'bedsitter' && (
+                    <div className="form-group">
+                      <label className="required">Monthly Rent for Bedsitter (KSh)</label>
+                      <input
+                        type="number"
+                        name="pricing.bedsitter"
+                        value={form.pricing.bedsitter}
+                        onChange={handleChange}
+                        placeholder="e.g., 12,000"
+                        required
+                        disabled={saving}
+                      />
+                    </div>
+                  )}
+                  
+                  {form.propertyType === 'one-bedroom' && (
+                    <div className="form-group">
+                      <label className="required">Monthly Rent for 1 Bedroom (KSh)</label>
+                      <input
+                        type="number"
+                        name="pricing.oneBedroom"
+                        value={form.pricing.oneBedroom}
+                        onChange={handleChange}
+                        placeholder="e.g., 25,000"
+                        required
+                        disabled={saving}
+                      />
+                    </div>
+                  )}
+                  
+                  {form.propertyType === 'two-bedroom' && (
+                    <div className="form-group">
+                      <label className="required">Monthly Rent for 2 Bedrooms (KSh)</label>
+                      <input
+                        type="number"
+                        name="pricing.twoBedroom"
+                        value={form.pricing.twoBedroom}
+                        onChange={handleChange}
+                        placeholder="e.g., 40,000"
+                        required
+                        disabled={saving}
+                      />
+                    </div>
+                  )}
+                  
+                  {form.propertyType === 'three-bedroom' && (
+                    <div className="form-group">
+                      <label className="required">Monthly Rent for 3 Bedrooms (KSh)</label>
+                      <input
+                        type="number"
+                        name="pricing.threeBedroom"
+                        value={form.pricing.threeBedroom}
+                        onChange={handleChange}
+                        placeholder="e.g., 60,000"
+                        required
+                        disabled={saving}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="price-summary">
+                    <p><strong>Monthly Revenue Estimate:</strong> KSh {(getPriceForType() || 0) * form.units}</p>
+                    <p className="note">Based on {form.units} unit(s) × KSh {getPriceForType() || 0}</p>
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* Section 3: Image Management */}
+          ) : (
             <div className="form-section">
-              <h2><FaImages /> Image Management</h2>
-              
-              <div className="image-management-section">
-                <div className="upload-controls">
-                  <label className="btn-upload">
-                    <FaUpload /> Upload Images
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      style={{ display: 'none' }}
-                      disabled={uploadingImages}
-                    />
-                  </label>
-                  <span className="upload-status">
-                    {uploadingImages ? 'Uploading...' : `${property.images.length} images`}
-                  </span>
+              <h3>Monthly Rent</h3>
+              <div className="pricing-section">
+                <div className="selected-type-display">
+                  <h4>{currentPropertyType?.label}</h4>
+                  <p>{currentPropertyType?.description}</p>
+                  <p className="note">Enter the base monthly rent amount</p>
                 </div>
-
-                {property.images.length > 0 ? (
-                  <div className="images-preview">
-                    {property.images.map((image, index) => (
-                      <div key={index} className="image-preview-item">
-                        <img src={image} alt={`Property ${index + 1}`} />
-                        <div className="image-controls">
-                          <button 
-                            onClick={() => moveImage(index, -1)}
-                            disabled={index === 0}
-                          >
-                            <FaChevronUp />
-                          </button>
-                          <button 
-                            onClick={() => moveImage(index, 1)}
-                            disabled={index === property.images.length - 1}
-                          >
-                            <FaChevronDown />
-                          </button>
-                          <button 
-                            onClick={() => removeImage(index)}
-                            className="btn-remove"
-                          >
-                            <FaTrash />
-                          </button>
-                          <span className="image-index">{index + 1}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="image-upload-area" onClick={() => document.querySelector('input[type="file"]')?.click()}>
-                    <div className="upload-icon">📷</div>
-                    <div className="upload-text">
-                      Upload Images <span className="image-count">{property.images.length} images</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Section 4: Advanced Settings */}
-            <div className="form-section">
-              <h2><FaChartLine /> Advanced Settings</h2>
-              
-              <div className="advanced-settings-section">
-                <div className="financial-settings-grid">
-                  <div className="financial-settings-group">
-                    <label className="financial-label">
-                      Property Tax
-                      <span>(Annual)</span>
-                    </label>
-                    <div className="financial-input-wrapper property-tax">
-                      <input
-                        type="number"
-                        name="propertyTax"
-                        value={property.propertyTax}
-                        onChange={handleChange}
-                        min="0"
-                        className="financial-input"
-                        placeholder="0"
-                      />
-                      <span className="frequency-indicator">Annual</span>
-                    </div>
-                  </div>
-
-                  <div className="financial-settings-group">
-                    <label className="financial-label">
-                      Insurance
-                      <span>(Annual)</span>
-                    </label>
-                    <div className="financial-input-wrapper insurance">
-                      <input
-                        type="number"
-                        name="insurance"
-                        value={property.insurance}
-                        onChange={handleChange}
-                        min="0"
-                        className="financial-input"
-                        placeholder="0"
-                      />
-                      <span className="frequency-indicator">Annual</span>
-                    </div>
-                  </div>
-
-                  <div className="financial-settings-group">
-                    <label className="financial-label">
-                      Maintenance Cost
-                      <span>(Monthly)</span>
-                    </label>
-                    <div className="financial-input-wrapper maintenance">
-                      <input
-                        type="number"
-                        name="maintenanceCost"
-                        value={property.maintenanceCost}
-                        onChange={handleChange}
-                        min="0"
-                        className="financial-input"
-                        placeholder="0"
-                      />
-                      <span className="frequency-indicator">Monthly</span>
-                    </div>
-                  </div>
-
-                  <div className="financial-settings-group">
-                    <label className="financial-label">
-                      HOA Fees
-                      <span>(Monthly)</span>
-                    </label>
-                    <div className="financial-input-wrapper hoa">
-                      <input
-                        type="number"
-                        name="hoaFees"
-                        value={property.hoaFees}
-                        onChange={handleChange}
-                        min="0"
-                        className="financial-input"
-                        placeholder="0"
-                      />
-                      <span className="frequency-indicator">Monthly</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="advanced-notes-section">
-                  <h4>Additional Notes</h4>
-                  <textarea
-                    name="notes"
-                    value={property.notes}
+                
+                <div className="form-group">
+                  <label className="required">Monthly Rent Amount (KSh)</label>
+                  <input
+                    type="number"
+                    name="rentAmount"
+                    value={form.rentAmount}
                     onChange={handleChange}
-                    className="advanced-notes-textarea"
-                    rows="4"
-                    placeholder="Maintenance notes, special instructions, legal notes..."
+                    placeholder={form.propertyType === 'commercial' ? "e.g., 50,000" : "e.g., 15,000"}
+                    required
+                    disabled={saving}
                   />
-                  <div className="notes-help-text">
-                    Add any special instructions, maintenance notes, or legal requirements here.
+                  <div className="price-summary">
+                    <p><strong>Total Monthly Potential:</strong> KSh {(form.rentAmount || 0) * form.units}</p>
+                    <p className="note">{form.units} unit(s) × KSh {form.rentAmount || 0}</p>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* FEES AND DEPOSITS SECTION - MATCHING AddProperty.jsx */}
+          <div className="form-section">
+            <h3>Fees & Deposits</h3>
+            <p className="form-subtitle">Update application fees, deposits, and other charges</p>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Application Fee (KSh)</label>
+                <input
+                  type="number"
+                  name="applicationFee"
+                  value={form.applicationFee}
+                  onChange={handleChange}
+                  placeholder="e.g., 1,000"
+                  disabled={saving}
+                />
+                <small className="form-hint">One-time non-refundable fee</small>
+              </div>
+              
+              <div className="form-group">
+                <label>Security Deposit (KSh)</label>
+                <input
+                  type="number"
+                  name="securityDeposit"
+                  value={form.securityDeposit}
+                  onChange={handleChange}
+                  placeholder="e.g., 15,000"
+                  disabled={saving}
+                />
+                <small className="form-hint">Refundable deposit (usually 1-2 months rent)</small>
+              </div>
+            </div>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Pet Deposit (KSh)</label>
+                <input
+                  type="number"
+                  name="petDeposit"
+                  value={form.petDeposit}
+                  onChange={handleChange}
+                  placeholder="e.g., 5,000"
+                  disabled={saving}
+                />
+                <small className="form-hint">If pets are allowed</small>
+              </div>
+              
+              <div className="form-group">
+                <label>Late Payment Fee (KSh)</label>
+                <input
+                  type="number"
+                  name="latePaymentFee"
+                  value={form.latePaymentFee}
+                  onChange={handleChange}
+                  placeholder="e.g., 500"
+                  disabled={saving}
+                />
+                <small className="form-hint">Per day late fee</small>
+              </div>
+            </div>
+            
+            <div className="form-group">
+              <label>Other Fees (Description)</label>
+              <textarea
+                name="otherFees"
+                value={form.otherFees}
+                onChange={handleChange}
+                placeholder="Describe any other fees or charges..."
+                rows="2"
+                disabled={saving}
+              />
+              <small className="form-hint">Parking fees, storage, etc.</small>
+            </div>
+            
+            {/* Lease Terms */}
+            <div className="form-row">
+              <div className="form-group">
+                <label>Standard Lease Term (Months)</label>
+                <select
+                  name="leaseTerm"
+                  value={form.leaseTerm}
+                  onChange={handleChange}
+                  disabled={saving}
+                >
+                  <option value="6">6 Months</option>
+                  <option value="12">12 Months</option>
+                  <option value="24">24 Months</option>
+                  <option value="36">36 Months</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Notice Period (Days)</label>
+                <select
+                  name="noticePeriod"
+                  value={form.noticePeriod}
+                  onChange={handleChange}
+                  disabled={saving}
+                >
+                  <option value="30">30 Days</option>
+                  <option value="60">60 Days</option>
+                  <option value="90">90 Days</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Fee Inclusions */}
+            <div className="form-group">
+              <label className="fee-inclusion-label">What's Included in Rent?</label>
+              <div className="fee-inclusions-grid">
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesWater"
+                    checked={form.feeDetails.includesWater}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesWater: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesWater">Water Bill</label>
+                </div>
+                
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesElectricity"
+                    checked={form.feeDetails.includesElectricity}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesElectricity: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesElectricity">Electricity</label>
+                </div>
+                
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesInternet"
+                    checked={form.feeDetails.includesInternet}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesInternet: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesInternet">Internet</label>
+                </div>
+                
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesMaintenance"
+                    checked={form.feeDetails.includesMaintenance}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesMaintenance: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesMaintenance">Maintenance</label>
                 </div>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Save Button (Bottom) */}
-        <div className="form-actions">
-          <button 
-            className="btn-cancel"
-            onClick={handleCancel}
-            disabled={saving}
-          >
-            <FaTimes /> Cancel
-          </button>
-          <button 
-            className="btn-save"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <div className="spinner-small"></div> Saving Changes...
-              </>
+          
+          {/* AMENITIES SECTION */}
+          <div className="form-section">
+            <h3>Amenities & Features</h3>
+            <div className="amenities-grid">
+              {amenitiesOptions.map((amenity) => (
+                <div
+                  key={amenity.id}
+                  className={`amenity-checkbox ${form.amenities.includes(amenity.id) ? 'selected' : ''}`}
+                  onClick={() => toggleAmenity(amenity.id)}
+                >
+                  <div className="amenity-icon">{amenity.icon}</div>
+                  <span className="amenity-label">{amenity.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={form.amenities.includes(amenity.id)}
+                    onChange={() => {}}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Basic Property Info */}
+          <div className="form-section">
+            <h3>Property Information</h3>
+            
+            <div className="form-group">
+              <label className="required">Property Name</label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                placeholder="e.g., Greenview Apartments"
+                required
+                disabled={saving}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label className="required">Address</label>
+              <input
+                name="address"
+                value={form.address}
+                onChange={handleChange}
+                placeholder="Full physical address"
+                required
+                disabled={saving}
+              />
+            </div>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label className="required">City</label>
+                <input
+                  name="city"
+                  value={form.city}
+                  onChange={handleChange}
+                  placeholder="e.g., Nairobi"
+                  required
+                  disabled={saving}
+                />
+              </div>
+              
+              <div className="form-group">
+                <label className="required">Country</label>
+                <select
+                  name="country"
+                  value={form.country}
+                  onChange={handleChange}
+                  required
+                  disabled={saving}
+                >
+                  <option value="Kenya">Kenya</option>
+                  <option value="Uganda">Uganda</option>
+                  <option value="Tanzania">Tanzania</option>
+                  <option value="Rwanda">Rwanda</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Professional Bedrooms/Bathrooms Section */}
+            {currentPropertyType?.hasBedrooms ? (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Bedrooms</label>
+                  <select
+                    name="bedrooms"
+                    value={form.bedrooms}
+                    onChange={handleChange}
+                    disabled={saving}
+                  >
+                    {[1, 2, 3, 4, 5, 6].map(num => (
+                      <option key={num} value={num}>{num} {num === 1 ? 'Bedroom' : 'Bedrooms'}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label>Bathrooms</label>
+                  <select
+                    name="bathrooms"
+                    value={form.bathrooms}
+                    onChange={handleChange}
+                    disabled={saving}
+                  >
+                    {[1, 2, 3, 4].map(num => (
+                      <option key={num} value={num}>{num} {num === 1 ? 'Bathroom' : 'Bathrooms'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             ) : (
-              <>
-                <FaSave /> Save All Changes
-              </>
+              <div className="property-specs-section">
+                <h4>Property Specifications</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Property Size (sq ft)</label>
+                    <input
+                      type="number"
+                      name="size"
+                      value={form.size}
+                      onChange={handleChange}
+                      placeholder="Total area in square feet"
+                      disabled={saving}
+                    />
+                    <small className="form-hint">Total property area</small>
+                  </div>
+                  
+                  {form.propertyType === 'commercial' && (
+                    <div className="form-group">
+                      <label>Commercial Type</label>
+                      <select
+                        name="commercialType"
+                        value={form.commercialType || ""}
+                        onChange={handleChange}
+                        disabled={saving}
+                      >
+                        <option value="">Select type</option>
+                        <option value="office">Office Space</option>
+                        <option value="retail">Retail Shop</option>
+                        <option value="warehouse">Warehouse</option>
+                        <option value="industrial">Industrial</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
-          </button>
-        </div>
+            
+            {/* Size input for all property types */}
+            {currentPropertyType?.hasBedrooms && (
+              <div className="form-group">
+                <label>Size (sq ft)</label>
+                <input
+                  type="number"
+                  name="size"
+                  value={form.size}
+                  onChange={handleChange}
+                  placeholder="Total area in square feet"
+                  disabled={saving}
+                />
+                <small className="form-hint">Total property area</small>
+              </div>
+            )}
+            
+            {/* UNITS INPUT */}
+            <div className="form-group">
+              <label className="required">Number of Units</label>
+              <div className="units-input-container">
+                <input
+                  type="number"
+                  name="units"
+                  value={form.units}
+                  onChange={handleChange}
+                  min="1"
+                  max="500"
+                  required
+                  disabled={saving}
+                  className="units-input"
+                />
+                <span className="units-label">units</span>
+              </div>
+              <small className="form-hint">
+                {form.units} unit(s) in this property
+              </small>
+            </div>
+            
+            <div className="form-group">
+              <label>Description</label>
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder={`Describe the ${form.propertyType === 'commercial' ? 'commercial space' : 'property'} features, location, access routes...`}
+                rows="4"
+                disabled={saving}
+              />
+            </div>
+          </div>
+          
+          {/* Status Section */}
+          <div className="form-section">
+            <h3>Property Status</h3>
+            <div className="form-group">
+              <label>Current Status</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                disabled={saving}
+                className="status-select"
+              >
+                <option value="available">Available</option>
+                <option value="leased">Leased</option>
+                <option value="vacant">Vacant</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="form-actions">
+            <button 
+              type="button" 
+              className="cancel-button" 
+              onClick={handleCancel}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="submit-button"
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Updating Property...
+                </>
+              ) : `Update ${currentPropertyType?.label}`}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

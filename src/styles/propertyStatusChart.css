@@ -1,3 +1,5 @@
+/* src/styles/propertyStatusChart.css */
+
 .property-status-card {
   background: white;
   border-radius: 12px;
@@ -6,11 +8,46 @@
   height: 100%;
 }
 
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 .status-title {
   font-size: 18px;
   font-weight: 600;
   color: #333;
-  margin-bottom: 20px;
+  margin: 0;
+}
+
+.refresh-button {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6c757d;
+  transition: all 0.2s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.refresh-button:hover {
+  background: #e9ecef;
+  color: #495057;
+  transform: rotate(90deg);
+  border-color: #adb5bd;
+}
+
+.refresh-button:active {
+  transform: rotate(180deg);
 }
 
 .status-content {
@@ -46,6 +83,7 @@
 .center-label {
   font-size: 12px;
   color: #6c757d;
+  margin-top: 2px;
 }
 
 .status-legend {
@@ -71,15 +109,104 @@
 .legend-text {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .legend-label {
   font-size: 14px;
   font-weight: 500;
   color: #333;
+  margin-bottom: 2px;
 }
 
 .legend-value {
   font-size: 12px;
   color: #6c757d;
+}
+
+.legend-percentage {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Loading state */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 200px;
+  width: 100%;
+}
+
+.spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #f3f4f6;
+  border-top-color: #4361ee;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-state span {
+  font-size: 14px;
+  color: #6c757d;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 200px;
+  width: 100%;
+  text-align: center;
+}
+
+.empty-state p {
+  color: #6c757d;
+  font-size: 14px;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .status-content {
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+  
+  .chart-container {
+    margin: 0 auto;
+  }
+  
+  .legend-item {
+    justify-content: space-between;
+  }
+  
+  .legend-text {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+  
+  .legend-label {
+    margin-bottom: 0;
+  }
 }

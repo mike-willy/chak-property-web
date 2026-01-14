@@ -806,7 +806,97 @@
   color: var(--properties-secondary);
   margin-bottom: 1.5rem;
 }
+/* Fee Information Styles */
+.properties-fees-info {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border-radius: var(--properties-radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--properties-success);
+}
 
+.properties-fee-icon {
+  margin-right: 6px;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.properties-fee-amount {
+  font-weight: 700;
+  color: var(--properties-success) !important;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+
+/* Included Information Styles */
+.properties-included-info {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-radius: var(--properties-radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--properties-info);
+}
+
+.properties-included-label {
+  font-weight: 600;
+  color: var(--properties-info) !important;
+  margin-bottom: 8px !important;
+  display: block;
+  font-size: 0.875rem;
+}
+
+.properties-included-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.properties-included-item {
+  padding: 6px 10px;
+  background: white;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  color: var(--properties-info);
+  border: 1px solid #bae6fd;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.properties-included-icon {
+  font-size: 0.75rem;
+}
+
+.properties-included-none {
+  color: var(--properties-secondary) !important;
+  border-color: var(--properties-border) !important;
+  background: var(--properties-light) !important;
+}
+
+/* Late Payment Info */
+.properties-late-payment-info {
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border-radius: var(--properties-radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--properties-danger);
+}
+
+.properties-fee-warning {
+  color: var(--properties-danger) !important;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.properties-grace-period {
+  font-size: 0.7rem;
+  color: var(--properties-secondary) !important;
+  font-weight: normal;
+  margin-top: 2px;
+  font-style: italic;
+}
 /* Responsive Design - UPDATED FOR BETTER LAYOUT */
 @media (max-width: 1024px) {
   .properties-grid {

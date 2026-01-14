@@ -95,7 +95,22 @@ const AddProperty = () => {
       twoBedroom: "",
       threeBedroom: ""
     },
-    // NEW: Unit tracking fields
+    // NEW: Application and fee-related fields
+    applicationFee: "",
+    securityDeposit: "",
+    petDeposit: "",
+    otherFees: "",
+    leaseTerm: 12, // Default 12 months
+    noticePeriod: 30, // Default 30 days
+    latePaymentFee: "",
+    gracePeriod: 5, // Default 5 days
+    feeDetails: {
+      includesWater: false,
+      includesElectricity: false,
+      includesInternet: false,
+      includesMaintenance: false
+    },
+    // Unit tracking fields
     unitDetails: {
       totalUnits: 1,
       vacantCount: 1,
@@ -396,7 +411,18 @@ const AddProperty = () => {
         landlordId: form.landlordId,
         landlordName: form.landlordName,
         
-        // Unit details (NEW)
+        // NEW: Application and fee-related fields
+        applicationFee: Number(form.applicationFee) || 0,
+        securityDeposit: Number(form.securityDeposit) || 0,
+        petDeposit: Number(form.petDeposit) || 0,
+        otherFees: form.otherFees || "",
+        leaseTerm: Number(form.leaseTerm),
+        noticePeriod: Number(form.noticePeriod),
+        latePaymentFee: Number(form.latePaymentFee) || 0,
+        gracePeriod: Number(form.gracePeriod),
+        feeDetails: form.feeDetails,
+        
+        // Unit details
         unitDetails: {
           totalUnits: Number(form.units),
           vacantCount: Number(form.units),
@@ -685,6 +711,183 @@ const AddProperty = () => {
               </div>
             </div>
           )}
+          
+          {/* FEES AND DEPOSITS SECTION - NEW */}
+          <div className="form-section">
+            <h3>Fees & Deposits</h3>
+            <p className="form-subtitle">Set application fees, deposits, and other charges</p>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Application Fee (KSh)</label>
+                <input
+                  type="number"
+                  name="applicationFee"
+                  value={form.applicationFee}
+                  onChange={handleChange}
+                  placeholder="e.g., 1,000"
+                  disabled={loading}
+                />
+                <small className="form-hint">One-time non-refundable fee</small>
+              </div>
+              
+              <div className="form-group">
+                <label>Security Deposit (KSh)</label>
+                <input
+                  type="number"
+                  name="securityDeposit"
+                  value={form.securityDeposit}
+                  onChange={handleChange}
+                  placeholder="e.g., 15,000"
+                  disabled={loading}
+                />
+                <small className="form-hint">Refundable deposit (usually 1-2 months rent)</small>
+              </div>
+            </div>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Pet Deposit (KSh)</label>
+                <input
+                  type="number"
+                  name="petDeposit"
+                  value={form.petDeposit}
+                  onChange={handleChange}
+                  placeholder="e.g., 5,000"
+                  disabled={loading}
+                />
+                <small className="form-hint">If pets are allowed</small>
+              </div>
+              
+              <div className="form-group">
+                <label>Late Payment Fee (KSh)</label>
+                <input
+                  type="number"
+                  name="latePaymentFee"
+                  value={form.latePaymentFee}
+                  onChange={handleChange}
+                  placeholder="e.g., 500"
+                  disabled={loading}
+                />
+                <small className="form-hint">Per day late fee</small>
+              </div>
+            </div>
+            
+            <div className="form-group">
+              <label>Other Fees (Description)</label>
+              <textarea
+                name="otherFees"
+                value={form.otherFees}
+                onChange={handleChange}
+                placeholder="Describe any other fees or charges..."
+                rows="2"
+                disabled={loading}
+              />
+              <small className="form-hint">Parking fees, storage, etc.</small>
+            </div>
+            
+            {/* Lease Terms */}
+            <div className="form-row">
+              <div className="form-group">
+                <label>Standard Lease Term (Months)</label>
+                <select
+                  name="leaseTerm"
+                  value={form.leaseTerm}
+                  onChange={handleChange}
+                  disabled={loading}
+                >
+                  <option value="6">6 Months</option>
+                  <option value="12">12 Months</option>
+                  <option value="24">24 Months</option>
+                  <option value="36">36 Months</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Notice Period (Days)</label>
+                <select
+                  name="noticePeriod"
+                  value={form.noticePeriod}
+                  onChange={handleChange}
+                  disabled={loading}
+                >
+                  <option value="30">30 Days</option>
+                  <option value="60">60 Days</option>
+                  <option value="90">90 Days</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Fee Inclusions */}
+            <div className="form-group">
+              <label className="fee-inclusion-label">What's Included in Rent?</label>
+              <div className="fee-inclusions-grid">
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesWater"
+                    checked={form.feeDetails.includesWater}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesWater: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesWater">Water Bill</label>
+                </div>
+                
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesElectricity"
+                    checked={form.feeDetails.includesElectricity}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesElectricity: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesElectricity">Electricity</label>
+                </div>
+                
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesInternet"
+                    checked={form.feeDetails.includesInternet}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesInternet: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesInternet">Internet</label>
+                </div>
+                
+                <div className="fee-inclusion-checkbox">
+                  <input
+                    type="checkbox"
+                    id="includesMaintenance"
+                    checked={form.feeDetails.includesMaintenance}
+                    onChange={(e) => setForm({
+                      ...form,
+                      feeDetails: {
+                        ...form.feeDetails,
+                        includesMaintenance: e.target.checked
+                      }
+                    })}
+                  />
+                  <label htmlFor="includesMaintenance">Maintenance</label>
+                </div>
+              </div>
+            </div>
+          </div>
           
           {/* AMENITIES SECTION */}
           <div className="form-section">
