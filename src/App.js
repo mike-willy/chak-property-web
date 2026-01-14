@@ -11,6 +11,7 @@ import AddProperty from "./pages/AddProperty";
 import Tenants from "./pages/Tenants";
 import Landlords from "./pages/Landlords";
 import AddLandlord from "./pages/AddLandlord"; // Add this import
+import Messages from "./pages/Messages"; // Add Messages import
 import Maintenance from "./pages/Maintenance";
 import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
@@ -41,9 +42,9 @@ function App() {
       <Route
         path="/properties/add"
         element={
-         <AdminRoute>
-           <AddProperty />
-         </AdminRoute>
+          <AdminRoute>
+            <AddProperty />
+          </AdminRoute>
         }
       />
 
@@ -74,9 +75,9 @@ function App() {
         path="/tenants/add"
         element={
           <AdminRoute>
-           <AddTenant />
+            <AddTenant />
           </AdminRoute>
-        } 
+        }
       />
 
       <Route
@@ -88,12 +89,21 @@ function App() {
         }
       />
 
-      {/* Add this new route */}
       <Route
         path="/landlords/add"
         element={
           <AdminRoute>
             <AddLandlord />
+          </AdminRoute>
+        }
+      />
+
+      {/* Messages Route */}
+      <Route
+        path="/messages"
+        element={
+          <AdminRoute>
+            <Messages />
           </AdminRoute>
         }
       />

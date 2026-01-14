@@ -56,31 +56,33 @@ const MessageModal = ({ isOpen, onClose }) => {
       } else if (messageType === 'tenant') {
         console.log("📋 Fetching tenants...");
         
-        // Fetch from TENANTS collection (CHANGED FROM 'users' to 'tenants')
-        const tenantsRef = collection(db, 'tenants');
-        const querySnapshot = await getDocs(tenantsRef);
+        // Fetch from USERS collection (MATCHING MOBILE APP)
+        const usersRef = collection(db, 'users');
+        const querySnapshot = await getDocs(usersRef);
         
-        console.log(`✅ Found ${querySnapshot.size} tenants`);
+        console.log(`✅ Found ${querySnapshot.size} users`);
         
         recipientsList = querySnapshot.docs.map(doc => {
           const data = doc.data();
+          // Mobile app uses 'firstName' and 'lastName', or just display whatever is available
+          const fullName = data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || "Unnamed User";
           
           return {
             id: doc.id,
-            name: data.fullName || "Unnamed Tenant", // Changed from data.name to data.fullName
+            name: fullName,
             email: data.email || "",
-            phone: data.phone || "",
-            type: "tenant",
-            status: data.status || "active",
-            propertyId: data.propertyId || "",
-            unitId: data.unitId || "",
+            phone: data.phoneNumber || data.phone || "", // Mobile often uses phoneNumber
+            type: "tenant", // Treating all users as potential tenants/viewers for now
+            role: data.role || "user",
             ...data
           };
         });
         
-        // Optional: Filter only active tenants
-        // recipientsList = recipientsList.filter(tenant => tenant.status === "active");
-        console.log("📊 Active tenants:", recipientsList.filter(t => t.status === "active").length);
+        // Filter? The prompt implies "Tenants". If your users collection mixes roles, filter here.
+        // For now, assuming all 'users' are candidates for messages (Tenants).
+        // recipientsList = recipientsList.filter(u => u.role === 'tenant'); 
+        
+        console.log("📊 Users found:", recipientsList.length);
       }
       
       console.log("📊 Recipients list:", recipientsList);
@@ -117,7 +119,7 @@ const MessageModal = ({ isOpen, onClose }) => {
       
       const messageData = {
         recipientId: selectedRecipient,
-        recipientType: messageType,
+        recipientType: messageType, // 'tenant' (actually user) or 'landlord'
         recipientName: selectedRecipientData?.name || "Unknown",
         recipientEmail: selectedRecipientData?.email || "",
         recipientPhone: selectedRecipientData?.phone || "",
@@ -136,7 +138,7 @@ const MessageModal = ({ isOpen, onClose }) => {
       const messageRef = await addDoc(collection(db, 'messages'), messageData);
       console.log("✅ Message saved to global collection:", messageRef.id);
 
-      // 2. Also save to tenant's messages subcollection
+      // 2. Also save to recipient's messages subcollection
       if (messageType === 'landlord') {
         // Save to landlord's messages subcollection
         await addDoc(
@@ -149,16 +151,17 @@ const MessageModal = ({ isOpen, onClose }) => {
         );
         console.log("✅ Message saved to landlord's subcollection");
       } else {
-        // Save to TENANT's messages subcollection (CHANGED from 'users' to 'tenants')
+        // Save to USER'S messages subcollection (MATCHING MOBILE APP)
+        // messageType is 'tenant', but collection is 'users'
         await addDoc(
-          collection(db, 'tenants', selectedRecipient, 'messages'),
+          collection(db, 'users', selectedRecipient, 'messages'),
           {
             ...messageData,
             messageId: messageRef.id,
             receivedAt: serverTimestamp()
           }
         );
-        console.log("✅ Message saved to tenant's subcollection");
+        console.log("✅ Message saved to user's subcollection");
       }
 
       alert('✅ Message sent successfully!');

@@ -10,6 +10,7 @@ import {
   FaLifeRing,
   FaCamera,
   FaClipboardList,
+  FaEnvelope,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db, storage } from "../pages/firebase/firebase";
@@ -148,6 +149,7 @@ const Sidebar = () => {
       badge: pendingApplicationsCount,
     },
     { icon: <FaUserTie />, label: "Landlords", path: "/landlords" },
+    { icon: <FaEnvelope />, label: "Messages", path: "/messages" },
     { 
       icon: <FaTools />, 
       label: "Maintenance", 
