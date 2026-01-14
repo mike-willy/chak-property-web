@@ -9,10 +9,12 @@ import {
   where,
   Timestamp
 } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 import { FaUser, FaHome, FaPhone, FaEnvelope, FaCheck, FaTimes, FaEye } from "react-icons/fa";
 import "../styles/applications.css";
 
 const Applications = () => {
+  const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState(null);
@@ -50,20 +52,30 @@ const Applications = () => {
     }
   };
 
-  // Approve an application
+  // Approve an application and redirect to AddTenant with prefill data
   const approveApplication = async (application) => {
     try {
-      // Update application status
-      await updateDoc(doc(db, "tenantApplications", application.id), {
-        status: "approved",
-        reviewedBy: "admin", // You'll replace with actual admin ID
-        reviewedAt: Timestamp.now()
-      });
+      // Store application data for prefill in AddTenant
+      const prefillData = {
+        fullName: application.fullName,
+        email: application.email,
+        phone: application.phone,
+        idNumber: application.idNumber || "",
+        propertyId: application.propertyId,
+        unitId: application.unitId,
+        monthlyRent: application.monthlyRent || "",
+        securityDeposit: application.securityDeposit || application.monthlyRent || "",
+        emergencyContactName: application.emergencyContactName || "",
+        emergencyContactPhone: application.emergencyContactPhone || "",
+        applicationId: application.id, // Keep reference to original application
+        appliedDate: application.appliedDate
+      };
 
-      // Remove from list
-      setApplications(prev => prev.filter(app => app.id !== application.id));
+      // Save to localStorage (as backup) and navigate
+      localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
       
-      alert(`Application approved! Now you can add ${application.fullName} as a tenant.`);
+      // Navigate to AddTenant page with prefill data
+      navigate('/tenants/add', { state: { prefillData } });
       
     } catch (error) {
       console.error("Error approving application:", error);
@@ -205,6 +217,12 @@ const Applications = () => {
                 {selectedApp.idNumber && (
                   <p><strong>ID Number:</strong> {selectedApp.idNumber}</p>
                 )}
+                {selectedApp.emergencyContactName && (
+                  <p><strong>Emergency Contact:</strong> {selectedApp.emergencyContactName}</p>
+                )}
+                {selectedApp.emergencyContactPhone && (
+                  <p><strong>Emergency Phone:</strong> {selectedApp.emergencyContactPhone}</p>
+                )}
               </div>
               
               <div className="app-detail-section">
@@ -213,6 +231,9 @@ const Applications = () => {
                 <p><strong>Unit ID:</strong> {selectedApp.unitId}</p>
                 {selectedApp.monthlyRent && (
                   <p><strong>Monthly Rent:</strong> KSh {selectedApp.monthlyRent.toLocaleString()}</p>
+                )}
+                {selectedApp.securityDeposit && (
+                  <p><strong>Security Deposit:</strong> KSh {selectedApp.securityDeposit.toLocaleString()}</p>
                 )}
               </div>
               
@@ -226,13 +247,34 @@ const Applications = () => {
             </div>
             
             <div className="app-modal-footer">
-              <button className="app-btn-secondary" onClick={() => setSelectedApp(null)}>
+              <button 
+                className="app-btn-secondary" 
+                onClick={() => setSelectedApp(null)}
+              >
                 Close
               </button>
               <button 
                 className="app-btn-primary"
                 onClick={() => {
-                  approveApplication(selectedApp);
+                  // Prepare prefill data for AddTenant
+                  const prefillData = {
+                    fullName: selectedApp.fullName,
+                    email: selectedApp.email,
+                    phone: selectedApp.phone,
+                    idNumber: selectedApp.idNumber || "",
+                    propertyId: selectedApp.propertyId,
+                    unitId: selectedApp.unitId,
+                    monthlyRent: selectedApp.monthlyRent || "",
+                    securityDeposit: selectedApp.securityDeposit || selectedApp.monthlyRent || "",
+                    emergencyContactName: selectedApp.emergencyContactName || "",
+                    emergencyContactPhone: selectedApp.emergencyContactPhone || "",
+                    applicationId: selectedApp.id,
+                    appliedDate: selectedApp.appliedDate
+                  };
+                  
+                  // Save to localStorage (as backup) and navigate
+                  localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
+                  navigate('/tenants/add', { state: { prefillData } });
                   setSelectedApp(null);
                 }}
               >

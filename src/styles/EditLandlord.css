@@ -1,0 +1,542 @@
+/* src/styles/EditLandlord.css - COMPLETELY REDESIGNED */
+:root {
+  --edit-landlord-primary: #4f46e5;
+  --edit-landlord-primary-hover: #4338ca;
+  --edit-landlord-secondary: #6b7280;
+  --edit-landlord-secondary-hover: #4b5563;
+  --edit-landlord-danger: #ef4444;
+  --edit-landlord-success: #10b981;
+  --edit-landlord-light: #f9fafb;
+  --edit-landlord-dark: #111827;
+  --edit-landlord-border: #d1d5db;
+  --edit-landlord-border-light: #e5e7eb;
+  --edit-landlord-bg: #ffffff;
+  --edit-landlord-card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --edit-landlord-card-shadow-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --edit-landlord-radius: 0.75rem;
+  --edit-landlord-radius-sm: 0.5rem;
+  --edit-landlord-spacing-xs: 0.5rem;
+  --edit-landlord-spacing-sm: 0.75rem;
+  --edit-landlord-spacing-md: 1rem;
+  --edit-landlord-spacing-lg: 1.5rem;
+  --edit-landlord-spacing-xl: 2rem;
+  --edit-landlord-spacing-2xl: 3rem;
+}
+
+/* Reset and Base Styles */
+.edit-landlord-container * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.edit-landlord-container {
+  padding: var(--edit-landlord-spacing-xl);
+  max-width: 56rem; /* 896px */
+  margin: 0 auto;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+}
+
+/* Header Section - Clean and Professional */
+.edit-landlord-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--edit-landlord-spacing-2xl);
+  padding-bottom: var(--edit-landlord-spacing-lg);
+  border-bottom: 2px solid var(--edit-landlord-border-light);
+  background: var(--edit-landlord-bg);
+  padding: var(--edit-landlord-spacing-lg);
+  border-radius: var(--edit-landlord-radius);
+  box-shadow: var(--edit-landlord-card-shadow);
+}
+
+.edit-landlord-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--edit-landlord-spacing-sm);
+  padding: var(--edit-landlord-spacing-sm) var(--edit-landlord-spacing-lg);
+  background: var(--edit-landlord-secondary);
+  color: white;
+  border: none;
+  border-radius: var(--edit-landlord-radius-sm);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.edit-landlord-back-btn:hover {
+  background: var(--edit-landlord-secondary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+}
+
+.edit-landlord-title {
+  font-size: 1.875rem; /* 30px */
+  font-weight: 700;
+  color: var(--edit-landlord-dark);
+  text-align: center;
+  flex-grow: 1;
+  letter-spacing: -0.025em;
+}
+
+.edit-landlord-id-display {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--edit-landlord-spacing-xs);
+  font-size: 0.75rem;
+  color: var(--edit-landlord-secondary);
+  background: var(--edit-landlord-light);
+  padding: var(--edit-landlord-spacing-xs) var(--edit-landlord-spacing-md);
+  border-radius: 9999px;
+  border: 1px solid var(--edit-landlord-border);
+  font-weight: 500;
+}
+
+.edit-landlord-id-display code {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-weight: 600;
+  color: var(--edit-landlord-primary);
+}
+
+/* Main Card - Clean White Background */
+.edit-landlord-card {
+  background: var(--edit-landlord-bg);
+  border-radius: var(--edit-landlord-radius);
+  padding: var(--edit-landlord-spacing-2xl);
+  box-shadow: var(--edit-landlord-card-shadow-hover);
+  border: 1px solid var(--edit-landlord-border-light);
+}
+
+/* Status Messages */
+.edit-landlord-success-message,
+.edit-landlord-error-message {
+  padding: var(--edit-landlord-spacing-lg);
+  border-radius: var(--edit-landlord-radius-sm);
+  margin-bottom: var(--edit-landlord-spacing-xl);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.edit-landlord-success-message {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.edit-landlord-error-message {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.edit-landlord-success-icon,
+.edit-landlord-error-icon {
+  display: inline-block;
+  margin-right: var(--edit-landlord-spacing-sm);
+  font-size: 1rem;
+}
+
+.edit-landlord-success-content,
+.edit-landlord-error-content {
+  display: inline-block;
+  white-space: pre-line;
+}
+
+/* Form Structure - Clean Grid Layout */
+.edit-landlord-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--edit-landlord-spacing-2xl);
+}
+
+.edit-landlord-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--edit-landlord-spacing-xl);
+  padding-bottom: var(--edit-landlord-spacing-2xl);
+  border-bottom: 1px solid var(--edit-landlord-border-light);
+}
+
+.edit-landlord-form-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.edit-landlord-section-title {
+  font-size: 1.25rem; /* 20px */
+  font-weight: 600;
+  color: var(--edit-landlord-dark);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--edit-landlord-spacing-sm);
+  padding-bottom: var(--edit-landlord-spacing-sm);
+  border-bottom: 2px solid var(--edit-landlord-primary);
+}
+
+.edit-landlord-section-title svg {
+  color: var(--edit-landlord-primary);
+}
+
+/* Form Grid - Clean 2-column Layout */
+.edit-landlord-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--edit-landlord-spacing-lg);
+  margin: 0;
+}
+
+/* Form Group - Proper Spacing */
+.edit-landlord-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--edit-landlord-spacing-xs);
+  margin: 0;
+}
+
+.edit-landlord-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--edit-landlord-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.edit-landlord-required::after {
+  content: " *";
+  color: var(--edit-landlord-danger);
+}
+
+/* Input Container - Clean and Spacious */
+.edit-landlord-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.edit-landlord-input-icon {
+  position: absolute;
+  left: var(--edit-landlord-spacing-md);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--edit-landlord-secondary);
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.edit-landlord-input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  border: 2px solid var(--edit-landlord-border);
+  border-radius: var(--edit-landlord-radius-sm);
+  font-size: 0.9375rem;
+  color: var(--edit-landlord-dark);
+  background: var(--edit-landlord-bg);
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.edit-landlord-input:hover {
+  border-color: var(--edit-landlord-primary);
+}
+
+.edit-landlord-input:focus {
+  outline: none;
+  border-color: var(--edit-landlord-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.edit-landlord-input:disabled {
+  background: var(--edit-landlord-light);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.edit-landlord-helper-text {
+  font-size: 0.75rem;
+  color: var(--edit-landlord-secondary);
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* Full-width form groups */
+.edit-landlord-form-group-full {
+  grid-column: 1 / -1;
+}
+
+/* Password Section */
+.edit-landlord-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--edit-landlord-spacing-md);
+}
+
+.edit-landlord-toggle-password-btn {
+  padding: 0.625rem 1.25rem;
+  background: var(--edit-landlord-light);
+  color: var(--edit-landlord-primary);
+  border: 2px solid var(--edit-landlord-primary);
+  border-radius: var(--edit-landlord-radius-sm);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.edit-landlord-toggle-password-btn:hover {
+  background: var(--edit-landlord-primary);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.edit-landlord-password-section {
+  background: var(--edit-landlord-light);
+  padding: var(--edit-landlord-spacing-xl);
+  border-radius: var(--edit-landlord-radius);
+  border: 1px solid var(--edit-landlord-border-light);
+  margin-top: var(--edit-landlord-spacing-md);
+}
+
+.edit-landlord-password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.edit-landlord-password-input-wrapper .edit-landlord-input {
+  padding-right: 3rem;
+}
+
+.edit-landlord-password-toggle {
+  position: absolute;
+  right: var(--edit-landlord-spacing-md);
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--edit-landlord-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+  transition: color 0.2s ease;
+  border-radius: 0.25rem;
+}
+
+.edit-landlord-password-toggle:hover {
+  color: var(--edit-landlord-dark);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.edit-landlord-password-note {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  padding: var(--edit-landlord-spacing-md);
+  border-radius: var(--edit-landlord-radius-sm);
+  margin-top: var(--edit-landlord-spacing-lg);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.edit-landlord-password-note p {
+  margin: 0;
+}
+
+/* Form Actions - Clean Button Layout */
+.edit-landlord-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--edit-landlord-spacing-lg);
+  padding-top: var(--edit-landlord-spacing-xl);
+  margin-top: var(--edit-landlord-spacing-lg);
+  border-top: 1px solid var(--edit-landlord-border-light);
+}
+
+.edit-landlord-cancel-btn,
+.edit-landlord-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--edit-landlord-spacing-sm);
+  padding: 0.875rem 1.75rem;
+  border-radius: var(--edit-landlord-radius-sm);
+  border: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 140px;
+}
+
+.edit-landlord-cancel-btn {
+  background: var(--edit-landlord-secondary);
+  color: white;
+}
+
+.edit-landlord-cancel-btn:hover:not(:disabled) {
+  background: var(--edit-landlord-secondary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+}
+
+.edit-landlord-save-btn {
+  background: var(--edit-landlord-primary);
+  color: white;
+}
+
+.edit-landlord-save-btn:hover:not(:disabled) {
+  background: var(--edit-landlord-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.edit-landlord-cancel-btn:disabled,
+.edit-landlord-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Spinner */
+.edit-landlord-spinner-small {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: edit-landlord-spin 1s linear infinite;
+}
+
+/* Loading State */
+.edit-landlord-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: var(--edit-landlord-spacing-lg);
+}
+
+.edit-landlord-loading-spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid var(--edit-landlord-border-light);
+  border-top: 3px solid var(--edit-landlord-primary);
+  border-radius: 50%;
+  animation: edit-landlord-spin 1s linear infinite;
+}
+
+.edit-landlord-loading p {
+  color: var(--edit-landlord-secondary);
+  font-size: 0.875rem;
+}
+
+/* Animations */
+@keyframes edit-landlord-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .edit-landlord-container {
+    padding: var(--edit-landlord-spacing-md);
+  }
+  
+  .edit-landlord-header {
+    flex-direction: column;
+    gap: var(--edit-landlord-spacing-md);
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .edit-landlord-back-btn {
+    align-self: flex-start;
+  }
+  
+  .edit-landlord-title {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+  
+  .edit-landlord-card {
+    padding: var(--edit-landlord-spacing-lg);
+  }
+  
+  .edit-landlord-form-row {
+    grid-template-columns: 1fr;
+    gap: var(--edit-landlord-spacing-md);
+  }
+  
+  .edit-landlord-form-section {
+    gap: var(--edit-landlord-spacing-lg);
+    padding-bottom: var(--edit-landlord-spacing-lg);
+  }
+  
+  .edit-landlord-form-actions {
+    flex-direction: column;
+  }
+  
+  .edit-landlord-cancel-btn,
+  .edit-landlord-save-btn {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .edit-landlord-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--edit-landlord-spacing-md);
+  }
+  
+  .edit-landlord-toggle-password-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .edit-landlord-card {
+    padding: var(--edit-landlord-spacing-md);
+  }
+  
+  .edit-landlord-form {
+    gap: var(--edit-landlord-spacing-lg);
+  }
+  
+  .edit-landlord-input {
+    padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .edit-landlord-input-icon {
+    left: 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .edit-landlord-container {
+    background: white;
+    padding: 0;
+  }
+  
+  .edit-landlord-back-btn,
+  .edit-landlord-toggle-password-btn,
+  .edit-landlord-form-actions {
+    display: none;
+  }
+  
+  .edit-landlord-card {
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+}

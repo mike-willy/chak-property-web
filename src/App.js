@@ -19,6 +19,8 @@ import PropertyUnits from "./pages/PropertyUnits";
 import EditProperty from "./pages/EditProperty";
 import Applications from "./pages/Applications";
 import AddTenant from "./pages/AddTenant";
+import LandlordDetails from "./pages/LandlordDetails";
+import EditLandlord from "./pages/EditLandlord";
 
 function App() {
   return (
@@ -56,8 +58,9 @@ function App() {
       
 <Route path="/property/:id/units" element={<PropertyUnits />} />
 <Route path="/properties/edit/:id" element={<EditProperty />} />
-<Route path="/admin/applications" element={<Applications />} />
-
+<Route path="/applications" element={<Applications />} />
+<Route path="/landlords/:id" element={<LandlordDetails />} />
+<Route path="/landlords/edit/:id" element={<EditLandlord />} />
       <Route
         path="/tenants"
         element={

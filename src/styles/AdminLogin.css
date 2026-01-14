@@ -149,21 +149,25 @@
   font-size: 14px;
   font-weight: 600;
   color: #475569;
-  margin-bottom: 8px;
+  margin-bottom: 10px; /* Increased from 8px for better spacing */
 }
 
 .input-icon {
   color: #3b82f6;
+  width: 16px; /* Fixed width for alignment */
+  text-align: center;
 }
 
 .form-input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 15px 16px; /* Increased from 14px for consistency */
   border: 2px solid #e2e8f0;
   border-radius: 12px;
   font-size: 15px;
   transition: all 0.3s ease;
   background: #f8fafc;
+  height: 50px; /* Fixed height for consistency */
+  box-sizing: border-box; /* Ensure padding doesn't affect width */
 }
 
 .form-input:focus {
@@ -189,12 +193,12 @@
 }
 
 .login-btn {
-  width: 108%;
-  padding: 14px;
+  width: 100%; /* Changed from 108% to 100% */
+  padding: 15px; /* Increased from 14px for consistency */
   background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
   color: white;
   border: none;
-  border-radius: 16px;
+  border-radius: 12px; /* Changed from 16px to match form inputs */
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -203,6 +207,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  height: 50px; /* Same height as form inputs */
+  box-sizing: border-box; /* Ensure consistent sizing */
+  margin-top: 8px; /* Add spacing from last form field */
 }
 
 .login-btn:hover {
@@ -245,6 +252,10 @@
   font-size: 14px;
   font-weight: 500;
   transition: color 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 .forgot-link:hover {
@@ -268,6 +279,106 @@
 
 .security-item svg {
   color: #94a3b8;
+}
+
+/* Password input wrapper */
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-input {
+  padding-right: 45px !important;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.toggle-password-btn:hover {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.toggle-password-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Reset success message */
+.reset-success {
+  text-align: center;
+  padding: 20px 0;
+  margin-bottom: 20px;
+}
+
+.success-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.reset-success h3 {
+  color: #1e293b;
+  margin-bottom: 12px;
+  font-size: 22px;
+}
+
+.reset-success p {
+  color: #64748b;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.reset-instructions {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-top: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+/* Back to login button */
+.back-to-login-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%);
+  color: white;
+  border: none;
+  padding: 15px 24px; /* Consistent with login button */
+  border-radius: 12px; /* Consistent with other buttons */
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: all 0.3s ease;
+  height: 50px; /* Same height as other buttons */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.back-to-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+}
+
+.forgot-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Responsive Design */
@@ -294,5 +405,16 @@
   
   .feature {
     padding: 12px 16px;
+  }
+  
+  .login-btn, 
+  .back-to-login-btn,
+  .form-input {
+    height: 48px; /* Slightly smaller on mobile */
+  }
+  
+  .toggle-password-btn {
+    width: 34px;
+    height: 34px;
   }
 }

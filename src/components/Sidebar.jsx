@@ -9,11 +9,12 @@ import {
   FaCog,
   FaLifeRing,
   FaCamera,
+  FaClipboardList,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db, storage } from "../pages/firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import "../styles/sidebar.css";
 
@@ -22,6 +23,8 @@ const Sidebar = () => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
+  const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0);
   const fileInputRef = useRef(null);
 
   const navigate = useNavigate();
@@ -39,6 +42,14 @@ const Sidebar = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      fetchPendingCounts();
+      const interval = setInterval(fetchPendingCounts, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const fetchUserData = async (userId) => {
     try {
       const userDoc = await getDoc(doc(db, "users", userId));
@@ -47,6 +58,26 @@ const Sidebar = () => {
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
+    }
+  };
+
+  const fetchPendingCounts = async () => {
+    try {
+      const applicationsQuery = query(
+        collection(db, "tenantApplications"),
+        where("status", "==", "pending")
+      );
+      const applicationsSnapshot = await getDocs(applicationsQuery);
+      setPendingApplicationsCount(applicationsSnapshot.size);
+
+      const maintenanceQuery = query(
+        collection(db, "maintenance"),
+        where("status", "==", "pending")
+      );
+      const maintenanceSnapshot = await getDocs(maintenanceQuery);
+      setPendingMaintenanceCount(maintenanceSnapshot.size);
+    } catch (error) {
+      console.error("Error fetching pending counts:", error);
     }
   };
 
@@ -110,8 +141,19 @@ const Sidebar = () => {
     { icon: <FaTachometerAlt />, label: "Dashboard", path: "/dashboard" },
     { icon: <FaHome />, label: "Properties", path: "/properties" },
     { icon: <FaUsers />, label: "Tenants", path: "/tenants" },
+    { 
+      icon: <FaClipboardList />, 
+      label: "Applications", 
+      path: "/applications",
+      badge: pendingApplicationsCount,
+    },
     { icon: <FaUserTie />, label: "Landlords", path: "/landlords" },
-    { icon: <FaTools />, label: "Maintenance", path: "/maintenance" },
+    { 
+      icon: <FaTools />, 
+      label: "Maintenance", 
+      path: "/maintenance",
+      badge: pendingMaintenanceCount,
+    },
     { icon: <FaMoneyBillWave />, label: "Finance", path: "/finance" },
   ];
 
@@ -190,25 +232,37 @@ const Sidebar = () => {
           {menuItems.map((item, index) => (
             <li
               key={index}
-              className={isActive(item.path) ? "active" : ""}
+              className={`sidebar-item ${isActive(item.path) ? "active" : ""}`}
               onClick={() => navigate(item.path)}
             >
-              {item.icon} <span>{item.label}</span>
+              <div className="sidebar-item-content">
+                {item.icon} 
+                <span>{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="sidebar-badge">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </div>
             </li>
           ))}
         </ul>
 
-        {/* SYSTEM (FIXED) */}
+        {/* SYSTEM (FIXED) - UPDATED WITH WRAPPER DIV */}
         <div className="sidebar-system">
           <p className="sidebar-title">SYSTEM</p>
           <ul className="sidebar-bottom">
             {systemItems.map((item, index) => (
               <li
                 key={index}
-                className={isActive(item.path) ? "active" : ""}
+                className={`sidebar-item ${isActive(item.path) ? "active" : ""}`}
                 onClick={() => navigate(item.path)}
               >
-                {item.icon} <span>{item.label}</span>
+                {/* ADDED THIS WRAPPER DIV (SAME AS MENU ITEMS) */}
+                <div className="sidebar-item-content">
+                  {item.icon} 
+                  <span>{item.label}</span>
+                </div>
               </li>
             ))}
           </ul>

@@ -13,25 +13,19 @@
   top: 0;
   overflow: hidden;
   z-index: 101;
-  padding-top: 60px; /* Space for top navbar */
+  padding-top: 70px; /* CHANGED: Match navbar height (70px not 60px) */
 }
 
-/* Divider under navbar */
+/* REMOVE THIS DIVIDER - it creates a gap */
 .sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 1px;
-  height: 60px;
-  background-color: #e5e7eb;
+  display: none; /* REMOVED: This was causing issues */
 }
 
 /* ===============================
-   PROFILE SECTION
+   PROFILE SECTION - REDUCED
 ================================ */
 .sidebar-profile {
-  padding: 20px 16px;
+  padding: 15px 16px; /* REDUCED from 20px */
   border-bottom: 1px solid #e5e7eb;
   background: #f9fafb;
   flex-shrink: 0;
@@ -39,9 +33,9 @@
 
 .profile-avatar-container {
   position: relative;
-  width: 70px;
-  height: 70px;
-  margin: 0 auto 12px;
+  width: 60px; /* REDUCED from 70px */
+  height: 60px; /* REDUCED from 70px */
+  margin: 0 auto 10px; /* REDUCED from 12px */
 }
 
 .profile-avatar {
@@ -69,7 +63,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 20px; /* REDUCED from 22px */
   font-weight: 600;
 }
 
@@ -92,7 +86,7 @@
 }
 
 .upload-overlay svg {
-  font-size: 18px;
+  font-size: 16px; /* REDUCED from 18px */
 }
 
 /* Uploading spinner */
@@ -107,29 +101,29 @@
 }
 
 .uploading-spinner {
-  width: 24px;
-  height: 24px;
+  width: 20px; /* REDUCED from 24px */
+  height: 20px; /* REDUCED from 24px */
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-top-color: white;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
-/* Profile info */
+/* Profile info - REDUCED */
 .profile-info {
   text-align: center;
 }
 
 .profile-name {
-  margin: 0 0 4px;
-  font-size: 16px;
+  margin: 0 0 3px; /* REDUCED from 4px */
+  font-size: 15px; /* REDUCED from 16px */
   font-weight: 600;
   color: #1f2937;
 }
 
 .profile-email {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 6px; /* REDUCED from 8px */
+  font-size: 11px; /* REDUCED from 12px */
   color: #6b7280;
   word-break: break-word;
   line-height: 1.3;
@@ -139,35 +133,40 @@
   display: inline-block;
   background: #dbeafe;
   color: #1e40af;
-  padding: 4px 10px;
+  padding: 3px 8px; /* REDUCED from 4px 10px */
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 10px; /* REDUCED from 11px */
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 /* ===============================
-   SCROLLABLE MENU AREA
+   SCROLLABLE MENU AREA - UPDATED
 ================================ */
 .sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 0;
+  padding: 12px 0 100px 0; /* CHANGED: Added 100px bottom padding */
   display: flex;
   flex-direction: column;
 }
 
 /* ===============================
-   SECTION TITLES
+   SECTION TITLES - REDUCED MARGIN
 ================================ */
 .sidebar-title {
   font-size: 12px;
   font-weight: 600;
   color: #9ca3af;
-  margin: 20px 16px 10px;
+  margin: 12px 16px 8px; /* CHANGED: Reduced top from 20px to 12px */
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+/* First title should have less margin */
+.sidebar-scrollable > .sidebar-title:first-child {
+  margin-top: 0; /* No extra margin for first title */
 }
 
 /* ===============================
@@ -184,7 +183,7 @@
 .sidebar-bottom li {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
   padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
@@ -206,11 +205,66 @@
   font-weight: 600;
 }
 
+/* Menu item content wrapper */
+.sidebar-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+/* Menu item icons */
+.sidebar-menu li svg,
+.sidebar-bottom li svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 /* ===============================
-   SYSTEM SECTION (FIXED)
+   NOTIFICATION BADGES
+================================ */
+.sidebar-badge {
+  background-color: #ff4757;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(255, 71, 87, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+  }
+}
+
+/* ===============================
+   SYSTEM SECTION (FIXED) - UPDATED
 ================================ */
 .sidebar-system {
-  margin-top: 24px; /* Pushes SYSTEM section to bottom */
+  margin-top: auto;
+  padding-bottom: 40px; /* INCREASED from 20px to 40px */
+}
+
+.sidebar-bottom {
+  margin-top: auto;
 }
 
 /* ===============================
@@ -240,5 +294,34 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Loading state */
+.profile-loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* ===============================
+   RESPONSIVE (Optional)
+================================ */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 220px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .sidebar-badge {
+    font-size: 9px;
+    min-width: 16px;
+    height: 16px;
   }
 }

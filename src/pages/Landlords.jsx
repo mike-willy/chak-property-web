@@ -1,4 +1,4 @@
-// src/pages/Landlords.jsx
+// src/pages/Landlords.jsx - UPDATED WITH UNIQUE CLASSES
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -146,13 +146,13 @@ const Landlords = () => {
       <div className="landlords-header">
         <div>
           <h1>Landlords</h1>
-          <p className="page-subtitle">Manage property owners registered in the system</p>
+          <p className="landlords-page-subtitle">Manage property owners registered in the system</p>
         </div>
-        <div className="header-actions">
-          <button className="refresh-btn" onClick={handleRefresh} disabled={loading}>
+        <div className="landlords-header-actions">
+          <button className="landlords-refresh-btn" onClick={handleRefresh} disabled={loading}>
             {loading ? "🔄 Loading..." : "↻ Refresh"}
           </button>
-          <Link to="/landlords/add" className="add-landlord-btn">
+          <Link to="/landlords/add" className="landlords-add-btn">
             + Add New Landlord
           </Link>
         </div>
@@ -160,55 +160,55 @@ const Landlords = () => {
 
       {/* Search and Stats Bar */}
       <div className="landlords-toolbar">
-        <div className="search-box">
+        <div className="landlords-search-box">
           <input
             type="text"
             placeholder="Search by name, email, phone, or company..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
+            className="landlords-search-input"
           />
-          <span className="search-icon">🔍</span>
+          <span className="landlords-search-icon">🔍</span>
         </div>
-        <div className="landlords-stats">
-          <div className="stat-box">
-            <span className="stat-number">{landlords.length}</span>
-            <span className="stat-label">Total Landlords</span>
+        <div className="landlords-stats-container">
+          <div className="landlords-stat-box">
+            <span className="landlords-stat-number">{landlords.length}</span>
+            <span className="landlords-stat-label">Total Landlords</span>
           </div>
-          <div className="stat-box">
-            <span className="stat-number">
+          <div className="landlords-stat-box">
+            <span className="landlords-stat-number">
               {landlords.filter(l => l.status === "active").length}
             </span>
-            <span className="stat-label">Active</span>
+            <span className="landlords-stat-label">Active</span>
           </div>
-          <div className="stat-box">
-            <span className="stat-number">
+          <div className="landlords-stat-box">
+            <span className="landlords-stat-number">
               {landlords.reduce((sum, landlord) => sum + landlord.propertiesCount, 0)}
             </span>
-            <span className="stat-label">Total Properties</span>
+            <span className="landlords-stat-label">Total Properties</span>
           </div>
         </div>
       </div>
 
       {/* Loading State */}
       {loading ? (
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
+        <div className="landlords-loading-container">
+          <div className="landlords-loading-spinner"></div>
           <p>Loading landlords...</p>
         </div>
       ) : (
         /* Landlords Table */
         <div className="landlords-table-container">
           {filteredLandlords.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">👤</div>
+            <div className="landlords-empty-state">
+              <div className="landlords-empty-icon">👤</div>
               <h3>No Landlords Found</h3>
               <p>{searchTerm ? 
                 "No landlords match your search. Try different keywords." : 
                 "No landlords have been registered yet."}
               </p>
               {!searchTerm && (
-                <Link to="/landlords/add" className="empty-action-btn">
+                <Link to="/landlords/add" className="landlords-empty-action-btn">
                   Add Your First Landlord
                 </Link>
               )}
@@ -230,49 +230,49 @@ const Landlords = () => {
                   {filteredLandlords.map((landlord) => (
                     <tr key={landlord.id}>
                       <td>
-                        <div className="landlord-name-cell">
-                          <span className="landlord-name">{landlord.name}</span>
+                        <div className="landlords-name-cell">
+                          <span className="landlords-name">{landlord.name}</span>
                           {landlord.isVerified && (
-                            <span className="verified-badge">✓ Verified</span>
+                            <span className="landlords-verified-badge">✓ Verified</span>
                           )}
                           {landlord.company && (
-                            <div className="company-name">{landlord.company}</div>
+                            <div className="landlords-company-name">{landlord.company}</div>
                           )}
                         </div>
                       </td>
                       <td>
-                        <div className="contact-info">
-                          <div className="contact-email">{landlord.email}</div>
-                          <div className="contact-phone">{landlord.phone}</div>
+                        <div className="landlords-contact-info">
+                          <div className="landlords-contact-email">{landlord.email}</div>
+                          <div className="landlords-contact-phone">{landlord.phone}</div>
                         </div>
                       </td>
                       <td>
-                        <div className="properties-count">
-                          <span className="count-number">{landlord.propertiesCount}</span>
-                          <span className="count-label">properties</span>
+                        <div className="landlords-properties-count">
+                          <span className="landlords-count-number">{landlord.propertiesCount}</span>
+                          <span className="landlords-count-label">properties</span>
                         </div>
                       </td>
                       <td>
-                        <span className={`status-badge status-${landlord.status}`}>
+                        <span className={`landlords-status-badge landlords-status-${landlord.status}`}>
                           {landlord.status.charAt(0).toUpperCase() + landlord.status.slice(1)}
                         </span>
                       </td>
                       <td>
-                        <span className="registered-date">
+                        <span className="landlords-registered-date">
                           {formatDate(landlord.createdAt)}
                         </span>
                       </td>
                       <td>
-                        <div className="action-buttons">
+                        <div className="landlords-action-buttons">
                           <button 
-                            className="view-btn"
+                            className="landlords-table-view-btn"
                             onClick={() => handleViewLandlord(landlord.id)}
                             title="View Details"
                           >
                             👁️ View
                           </button>
                           <button 
-                            className="edit-btn"
+                            className="landlords-table-edit-btn"
                             onClick={() => handleEditLandlord(landlord.id)}
                             title="Edit Landlord"
                           >
@@ -286,8 +286,8 @@ const Landlords = () => {
               </table>
               
               {/* Table Footer */}
-              <div className="table-footer">
-                <div className="results-count">
+              <div className="landlords-table-footer">
+                <div className="landlords-results-count">
                   Showing {filteredLandlords.length} of {landlords.length} landlords
                 </div>
               </div>
