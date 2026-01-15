@@ -196,6 +196,209 @@
   background-color: #fee2e2;
   color: #b91c1c;
 }
+/* Add to src/styles/maintenance-categories.css */
+
+/* Header with actions */
+.mnt-cat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.mnt-cat-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Success message */
+.mnt-cat-success {
+  background-color: #d1fae5;
+  color: #065f46;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border: 1px solid #a7f3d0;
+}
+
+/* Refresh button */
+.mnt-cat-refresh-button {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.mnt-cat-refresh-button:hover:not(:disabled) {
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.mnt-cat-refresh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Reset button */
+.mnt-cat-reset-button {
+  background-color: #fef3c7;
+  color: #92400e;
+  padding: 0.5rem 1rem;
+  border: 1px solid #fbbf24;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mnt-cat-reset-button:hover:not(:disabled) {
+  background-color: #fde68a;
+  border-color: #f59e0b;
+}
+
+.mnt-cat-reset-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* List section */
+.mnt-cat-list-section {
+  margin-top: 1.5rem;
+}
+
+.mnt-cat-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mnt-cat-stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.mnt-cat-stat-item {
+  padding: 0.25rem 0.5rem;
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+}
+
+/* Spinner animation */
+.mnt-cat-spinner {
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Empty state actions */
+.mnt-cat-empty {
+  padding: 3rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  border: 2px dashed #d1d5db;
+}
+
+.mnt-cat-empty-action {
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.mnt-cat-empty-action:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.mnt-cat-empty-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Disabled row state */
+.mnt-cat-row-disabled {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Disabled state for form elements */
+.mnt-cat-form-input:disabled,
+.mnt-cat-form-select:disabled,
+.mnt-cat-add-button:disabled,
+.mnt-cat-delete-button:disabled,
+.mnt-cat-refresh-button:disabled,
+.mnt-cat-reset-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mnt-cat-add-button:disabled {
+  background-color: #93c5fd;
+}
+
+.mnt-cat-delete-button:disabled {
+  color: #9ca3af;
+}
+
+.mnt-cat-delete-button:disabled:hover {
+  background-color: transparent;
+  color: #9ca3af;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .mnt-cat-header {
+    flex-direction: column;
+  }
+  
+  .mnt-cat-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .mnt-cat-list-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .mnt-cat-stats {
+    margin-top: 0.5rem;
+  }
+}
 
 /* Responsive adjustments */
 @media (max-width: 768px) {

@@ -6,7 +6,8 @@ import {
   CheckCircle, 
   AlertCircle, 
   Eye,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import MaintenanceCategories from '../components/maintenance/MaintenanceCategories';
 import MaintenanceRequestDetails from '../components/maintenance/MaintenanceRequestDetails';
@@ -17,14 +18,20 @@ const Maintenance = () => {
   const [activeTab, setActiveTab] = useState('requests');
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [stats, setStats] = useState({ pending: 0, inProgress: 0, completed: 0, total: 0 });
+  const [stats, setStats] = useState({ 
+    pending: 0, 
+    inProgress: 0, 
+    completed: 0, 
+    onHold: 0, 
+    cancelled: 0, 
+    total: 0 
+  });
   const [filter, setFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     loadRequests();
-    loadStats();
     
     const unsubscribe = maintenanceService.admin.subscribe((updatedRequests) => {
       setRequests(updatedRequests);
@@ -49,20 +56,15 @@ const Maintenance = () => {
     }
   };
 
-  const loadStats = async () => {
-    try {
-      const statsData = await maintenanceService.admin.getStats();
-      setStats(statsData);
-    } catch (err) {
-      console.error('Error loading stats:', err);
-    }
-  };
-
   const calculateStats = (requests) => {
     const pending = requests.filter(r => r.status === 'pending').length;
     const inProgress = requests.filter(r => r.status === 'in-progress').length;
     const completed = requests.filter(r => r.status === 'completed').length;
-    setStats({ pending, inProgress, completed, total: requests.length });
+    const onHold = requests.filter(r => r.status === 'on-hold').length;
+    const cancelled = requests.filter(r => r.status === 'cancelled').length;
+    const total = requests.length;
+    
+    setStats({ pending, inProgress, completed, onHold, cancelled, total });
   };
 
   const handleStatusUpdate = async (requestId, newStatus) => {
@@ -74,10 +76,32 @@ const Maintenance = () => {
     }
   };
 
+  const handleDeleteRequest = async (requestId) => {
+    if (!window.confirm('Are you sure you want to delete this maintenance request? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await maintenanceService.admin.deleteRequest(requestId);
+      // Remove from local state immediately for better UX
+      setRequests(prev => prev.filter(request => request.id !== requestId));
+      if (selectedRequest && selectedRequest.id === requestId) {
+        setSelectedRequest(null);
+      }
+      // Recalculate stats
+      calculateStats(requests.filter(request => request.id !== requestId));
+    } catch (err) {
+      alert('Failed to delete request: ' + err.message);
+      console.error('Error deleting request:', err);
+    }
+  };
+
   const filteredRequests = requests.filter(request => {
     if (filter === 'pending') return request.status === 'pending';
     if (filter === 'in-progress') return request.status === 'in-progress';
     if (filter === 'completed') return request.status === 'completed';
+    if (filter === 'on-hold') return request.status === 'on-hold';
+    if (filter === 'cancelled') return request.status === 'cancelled';
     return true;
   });
 
@@ -86,6 +110,8 @@ const Maintenance = () => {
       case 'pending': return 'mnt-status-badge mnt-status-pending';
       case 'in-progress': return 'mnt-status-badge mnt-status-progress';
       case 'completed': return 'mnt-status-badge mnt-status-completed';
+      case 'on-hold': return 'mnt-status-badge mnt-status-onhold';
+      case 'cancelled': return 'mnt-status-badge mnt-status-cancelled';
       default: return 'mnt-status-badge';
     }
   };
@@ -98,6 +124,8 @@ const Maintenance = () => {
       else if (filterType === 'pending') baseClass += ' mnt-filter-button-active-pending';
       else if (filterType === 'in-progress') baseClass += ' mnt-filter-button-active-progress';
       else if (filterType === 'completed') baseClass += ' mnt-filter-button-active-completed';
+      else if (filterType === 'on-hold') baseClass += ' mnt-filter-button-active-onhold';
+      else if (filterType === 'cancelled') baseClass += ' mnt-filter-button-active-cancelled';
     }
     return baseClass;
   };
@@ -106,6 +134,11 @@ const Maintenance = () => {
     if (!timestamp) return '—';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleDateString();
+  };
+
+  // Check if a request can be deleted (only completed or cancelled)
+  const canDeleteRequest = (request) => {
+    return request.status === 'completed' || request.status === 'cancelled';
   };
 
   return (
@@ -137,7 +170,7 @@ const Maintenance = () => {
 
       {activeTab === 'requests' ? (
         <>
-          {/* Stats Cards */}
+          {/* Stats Cards - UPDATED */}
           <div className="mnt-stats-grid">
             <div className="mnt-stat-card">
               <div className="mnt-stat-content">
@@ -202,7 +235,7 @@ const Maintenance = () => {
             </div>
           )}
 
-          {/* Filters */}
+          {/* Filters - UPDATED */}
           <div className="mnt-filters-container">
             <div className="mnt-filters-content">
               <div className="mnt-filter-buttons">
@@ -210,7 +243,7 @@ const Maintenance = () => {
                   onClick={() => setFilter('all')}
                   className={getFilterButtonClass('all')}
                 >
-                  All
+                  All ({stats.total})
                 </button>
                 <button
                   onClick={() => setFilter('pending')}
@@ -233,6 +266,22 @@ const Maintenance = () => {
                   <CheckCircle style={{ width: '12px', height: '12px' }} />
                   Completed ({stats.completed})
                 </button>
+                {stats.onHold > 0 && (
+                  <button
+                    onClick={() => setFilter('on-hold')}
+                    className={getFilterButtonClass('on-hold')}
+                  >
+                    On Hold ({stats.onHold})
+                  </button>
+                )}
+                {stats.cancelled > 0 && (
+                  <button
+                    onClick={() => setFilter('cancelled')}
+                    className={getFilterButtonClass('cancelled')}
+                  >
+                    Cancelled ({stats.cancelled})
+                  </button>
+                )}
               </div>
               
               <div>
@@ -286,6 +335,8 @@ const Maintenance = () => {
                               {request.status === 'pending' && <Clock style={{ width: '16px', height: '16px', color: '#92400e' }} />}
                               {request.status === 'in-progress' && <Wrench style={{ width: '16px', height: '16px', color: '#1e40af' }} />}
                               {request.status === 'completed' && <CheckCircle style={{ width: '16px', height: '16px', color: '#065f46' }} />}
+                              {request.status === 'on-hold' && <Clock style={{ width: '16px', height: '16px', color: '#92400e' }} />}
+                              {request.status === 'cancelled' && <AlertCircle style={{ width: '16px', height: '16px', color: '#dc2626' }} />}
                             </div>
                             <div className="mnt-request-info">
                               <h4>{request.category}</h4>
@@ -319,6 +370,17 @@ const Maintenance = () => {
                               <Eye style={{ width: '16px', height: '16px' }} />
                               View
                             </button>
+                            
+                            {/* Delete button for completed/cancelled requests */}
+                            {canDeleteRequest(request) && (
+                              <button
+                                onClick={() => handleDeleteRequest(request.id)}
+                                className="mnt-action-button mnt-action-delete"
+                                title="Delete Request"
+                              >
+                                <Trash2 style={{ width: '16px', height: '16px' }} />
+                              </button>
+                            )}
                             
                             {request.status === 'pending' && (
                               <button
@@ -357,6 +419,7 @@ const Maintenance = () => {
           request={selectedRequest}
           onClose={() => setSelectedRequest(null)}
           onStatusUpdate={handleStatusUpdate}
+          onDeleteRequest={handleDeleteRequest}
         />
       )}
     </div>

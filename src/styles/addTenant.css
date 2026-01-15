@@ -614,6 +614,112 @@
   }
 }
 
+/* Add these to your existing addTenant.css file */
+
+/* Reject Section Styling */
+.tenant-form-reject-section {
+  background: linear-gradient(135deg, #fff5f5, #fee2e2);
+  border: 2px solid #fca5a5;
+  border-left: 4px solid #ef4444;
+}
+
+.tenant-form-reject-section .tenant-form-section-title {
+  color: #dc2626;
+  border-bottom-color: #fca5a5;
+}
+
+/* Danger Button - NEW */
+.tenant-form-btn-danger {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
+  border-radius: var(--tenant-radius);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-width: 180px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.tenant-form-btn-danger::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.7s ease;
+}
+
+.tenant-form-btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  letter-spacing: 1px;
+}
+
+.tenant-form-btn-danger:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.tenant-form-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Read-only input styling */
+.tenant-form-input.tenant-form-readonly,
+.tenant-form-textarea.tenant-form-readonly {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tenant-form-textarea.tenant-form-readonly {
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .tenant-form-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .tenant-form-button-group {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .tenant-form-btn-danger,
+  .tenant-form-btn-cancel,
+  .tenant-form-btn-submit {
+    width: 100%;
+    justify-content: center;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 480px) {
   .tenant-form-container {
     padding: 1rem;

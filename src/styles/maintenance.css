@@ -437,6 +437,52 @@
   font-size: 0.875rem;
 }
 
+/* Add to src/styles/maintenance.css */
+
+/* New Status Badges */
+.mnt-status-onhold {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.mnt-status-cancelled {
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Delete Action Button */
+.mnt-action-delete {
+  color: #dc2626;
+}
+
+.mnt-action-delete:hover {
+  background-color: #fee2e2;
+}
+
+/* Filter Button Active States */
+.mnt-filter-button-active-onhold {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.mnt-filter-button-active-cancelled {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .mnt-filter-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .mnt-filter-button {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+}
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .mnt-container {
