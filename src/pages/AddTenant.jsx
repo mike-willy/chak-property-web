@@ -1,27 +1,37 @@
-import React, { useState, useEffect } from "react";
+// src/pages/AddTenant.jsx - COMPLETELY READ-ONLY VERSION
+import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
 import { 
   collection, 
   addDoc, 
-  getDocs,
-  query,
-  where,
   updateDoc,
   doc,
-  Timestamp 
+  Timestamp,
+  getDoc
 } from "firebase/firestore";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaUserPlus, FaHome, FaDollarSign, FaCalendar, FaUsers, FaTimes } from "react-icons/fa";
+import { 
+  FaUserPlus, 
+  FaHome, 
+  FaCalendar, 
+  FaUsers, 
+  FaTimes,
+  FaStickyNote,
+  FaPhone,
+  FaUser,
+  FaMoneyBillWave,
+  FaClipboardCheck,
+  FaLock,
+  FaEye,
+  FaCheckCircle
+} from "react-icons/fa";
 import "../styles/addTenant.css";
 
 const AddTenant = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [properties, setProperties] = useState([]);
-  const [units, setUnits] = useState([]);
-  const [loading, setLoading] = useState(false);
   
-  // Check for prefill data from applications
+  // Get prefill data from tenant application
   const [prefillData, setPrefillData] = useState(() => {
     if (location.state?.prefillData) {
       return location.state.prefillData;
@@ -33,380 +43,507 @@ const AddTenant = () => {
     }
     return null;
   });
-  
-  // Form state
-  const [formData, setFormData] = useState({
+
+  const [loading, setLoading] = useState(false);
+  const [propertyDetails, setPropertyDetails] = useState(null);
+
+  // Tenant data from application
+  const [tenantData, setTenantData] = useState({
+    // Tenant Information
     fullName: prefillData?.fullName || "",
     email: prefillData?.email || "",
     phone: prefillData?.phone || "",
-    idNumber: "",
+    idNumber: prefillData?.idNumber || "",
+    occupation: prefillData?.occupation || "",
+    employer: prefillData?.employer || "",
+    
+    // Property & Unit
     propertyId: prefillData?.propertyId || "",
+    propertyName: prefillData?.propertyName || "",
     unitId: prefillData?.unitId || "",
-    leaseStart: "",
-    leaseEnd: "",
+    unitNumber: prefillData?.unitNumber || "",
     monthlyRent: prefillData?.monthlyRent || "",
-    securityDeposit: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
+    
+    // Financial Details
+    securityDeposit: prefillData?.securityDeposit || "",
+    applicationFee: prefillData?.applicationFee || "",
+    petDeposit: prefillData?.petDeposit || "",
+    totalMoveInCost: 0,
+    
+    // Lease Period
+    leaseStart: prefillData?.leaseStart || "",
+    leaseEnd: prefillData?.leaseEnd || "",
+    leaseTerm: prefillData?.leaseTerm || 12,
+    noticePeriod: prefillData?.noticePeriod || 30,
+    
+    // Emergency Contact
+    emergencyContactName: prefillData?.emergencyContactName || "",
+    emergencyContactPhone: prefillData?.emergencyContactPhone || "",
+    emergencyContactRelation: prefillData?.emergencyContactRelation || "",
+    
+    // Additional Information
+    tenantNotes: prefillData?.tenantNotes || prefillData?.applicationNotes || prefillData?.description || prefillData?.notes || "",
+    
+    // Application metadata
+    applicationId: prefillData?.applicationId || "",
+    appliedDate: prefillData?.appliedDate || "",
   });
 
-  useEffect(() => {
-    loadProperties();
-    if (prefillData?.propertyId) {
-      loadUnits(prefillData.propertyId);
+  // Load property details
+  const loadPropertyDetails = useCallback(async (propertyId) => {
+    try {
+      const propertyRef = doc(db, "properties", propertyId);
+      const propertyDoc = await getDoc(propertyRef);
+      
+      if (propertyDoc.exists()) {
+        const propertyData = propertyDoc.data();
+        setPropertyDetails(propertyData);
+        
+        // Update tenant data with property's fee information
+        setTenantData(prev => ({
+          ...prev,
+          securityDeposit: propertyData.securityDeposit || prev.securityDeposit || "",
+          applicationFee: propertyData.applicationFee || prev.applicationFee || "",
+          petDeposit: propertyData.petDeposit || prev.petDeposit || "",
+          leaseTerm: propertyData.leaseTerm || prev.leaseTerm || 12,
+          noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30
+        }));
+        
+        // Recalculate total
+        calculateTotalMoveInCost();
+      }
+    } catch (error) {
+      console.error("Error loading property details:", error);
     }
   }, []);
 
-  const loadProperties = async () => {
+  // Calculate total move-in cost
+  const calculateTotalMoveInCost = () => {
+    const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
+    const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
+    const applicationFee = parseFloat(tenantData.applicationFee) || 0;
+    const petDeposit = parseFloat(tenantData.petDeposit) || 0;
+    
+    const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
+    
+    setTenantData(prev => ({
+      ...prev,
+      totalMoveInCost: total
+    }));
+  };
+
+  useEffect(() => {
+    if (prefillData?.propertyId) {
+      loadPropertyDetails(prefillData.propertyId);
+    }
+    
+    // Auto-calculate total move-in cost
+    if (prefillData?.monthlyRent) {
+      calculateTotalMoveInCost();
+    }
+  }, [prefillData, loadPropertyDetails]);
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0
+    }).format(amount || 0);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return "Not specified";
     try {
-      const snapshot = await getDocs(collection(db, "properties"));
-      const propertyList = [];
-      snapshot.forEach((doc) => {
-        propertyList.push({
-          id: doc.id,
-          name: doc.data().name,
-          ...doc.data()
-        });
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
       });
-      setProperties(propertyList);
     } catch (error) {
-      console.error("Error loading properties:", error);
+      return dateString;
     }
   };
 
-  const loadUnits = async (propertyId) => {
-    try {
-      const q = query(
-        collection(db, "units"),
-        where("propertyId", "==", propertyId),
-        where("status", "==", "vacant")
-      );
-      
-      const snapshot = await getDocs(q);
-      const unitList = [];
-      snapshot.forEach((doc) => {
-        unitList.push({
-          id: doc.id,
-          unitNumber: doc.data().unitNumber,
-          monthlyRent: doc.data().monthlyRent,
-          type: doc.data().type || "Apartment",
-          ...doc.data()
-        });
-      });
-      setUnits(unitList);
-    } catch (error) {
-      console.error("Error loading units:", error);
-    }
-  };
-
-  const handlePropertyChange = (propertyId) => {
-    setFormData({
-      ...formData,
-      propertyId,
-      unitId: "",
-      monthlyRent: ""
-    });
-    loadUnits(propertyId);
-  };
-
-  const handleUnitChange = (unitId) => {
-    const selectedUnit = units.find(unit => unit.id === unitId);
-    setFormData({
-      ...formData,
-      unitId,
-      monthlyRent: selectedUnit?.monthlyRent || ""
-    });
-  };
-
-  const handleSubmit = async (e) => {
+  // Handle approve tenant
+  const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (!formData.fullName || !formData.email || !formData.propertyId || !formData.unitId) {
-        alert("Please fill all required fields");
+      // Validation
+      if (!tenantData.fullName || !tenantData.email || !tenantData.propertyId || !tenantData.unitId) {
+        alert("Missing required tenant information");
         setLoading(false);
         return;
       }
 
-      const tenantData = {
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        idNumber: formData.idNumber,
-        propertyId: formData.propertyId,
-        unitId: formData.unitId,
-        monthlyRent: parseFloat(formData.monthlyRent) || 0,
-        securityDeposit: parseFloat(formData.securityDeposit) || parseFloat(formData.monthlyRent) || 0,
-        emergencyContactName: formData.emergencyContactName,
-        emergencyContactPhone: formData.emergencyContactPhone,
+      // Prepare tenant record
+      const tenantRecord = {
+        // Tenant Information
+        fullName: tenantData.fullName,
+        email: tenantData.email,
+        phone: tenantData.phone,
+        idNumber: tenantData.idNumber,
+        occupation: tenantData.occupation,
+        employer: tenantData.employer,
+        
+        // Property & Unit
+        propertyId: tenantData.propertyId,
+        unitId: tenantData.unitId,
+        propertyName: tenantData.propertyName || propertyDetails?.name || "",
+        unitNumber: tenantData.unitNumber || "",
+        
+        // Financial Details
+        monthlyRent: parseFloat(tenantData.monthlyRent) || 0,
+        securityDeposit: parseFloat(tenantData.securityDeposit) || 0,
+        applicationFee: parseFloat(tenantData.applicationFee) || 0,
+        petDeposit: parseFloat(tenantData.petDeposit) || 0,
+        totalMoveInCost: tenantData.totalMoveInCost || 0,
+        
+        // Lease Information
+        leaseStart: tenantData.leaseStart ? Timestamp.fromDate(new Date(tenantData.leaseStart)) : Timestamp.now(),
+        leaseEnd: tenantData.leaseEnd ? Timestamp.fromDate(new Date(tenantData.leaseEnd)) : null,
+        leaseTerm: parseInt(tenantData.leaseTerm) || 12,
+        noticePeriod: parseInt(tenantData.noticePeriod) || 30,
+        
+        // Emergency Contact
+        emergencyContactName: tenantData.emergencyContactName,
+        emergencyContactPhone: tenantData.emergencyContactPhone,
+        emergencyContactRelation: tenantData.emergencyContactRelation,
+        
+        // Additional Information
+        tenantNotes: tenantData.tenantNotes,
+        
+        // Status & Timestamps
         status: "active",
-        leaseStart: Timestamp.fromDate(new Date(formData.leaseStart)),
-        leaseEnd: Timestamp.fromDate(new Date(formData.leaseEnd)),
+        balance: parseFloat(tenantData.monthlyRent) || 0,
+        paymentStatus: "pending",
         createdAt: Timestamp.now(),
+        approvedAt: Timestamp.now(),
         createdBy: "admin",
-        balance: 0,
+        applicationId: tenantData.applicationId,
+        
+        // Property Fee References
+        propertyFees: {
+          latePaymentFee: propertyDetails?.latePaymentFee || 0,
+          gracePeriod: propertyDetails?.gracePeriod || 5,
+          feeDetails: propertyDetails?.feeDetails || {}
+        }
       };
 
-      const tenantRef = await addDoc(collection(db, "tenants"), tenantData);
+      // Save tenant to Firestore
+      const tenantRef = await addDoc(collection(db, "tenants"), tenantRecord);
 
-      if (formData.unitId) {
-        await updateDoc(doc(db, "units", formData.unitId), {
+      // Update unit status
+      if (tenantData.unitId) {
+        await updateDoc(doc(db, "units", tenantData.unitId), {
           status: "occupied",
           tenantId: tenantRef.id,
-          tenantName: formData.fullName,
+          tenantName: tenantData.fullName,
           occupiedAt: Timestamp.now(),
+          rentAmount: parseFloat(tenantData.monthlyRent) || 0
         });
       }
 
-      if (prefillData?.applicationId) {
-        await updateDoc(doc(db, "tenantApplications", prefillData.applicationId), {
+      // Update application status
+      if (tenantData.applicationId) {
+        await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
           status: "approved",
           processedAt: Timestamp.now(),
           tenantId: tenantRef.id,
+          approvedBy: "admin"
         });
       }
 
-      alert("Tenant added successfully!");
+      alert("✅ Tenant application approved successfully!");
       navigate("/tenants");
       
     } catch (error) {
-      console.error("Error adding tenant:", error);
-      alert("Failed to add tenant. Please try again.");
+      console.error("Error approving tenant:", error);
+      alert("Failed to approve tenant application. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-  };
+  // If no prefill data
+  if (!prefillData) {
+    return (
+      <div className="tenant-form-container">
+        <div className="tenant-form-content">
+          <h2>No Tenant Application Data Found</h2>
+          <p>Please select a tenant application to review.</p>
+          <button 
+            className="tenant-form-view-tenants-btn" 
+            onClick={() => navigate("/applications")}
+          >
+            View Applications
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="add-tenant-page">
-      {/* Header with both buttons */}
-      <div className="page-header">
-        <div className="header-left">
-          <h1><FaUserPlus /> Add New Tenant</h1>
-          {prefillData && (
-            <div className="prefill-notice">
-              ✓ Pre-filled from tenant application
-            </div>
-          )}
+    <div className="tenant-form-container">
+      {/* Header */}
+      <div className="tenant-form-header">
+        <div className="tenant-form-header-left">
+          <h1 className="tenant-form-title"><FaClipboardCheck /> Review Tenant Application</h1>
+          <div className="tenant-form-prefill-notice">
+            <FaEye /> Viewing application submitted by tenant
+          </div>
         </div>
         
-        <div className="header-actions">
+        <div className="tenant-form-header-actions">
           <button 
-            className="view-tenants-btn" 
-            onClick={() => navigate("/tenants")}
+            className="tenant-form-view-tenants-btn" 
+            onClick={() => navigate("/applications")}
           >
-            <FaUsers /> View Tenants
+            <FaUsers /> View Applications
           </button>
         </div>
       </div>
 
-      <div className="page-content">
-        <form onSubmit={handleSubmit} className="tenant-form">
+      <div className="tenant-form-content">
+        <div className="tenant-form-sections">
           
-          {/* Section 1: Tenant Information */}
-          <div className="form-section">
-            <h2><FaUserPlus /> Tenant Information</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Full Name *</label>
-                <input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="John Doe"
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Email Address *</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="john@example.com"
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Phone Number *</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="+254 712 345 678"
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>ID/Passport Number</label>
-                <input
-                  type="text"
-                  name="idNumber"
-                  value={formData.idNumber}
-                  onChange={handleInputChange}
-                  placeholder="12345678"
-                />
-              </div>
+          {/* Section 1: Tenant Information - READ ONLY */}
+          <div className="tenant-form-section">
+            <h2 className="tenant-form-section-title"><FaUser /> Tenant Information</h2>
+            <div className="tenant-form-grid">
+              {[
+                { label: "Full Name", value: tenantData.fullName },
+                { label: "Email Address", value: tenantData.email },
+                { label: "Phone Number", value: tenantData.phone },
+                { label: "ID/Passport Number", value: tenantData.idNumber || "Not provided" },
+                { label: "Occupation", value: tenantData.occupation || "Not provided" },
+                { label: "Employer", value: tenantData.employer || "Not provided" },
+              ].map((field, index) => (
+                <div className="tenant-form-group" key={index}>
+                  <label className="tenant-form-label">{field.label}</label>
+                  <div className="tenant-form-input tenant-form-readonly">
+                    <FaLock /> {field.value}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Section 2: Property & Unit */}
-          <div className="form-section">
-            <h2><FaHome /> Property & Unit</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Select Property *</label>
-                <select
-                  name="propertyId"
-                  value={formData.propertyId}
-                  onChange={(e) => handlePropertyChange(e.target.value)}
-                  required
-                >
-                  <option value="">Choose a property</option>
-                  {properties.map(property => (
-                    <option key={property.id} value={property.id}>
-                      {property.name} - {property.address}
-                    </option>
-                  ))}
-                </select>
+          {/* Section 2: Property & Unit - READ ONLY */}
+          <div className="tenant-form-section">
+            <h2 className="tenant-form-section-title"><FaHome /> Property & Unit Selected</h2>
+            
+            <div className="tenant-form-grid">
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Selected Property</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  <FaLock /> {tenantData.propertyName || "Not selected"}
+                </div>
+                <p className="tenant-form-helper-text">
+                  Selected by tenant in mobile application
+                </p>
               </div>
               
-              <div className="form-group">
-                <label>Select Unit *</label>
-                <select
-                  name="unitId"
-                  value={formData.unitId}
-                  onChange={(e) => handleUnitChange(e.target.value)}
-                  required
-                  disabled={!formData.propertyId}
-                >
-                  <option value="">Choose a unit</option>
-                  {units.map(unit => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.unitNumber} ({unit.type}) - KSh {unit.monthlyRent?.toLocaleString()}/month
-                    </option>
-                  ))}
-                </select>
-                {units.length === 0 && formData.propertyId && (
-                  <p className="helper-text">No vacant units available for this property</p>
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Selected Unit</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  <FaLock /> {tenantData.unitNumber || "Not selected"}
+                  {tenantData.monthlyRent && ` • ${formatCurrency(tenantData.monthlyRent)}/month`}
+                </div>
+                <p className="tenant-form-helper-text">
+                  Selected by tenant in mobile application
+                </p>
+              </div>
+            </div>
+
+            {/* Property Fee Information */}
+            {propertyDetails && (
+              <div className="tenant-form-property-fees-info">
+                <h3 className="tenant-form-property-fees-title">Property Fee Information</h3>
+                <div className="tenant-form-fees-grid">
+                  <div className="tenant-form-fee-item">
+                    <span className="tenant-form-fee-label">Security Deposit:</span>
+                    <span className="tenant-form-fee-value">{formatCurrency(propertyDetails.securityDeposit)}</span>
+                  </div>
+                  <div className="tenant-form-fee-item">
+                    <span className="tenant-form-fee-label">Application Fee:</span>
+                    <span className="tenant-form-fee-value">{formatCurrency(propertyDetails.applicationFee)}</span>
+                  </div>
+                  <div className="tenant-form-fee-item">
+                    <span className="tenant-form-fee-label">Pet Deposit:</span>
+                    <span className="tenant-form-fee-value">
+                      {propertyDetails.petDeposit ? formatCurrency(propertyDetails.petDeposit) : "Not allowed"}
+                    </span>
+                  </div>
+                  <div className="tenant-form-fee-item">
+                    <span className="tenant-form-fee-label">Standard Lease Term:</span>
+                    <span className="tenant-form-fee-value">{propertyDetails.leaseTerm || 12} months</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 3: Financial Details - READ ONLY */}
+          <div className="tenant-form-section">
+            <h2 className="tenant-form-section-title"><FaMoneyBillWave /> Financial Details</h2>
+            
+            <div className="tenant-form-grid">
+              {[
+                { label: "Monthly Rent", value: formatCurrency(tenantData.monthlyRent) },
+                { label: "Security Deposit", value: formatCurrency(tenantData.securityDeposit) },
+                { label: "Application Fee", value: formatCurrency(tenantData.applicationFee) },
+                { label: "Pet Deposit", value: tenantData.petDeposit ? formatCurrency(tenantData.petDeposit) : "None" },
+              ].map((field, index) => (
+                <div className="tenant-form-group" key={index}>
+                  <label className="tenant-form-label">{field.label}</label>
+                  <div className="tenant-form-input tenant-form-readonly">
+                    {field.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Total Move-in Cost */}
+            <div className="tenant-form-total-cost-summary">
+              <h3 className="tenant-form-total-cost-title">Total Move-in Cost</h3>
+              <div className="tenant-form-cost-breakdown">
+                <div className="tenant-form-cost-item">
+                  <span>First Month's Rent:</span>
+                  <span>{formatCurrency(tenantData.monthlyRent)}</span>
+                </div>
+                <div className="tenant-form-cost-item">
+                  <span>Security Deposit:</span>
+                  <span>{formatCurrency(tenantData.securityDeposit)}</span>
+                </div>
+                <div className="tenant-form-cost-item">
+                  <span>Application Fee:</span>
+                  <span>{formatCurrency(tenantData.applicationFee)}</span>
+                </div>
+                {tenantData.petDeposit > 0 && (
+                  <div className="tenant-form-cost-item">
+                    <span>Pet Deposit:</span>
+                    <span>{formatCurrency(tenantData.petDeposit)}</span>
+                  </div>
                 )}
+                <div className="tenant-form-cost-total">
+                  <span>TOTAL TO PAY:</span>
+                  <span className="tenant-form-total-amount">{formatCurrency(tenantData.totalMoveInCost)}</span>
+                </div>
               </div>
+              <p className="tenant-form-helper-text">
+                <strong>Note:</strong> Tenant must pay this total amount before moving in
+              </p>
             </div>
           </div>
 
-          {/* Section 3: Financial Details */}
-          <div className="form-section">
-            <h2><FaDollarSign /> Financial Details</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Monthly Rent (KSh) *</label>
-                <input
-                  type="number"
-                  name="monthlyRent"
-                  value={formData.monthlyRent}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="25000"
-                  min="0"
-                />
+          {/* Section 4: Lease Period - READ ONLY */}
+          <div className="tenant-form-section">
+            <h2 className="tenant-form-section-title"><FaCalendar /> Lease Period</h2>
+            
+            <div className="tenant-form-grid">
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Lease Start Date</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {formatDate(tenantData.leaseStart) || "Not specified"}
+                </div>
               </div>
               
-              <div className="form-group">
-                <label>Security Deposit (KSh)</label>
-                <input
-                  type="number"
-                  name="securityDeposit"
-                  value={formData.securityDeposit}
-                  onChange={handleInputChange}
-                  placeholder="25000"
-                  min="0"
-                />
-                <p className="helper-text">Usually equal to one month's rent</p>
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Lease End Date</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {formatDate(tenantData.leaseEnd) || "Not specified"}
+                </div>
+              </div>
+
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Lease Term (Months)</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {tenantData.leaseTerm} months
+                </div>
+                <p className="tenant-form-helper-text">
+                  Property default: {propertyDetails?.leaseTerm || 12} months
+                </p>
+              </div>
+
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Notice Period (Days)</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {tenantData.noticePeriod} days
+                </div>
+                <p className="tenant-form-helper-text">
+                  Property default: {propertyDetails?.noticePeriod || 30} days
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Section 4: Lease Period */}
-          <div className="form-section">
-            <h2><FaCalendar /> Lease Period</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Lease Start Date *</label>
-                <input
-                  type="date"
-                  name="leaseStart"
-                  value={formData.leaseStart}
-                  onChange={handleInputChange}
-                  required
-                />
+          {/* Section 5: Emergency Contact - READ ONLY */}
+          <div className="tenant-form-section">
+            <h2 className="tenant-form-section-title"><FaPhone /> Emergency Contact</h2>
+            <div className="tenant-form-grid">
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Contact Name</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {tenantData.emergencyContactName || "Not provided"}
+                </div>
               </div>
               
-              <div className="form-group">
-                <label>Lease End Date *</label>
-                <input
-                  type="date"
-                  name="leaseEnd"
-                  value={formData.leaseEnd}
-                  onChange={handleInputChange}
-                  required
-                />
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Contact Phone</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {tenantData.emergencyContactPhone || "Not provided"}
+                </div>
+              </div>
+
+              <div className="tenant-form-group">
+                <label className="tenant-form-label">Relationship</label>
+                <div className="tenant-form-input tenant-form-readonly">
+                  {tenantData.emergencyContactRelation || "Not provided"}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Section 5: Emergency Contact */}
-          <div className="form-section">
-            <h2>Emergency Contact</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Contact Name</label>
-                <input
-                  type="text"
-                  name="emergencyContactName"
-                  value={formData.emergencyContactName}
-                  onChange={handleInputChange}
-                  placeholder="Emergency contact person"
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Contact Phone</label>
-                <input
-                  type="tel"
-                  name="emergencyContactPhone"
-                  value={formData.emergencyContactPhone}
-                  onChange={handleInputChange}
-                  placeholder="+254 700 000 000"
-                />
+          {/* Section 6: Additional Information - READ ONLY */}
+          <div className="tenant-form-section">
+            <h2 className="tenant-form-section-title"><FaStickyNote /> Additional Information</h2>
+            <div className="tenant-form-grid">
+              <div className="tenant-form-group tenant-form-group-full-width">
+                <label className="tenant-form-label">Tenant Description / Notes</label>
+                <div className="tenant-form-textarea tenant-form-readonly" style={{ minHeight: '100px', padding: '1rem' }}>
+                  {tenantData.tenantNotes || "No additional information provided by tenant"}
+                </div>
+                <p className="tenant-form-helper-text">
+                  Information provided by tenant during application
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Form Actions */}
-          <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={() => navigate("/tenants")}>
-              <FaTimes /> Cancel
+          {/* Form Actions - Approve/Reject */}
+          <div className="tenant-form-actions">
+            <button type="button" className="tenant-form-btn-cancel" onClick={() => navigate("/applications")}>
+              <FaTimes /> Back to Applications
             </button>
-            <button type="submit" className="btn-submit" disabled={loading}>
-              {loading ? "Adding Tenant..." : "Add Tenant"}
+            <button type="button" className="tenant-form-btn-submit" onClick={handleApproveTenant} disabled={loading}>
+              {loading ? (
+                <>
+                  <span className="tenant-form-spinner-small"></span>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FaCheckCircle /> Approve Tenant
+                </>
+              )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

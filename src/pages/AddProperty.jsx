@@ -141,17 +141,24 @@ const AddProperty = () => {
         unitId: `${propertyPrefix}-${unitNumber}`,
         unitNumber: unitNumber,
         unitName: `${propertyName || 'Property'} - Unit ${unitNumber}`,
-        status: "vacant",
+        status: "vacant", // Default status
         rentAmount: baseRent,
         size: form.size || "",
         amenities: [...form.amenities],
+        // Tenant info (empty initially)
         tenantId: null,
         tenantName: "",
         tenantPhone: "",
         tenantEmail: "",
+        // Lease info
         leaseStart: null,
         leaseEnd: null,
         rentPaidUntil: null,
+        // Maintenance info
+        maintenanceRequests: 0,
+        lastMaintenanceDate: null,
+        currentMaintenance: false,
+        // Notes
         notes: "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -386,11 +393,7 @@ const AddProperty = () => {
         ? form.unitDetails.units 
         : generateUnits(form.units, form.name, priceForUnits);
       
-      // Calculate monthly revenue from leased units
-      const leasedUnits = unitsArray.filter(unit => unit.status === "leased");
-      const monthlyRevenue = leasedUnits.reduce((total, unit) => total + (unit.rentAmount || 0), 0);
-      
-      // Create property data with unit details
+      // 1️⃣ FIRST: Create the main property document WITHOUT units array
       const propertyData = {
         // Basic info
         name: form.name,
@@ -411,7 +414,7 @@ const AddProperty = () => {
         landlordId: form.landlordId,
         landlordName: form.landlordName,
         
-        // NEW: Application and fee-related fields
+        // Application and fee-related fields
         applicationFee: Number(form.applicationFee) || 0,
         securityDeposit: Number(form.securityDeposit) || 0,
         petDeposit: Number(form.petDeposit) || 0,
@@ -422,14 +425,14 @@ const AddProperty = () => {
         gracePeriod: Number(form.gracePeriod),
         feeDetails: form.feeDetails,
         
-        // Unit details
+        // ✅ CHANGED: Store only unit COUNTS, not the array
         unitDetails: {
           totalUnits: Number(form.units),
-          vacantCount: Number(form.units),
+          vacantCount: Number(form.units), // All units start as vacant
           leasedCount: 0,
           maintenanceCount: 0,
-          occupancyRate: 0,
-          units: unitsArray
+          occupancyRate: 0
+          // ❌ REMOVED: units: [] - We'll store units separately
         },
         
         // Status and timestamps
@@ -437,9 +440,9 @@ const AddProperty = () => {
         isActive: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        monthlyRevenue: monthlyRevenue,
-        totalTenants: leasedUnits.length,
-        occupancy: 0
+        monthlyRevenue: 0, // Start with 0 revenue
+        totalTenants: 0, // Start with 0 tenants
+        occupancy: 0 // Start with 0% occupancy
       };
       
       // Add pricing if exists (only for property types that use pricing object)
@@ -454,13 +457,98 @@ const AddProperty = () => {
         }
       });
       
-      // Save to Firestore
+      // 2️⃣ SECOND: Save the main property document to Firestore
       const propertyRef = await addDoc(collection(db, "properties"), propertyData);
       const propertyId = propertyRef.id;
       
-      console.log("✅ Property created with ID:", propertyId, "with", form.units, "units");
+      console.log("✅ Main property created with ID:", propertyId);
       
-      // Update the landlord's document in landlords collection
+      // 3️⃣ THIRD: Create SEPARATE UNIT DOCUMENTS in properties/{propertyId}/units subcollection
+      console.log(`Creating ${unitsArray.length} unit documents...`);
+      
+      // Create all unit documents in parallel
+      const unitCreationPromises = unitsArray.map(async (unitData, index) => {
+        // Prepare complete unit document data
+        const unitDocData = {
+          // Basic unit info
+          unitId: unitData.unitId,
+          unitNumber: unitData.unitNumber,
+          unitName: unitData.unitName,
+          propertyId: propertyId,
+          propertyName: form.name,
+          propertyAddress: form.address,
+          propertyType: form.propertyType,
+          
+          // Unit specifications
+          bedrooms: Number(form.bedrooms),
+          bathrooms: Number(form.bathrooms),
+          size: form.size || "",
+          amenities: [...form.amenities],
+          
+          // Pricing
+          rentAmount: Number(unitData.rentAmount),
+          applicationFee: Number(form.applicationFee) || 0,
+          securityDeposit: Number(form.securityDeposit) || 0,
+          petDeposit: Number(form.petDeposit) || 0,
+          leaseTerm: Number(form.leaseTerm),
+          latePaymentFee: Number(form.latePaymentFee) || 0,
+          gracePeriod: Number(form.gracePeriod),
+          feeDetails: form.feeDetails,
+          
+          // Status tracking
+          status: "vacant", // All units start as vacant
+          isAvailable: true,
+          isActive: true,
+          
+          // Tenant info (empty initially)
+          tenantId: null,
+          tenantName: "",
+          tenantPhone: "",
+          tenantEmail: "",
+          tenantNationalId: "",
+          emergencyContact: "",
+          leaseStartDate: null,
+          leaseEndDate: null,
+          rentPaidUntil: null,
+          lastPaymentDate: null,
+          leaseDocumentUrl: "",
+          
+          // Maintenance info (empty initially)
+          maintenanceRequests: 0,
+          lastMaintenanceDate: null,
+          currentMaintenance: false,
+          
+          // Landlord info
+          landlordId: form.landlordId,
+          landlordName: form.landlordName,
+          
+          // Timestamps
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          unitOrder: index + 1,
+          
+          // For easy querying
+          searchKeywords: [
+            form.name.toLowerCase(),
+            `unit ${unitData.unitNumber}`.toLowerCase(),
+            form.address.toLowerCase(),
+            form.city.toLowerCase(),
+            "vacant"
+          ]
+        };
+        
+        // Create unit document in the subcollection
+        await addDoc(collection(db, `properties/${propertyId}/units`), unitDocData);
+        
+        console.log(`Created unit: ${unitData.unitId}`);
+        return unitData.unitId;
+      });
+      
+      // Wait for all units to be created
+      await Promise.all(unitCreationPromises);
+      console.log(`✅ Created ${unitsArray.length} unit documents in subcollection`);
+      
+      // 4️⃣ FOURTH: Update the landlord's document in landlords collection
       const landlordRef = doc(db, "landlords", form.landlordId);
       const currentTime = new Date().toISOString();
       
@@ -473,6 +561,7 @@ const AddProperty = () => {
           units: Number(form.units),
           vacantUnits: Number(form.units),
           leasedUnits: 0,
+          maintenanceUnits: 0,
           status: "active",
           addedAt: currentTime,
           propertyType: form.propertyType
@@ -483,11 +572,12 @@ const AddProperty = () => {
       
       console.log("✅ Updated landlord in landlords collection");
       
-      alert(`✅ Property added successfully with ${form.units} units!`);
+      // 5️⃣ SUCCESS: Show success message and navigate
+      alert(`✅ Property "${form.name}" added successfully with ${form.units} units!\n\nEach unit is now individually manageable.`);
       navigate("/properties");
       
     } catch (error) {
-      console.error("Error adding property:", error);
+      console.error("❌ Error adding property:", error);
       alert("Error adding property: " + error.message);
     } finally {
       setLoading(false);

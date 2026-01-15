@@ -10,8 +10,8 @@ import Properties from "./pages/Properties";
 import AddProperty from "./pages/AddProperty";
 import Tenants from "./pages/Tenants";
 import Landlords from "./pages/Landlords";
-import AddLandlord from "./pages/AddLandlord"; // Add this import
-import Messages from "./pages/Messages"; // Add Messages import
+import AddLandlord from "./pages/AddLandlord"; 
+import Messages from "./pages/Messages"; 
 import Maintenance from "./pages/Maintenance";
 import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
@@ -22,6 +22,8 @@ import Applications from "./pages/Applications";
 import AddTenant from "./pages/AddTenant";
 import LandlordDetails from "./pages/LandlordDetails";
 import EditLandlord from "./pages/EditLandlord";
+import Units from "./pages/Units";
+import AssignTenant from "./pages/AssignTenant";
 
 function App() {
   return (
@@ -62,6 +64,9 @@ function App() {
 <Route path="/applications" element={<Applications />} />
 <Route path="/landlords/:id" element={<LandlordDetails />} />
 <Route path="/landlords/edit/:id" element={<EditLandlord />} />
+<Route path="/property/:id/units" element={<Units />} />
+<Route path="/units/:unitId/assign-tenant/:propertyId" element={<AssignTenant />} />
+
       <Route
         path="/tenants"
         element={

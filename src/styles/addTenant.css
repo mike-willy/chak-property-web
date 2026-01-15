@@ -1,256 +1,652 @@
-.add-tenant-page {
-  padding: 20px;
-  max-width: 1200px;
+/* src/styles/addTenant.css - UNIQUE CLASS NAMES */
+/* Unique class prefix: tenant-form- */
+:root {
+  --tenant-primary: #3b82f6;
+  --tenant-primary-hover: #2563eb;
+  --tenant-secondary: #64748b;
+  --tenant-secondary-hover: #475569;
+  --tenant-success: #10b981;
+  --tenant-warning: #f59e0b;
+  --tenant-danger: #ef4444;
+  --tenant-info: #0ea5e9;
+  --tenant-light: #f8fafc;
+  --tenant-dark: #1e293b;
+  --tenant-border: #e2e8f0;
+  --tenant-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --tenant-shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --tenant-radius: 0.75rem;
+  --tenant-radius-sm: 0.5rem;
+  --tenant-radius-pill: 9999px;
+}
+
+/* Main Container - UNIQUE */
+.tenant-form-container {
+  padding: 2rem;
+  max-width: 1400px;
   margin: 0 auto;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Header */
-.page-header {
+/* Header - UNIQUE */
+.tenant-form-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #eee;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.05);
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: #f8f9fa;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  color: #495057;
-  cursor: pointer;
-  font-weight: 500;
-  margin-right: 20px;
-  transition: all 0.3s;
-}
-
-.back-btn:hover {
-  background: #e9ecef;
-  border-color: #adb5bd;
-}
-
-.header-content {
-  flex: 1;
-}
-
-.header-content h1 {
-  color: #2c3e50;
-  margin: 0 0 10px 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 1.8rem;
-}
-
-.prefill-notice {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #d4edda;
-  color: #155724;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.view-tenants-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 24px;
-  background:#390ed6;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 15px;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-}
-
-.view-tenants-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.3);
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-}
-
-
-/* Page Content */
-.page-content {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-  padding: 30px;
-}
-
-/* Form Sections */
-.form-section {
-  margin-bottom: 40px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid #eee;
-}
-
-.form-section:last-child {
-  border-bottom: none;
-  margin-bottom: 20px;
-}
-
-.form-section h2 {
-  color: #3498db;
-  margin-bottom: 25px;
-  font-size: 1.4rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Form Grid */
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 25px;
-}
-
-/* Form Groups */
-.form-group {
+.tenant-form-header-left {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
 }
 
-.form-group label {
-  font-weight: 500;
-  color: #2c3e50;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.form-group label:after {
-  content: " *";
-  color: #e74c3c;
-}
-
-.form-group label:not(:has(+ input[required])):after {
-  content: "";
-}
-
-.form-group input,
-.form-group select {
-  padding: 12px 15px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 15px;
-  transition: all 0.3s;
-  background: white;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-}
-
-.form-group input::placeholder {
-  color: #95a5a6;
-}
-
-.form-group select:disabled {
-  background: #f5f5f5;
-  color: #95a5a6;
-  cursor: not-allowed;
-}
-
-.helper-text {
-  font-size: 12px;
-  color: #6c757d;
-  margin-top: 5px;
-  font-style: italic;
-}
-
-/* Form Actions */
-.form-actions {
+.tenant-form-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--tenant-dark);
+  margin: 0;
   display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-  margin-top: 40px;
-  padding-top: 30px;
-  border-top: 1px solid #eee;
+  align-items: center;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.btn-cancel {
-  padding: 12px 30px;
-  background: #c2ccd4;
+.tenant-form-prefill-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #d1fae5, #bbf7d0);
+  color: #065f46;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--tenant-radius-pill);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1px solid #86efac;
+}
+
+.tenant-form-prefill-notice::before {
+  content: "✓";
+  font-weight: bold;
+}
+
+.tenant-form-header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.tenant-form-view-tenants-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, var(--tenant-primary), #2563eb);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--tenant-radius);
   cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.tenant-form-view-tenants-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.7s ease;
+}
+
+.tenant-form-view-tenants-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+}
+
+.tenant-form-view-tenants-btn:hover::before {
+  left: 100%;
+}
+
+/* Page Content - UNIQUE */
+.tenant-form-content {
+  background: white;
+  border-radius: var(--tenant-radius);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  padding: 2.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.tenant-form-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+}
+
+/* Form Sections - UNIQUE */
+.tenant-form-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.tenant-form-section {
+  padding: 1.5rem;
+  border: 1px solid var(--tenant-border);
+  border-radius: var(--tenant-radius);
+  background: linear-gradient(to bottom, #ffffff, #f8fafc);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.tenant-form-section:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+}
+
+.tenant-form-section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tenant-form-section-title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
+  border-radius: 2px;
+}
+
+/* Form Grid - UNIQUE */
+.tenant-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.tenant-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.tenant-form-group-full-width {
+  grid-column: 1 / -1;
+}
+
+.tenant-form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 0.25rem;
+}
+
+.tenant-form-label.required::after {
+  content: '*';
+  color: var(--tenant-danger);
+  font-size: 1.125rem;
+  margin-left: 0.125rem;
+}
+
+/* UPDATED: Thinner form inputs */
+.tenant-form-input,
+.tenant-form-select,
+.tenant-form-textarea {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--tenant-border);
+  border-radius: var(--tenant-radius-sm);
+  font-size: 0.875rem;
+  color: var(--tenant-dark);
+  background: white;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.tenant-form-input:hover,
+.tenant-form-select:hover,
+.tenant-form-textarea:hover {
+  border-color: #cbd5e1;
+}
+
+.tenant-form-input:focus,
+.tenant-form-select:focus,
+.tenant-form-textarea:focus {
+  outline: none;
+  border-color: var(--tenant-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+.tenant-form-input::placeholder,
+.tenant-form-textarea::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.tenant-form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364758b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+.tenant-form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.4;
+}
+
+/* Helper Text - UNIQUE */
+.tenant-form-helper-text {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+  font-style: italic;
+  padding-left: 0.5rem;
+  border-left: 2px solid #e2e8f0;
+}
+
+.tenant-form-helper-text.error {
+  color: var(--tenant-danger);
+  border-left-color: var(--tenant-danger);
+}
+
+/* Property Fees Info - UNIQUE */
+.tenant-form-property-fees-info {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-radius: var(--tenant-radius-sm);
+  border-left: 4px solid var(--tenant-info);
+}
+
+.tenant-form-property-fees-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0369a1;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tenant-form-fees-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.tenant-form-fee-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border: 1px solid #bae6fd;
+  border-radius: var(--tenant-radius-sm);
+}
+
+.tenant-form-fee-label {
+  font-size: 0.8125rem;
+  color: #475569;
   font-weight: 500;
-  font-size: 15px;
-  transition: background 0.3s;
 }
 
-.btn-cancel:hover {
-  background: #c6c60d11;
+.tenant-form-fee-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tenant-info);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
 }
 
-.btn-submit {
-  padding: 12px 30px;
-  background: #390ed6;
+/* Total Cost Summary - UNIQUE */
+.tenant-form-total-cost-summary {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border-radius: var(--tenant-radius-sm);
+  border-left: 4px solid var(--tenant-success);
+}
+
+.tenant-form-total-cost-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #166534;
+  margin-bottom: 1.25rem;
+}
+
+.tenant-form-cost-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tenant-form-cost-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--tenant-radius-sm);
+}
+
+.tenant-form-cost-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
   color: white;
-  border: none;
-  border-radius: 6px;
+  border-radius: var(--tenant-radius-sm);
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.tenant-form-total-amount {
+  font-size: 1.125rem;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+
+/* Spinner - UNIQUE */
+.tenant-form-spinner-small {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: tenant-form-spin 0.8s linear infinite;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+@keyframes tenant-form-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* UPDATED: Form Actions - Beautiful Slim Buttons */
+.tenant-form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--tenant-border);
+  gap: 1.5rem;
+}
+
+.tenant-form-btn-cancel {
+  padding: 0.75rem 2rem;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: var(--tenant-radius);
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 15px;
-  transition: background 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-width: 150px;
+  gap: 0.75rem;
+  min-width: 180px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(to bottom, white, #f9fafb);
 }
 
-.btn-submit:hover:not(:disabled) {
-  background: #219653;
+.tenant-form-btn-cancel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.05), transparent);
+  transition: left 0.7s ease;
 }
 
-.btn-submit:disabled {
-  background: #95a5a6;
+.tenant-form-btn-cancel:hover {
+  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+  border-color: #9ca3af;
+  color: #374151;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.tenant-form-btn-cancel:hover::before {
+  left: 100%;
+}
+
+.tenant-form-btn-submit {
+  padding: 0.75rem 2.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: var(--tenant-radius);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.5px;
+  min-width: 180px;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.tenant-form-btn-submit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.7s ease;
+}
+
+.tenant-form-btn-submit:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.tenant-form-btn-submit:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.tenant-form-btn-submit:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
-/* Responsive */
+/* New Button Variations for Different Actions */
+.tenant-form-btn-secondary {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border: none;
+  border-radius: var(--tenant-radius);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-width: 180px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.tenant-form-btn-secondary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+}
+
+/* Button Group for Multiple Actions */
+.tenant-form-button-group {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .tenant-form-container {
+    padding: 1.5rem;
+  }
+  
+  .tenant-form-content {
+    padding: 2rem;
+  }
+  
+  .tenant-form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  
+  .tenant-form-fees-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .add-tenant-page {
-    padding: 15px;
-  }
-  
-  .page-header {
+  .tenant-form-header {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
+    align-items: stretch;
+    gap: 1.25rem;
   }
   
-  .back-btn {
-    margin-right: 0;
+  .tenant-form-header-actions {
+    flex-direction: column;
   }
   
-  .form-grid {
+  .tenant-form-view-tenants-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .tenant-form-content {
+    padding: 1.5rem;
+  }
+  
+  .tenant-form-section {
+    padding: 1.5rem;
+  }
+  
+  .tenant-form-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  
+  .tenant-form-fees-grid {
     grid-template-columns: 1fr;
   }
   
-  .form-actions {
+  .tenant-form-actions {
     flex-direction: column;
+    gap: 1rem;
   }
   
-  .btn-cancel,
-  .btn-submit {
+  .tenant-form-btn-cancel,
+  .tenant-form-btn-submit,
+  .tenant-form-btn-secondary {
     width: 100%;
+    justify-content: center;
+    min-width: 0;
+  }
+  
+  .tenant-form-button-group {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tenant-form-container {
+    padding: 1rem;
+  }
+  
+  .tenant-form-title {
+    font-size: 1.75rem;
+  }
+  
+  .tenant-form-content {
+    padding: 1.25rem;
+  }
+  
+  .tenant-form-section {
+    padding: 1.25rem;
+  }
+  
+  .tenant-form-input,
+  .tenant-form-select,
+  .tenant-form-textarea {
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+  
+  .tenant-form-total-cost-summary,
+  .tenant-form-property-fees-info {
+    padding: 1rem;
+  }
+  
+  .tenant-form-btn-cancel,
+  .tenant-form-btn-submit,
+  .tenant-form-btn-secondary {
+    padding: 0.625rem 1.5rem;
+    font-size: 0.8125rem;
   }
 }
