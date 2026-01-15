@@ -7,10 +7,11 @@ import {
   doc,
   query,
   where,
-  Timestamp
+  Timestamp,
+  getDoc
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import { FaUser, FaHome, FaPhone, FaEnvelope, FaCheck, FaTimes, FaEye } from "react-icons/fa";
+import { FaUser, FaHome, FaPhone, FaEnvelope, FaCheck, FaTimes, FaEye, FaCalendar, FaStickyNote } from "react-icons/fa";
 import "../styles/applications.css";
 
 const Applications = () => {
@@ -19,10 +20,20 @@ const Applications = () => {
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState(null);
 
-  // Fetch pending applications
+  // Fetch pending applications with property and unit names
   useEffect(() => {
     fetchApplications();
   }, []);
+
+  // Helper function to get data with fallback field names
+  const getFieldValue = (data, fieldNames) => {
+    for (const field of fieldNames) {
+      if (data[field] !== undefined && data[field] !== null && data[field] !== "") {
+        return data[field];
+      }
+    }
+    return "";
+  };
 
   const fetchApplications = async () => {
     try {
@@ -35,14 +46,104 @@ const Applications = () => {
       const snapshot = await getDocs(q);
       const apps = [];
       
-      snapshot.forEach((doc) => {
-        apps.push({
-          id: doc.id,
-          ...doc.data(),
-          // Convert Firestore timestamp
-          appliedDate: doc.data().appliedDate?.toDate()
-        });
-      });
+      // Process each application
+      for (const docSnap of snapshot.docs) {
+        const appData = docSnap.data();
+        
+        // Get field values with multiple possible field names
+        const app = {
+          id: docSnap.id,
+          ...appData,
+          appliedDate: appData.appliedDate?.toDate(),
+          
+          // Tenant information with fallback field names
+          fullName: getFieldValue(appData, ['fullName', 'name', 'tenantName', 'applicantName']),
+          email: getFieldValue(appData, ['email', 'emailAddress']),
+          phone: getFieldValue(appData, ['phone', 'phoneNumber', 'mobileNumber', 'contactNumber']),
+          idNumber: getFieldValue(appData, ['idNumber', 'nationalId', 'passportNumber', 'identificationNumber']),
+          occupation: getFieldValue(appData, ['occupation', 'jobTitle', 'profession', 'employment']),
+          employer: getFieldValue(appData, ['employer', 'company', 'workplace', 'organization']),
+          
+          // Property & Unit IDs
+          propertyId: appData.propertyId || appData.selectedPropertyId || appData.propertyID || "",
+          unitId: appData.unitId || appData.selectedUnitId || appData.unitID || "",
+          
+          // Financial
+          monthlyRent: appData.monthlyRent || appData.rentAmount || appData.rent || 0,
+          securityDeposit: appData.securityDeposit || appData.deposit || 0,
+          
+          // Lease Period
+          leaseStart: getFieldValue(appData, ['leaseStart', 'preferredMoveInDate', 'moveInDate', 'startDate']),
+          leaseEnd: getFieldValue(appData, ['leaseEnd', 'preferredLeaseEnd', 'endDate', 'leaseEndDate']),
+          leaseTerm: appData.leaseTerm || appData.preferredLeaseTerm || appData.term || 12,
+          
+          // Emergency Contact
+          emergencyContactName: getFieldValue(appData, ['emergencyContactName', 'emergencyName', 'emergencyContact', 'emergencyPerson']),
+          emergencyContactPhone: getFieldValue(appData, ['emergencyContactPhone', 'emergencyPhone', 'emergencyContactNumber', 'emergencyMobile']),
+          emergencyContactRelation: getFieldValue(appData, ['emergencyContactRelation', 'emergencyRelationship', 'emergencyRelation']),
+          
+          // Additional Information
+          tenantNotes: getFieldValue(appData, [
+            'description', 'notes', 'additionalInfo', 'message', 
+            'comments', 'applicationNotes', 'tenantNotes', 'remarks'
+          ])
+        };
+
+        // Fetch property name if propertyId exists
+        if (app.propertyId) {
+          try {
+            const propertyRef = doc(db, "properties", app.propertyId);
+            const propertyDoc = await getDoc(propertyRef);
+            if (propertyDoc.exists()) {
+              const propertyData = propertyDoc.data();
+              app.propertyName = propertyData.name || propertyData.propertyName || "Property";
+              app.propertyAddress = propertyData.address || "";
+            } else {
+              app.propertyName = "Property Not Found";
+            }
+          } catch (error) {
+            console.error(`Error fetching property ${app.propertyId}:`, error);
+            app.propertyName = "Property";
+          }
+        } else {
+          app.propertyName = "No Property Selected";
+        }
+
+        // Fetch unit details if unitId exists
+        if (app.unitId) {
+          try {
+            const unitRef = doc(db, "units", app.unitId);
+            const unitDoc = await getDoc(unitRef);
+            if (unitDoc.exists()) {
+              const unitData = unitDoc.data();
+              app.unitNumber = unitData.unitNumber || unitData.unitName || `Unit ${app.unitId}`;
+              app.unitMonthlyRent = unitData.rentAmount || unitData.monthlyRent || unitData.rent || app.monthlyRent;
+              app.unitType = unitData.unitType || unitData.type || "";
+              app.unitBedrooms = unitData.bedrooms || "";
+              app.unitBathrooms = unitData.bathrooms || "";
+            } else {
+              // Try alternative: Check if unit data is embedded in application
+              if (appData.unitNumber || appData.selectedUnitNumber) {
+                app.unitNumber = appData.unitNumber || appData.selectedUnitNumber || `Unit`;
+                app.unitMonthlyRent = app.monthlyRent;
+              } else {
+                app.unitNumber = "Unit Information";
+                app.unitMonthlyRent = app.monthlyRent;
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching unit ${app.unitId}:`, error);
+            // Fallback to data in application
+            app.unitNumber = appData.unitNumber || appData.selectedUnitNumber || `Unit`;
+            app.unitMonthlyRent = app.monthlyRent;
+          }
+        } else {
+          app.unitNumber = "No Unit Selected";
+          app.unitMonthlyRent = app.monthlyRent;
+        }
+
+        apps.push(app);
+      }
       
       setApplications(apps);
     } catch (error) {
@@ -55,19 +156,47 @@ const Applications = () => {
   // Approve an application and redirect to AddTenant with prefill data
   const approveApplication = async (application) => {
     try {
-      // Store application data for prefill in AddTenant
+      // Prepare comprehensive prefill data for AddTenant
       const prefillData = {
+        // Tenant Information
         fullName: application.fullName,
         email: application.email,
         phone: application.phone,
-        idNumber: application.idNumber || "",
+        idNumber: application.idNumber,
+        occupation: application.occupation,
+        employer: application.employer,
+        
+        // Property & Unit Information
         propertyId: application.propertyId,
+        propertyName: application.propertyName,
         unitId: application.unitId,
-        monthlyRent: application.monthlyRent || "",
-        securityDeposit: application.securityDeposit || application.monthlyRent || "",
-        emergencyContactName: application.emergencyContactName || "",
-        emergencyContactPhone: application.emergencyContactPhone || "",
-        applicationId: application.id, // Keep reference to original application
+        unitNumber: application.unitNumber,
+        monthlyRent: application.unitMonthlyRent || application.monthlyRent,
+        
+        // Financial Details (will be fetched from property in AddTenant)
+        securityDeposit: application.securityDeposit || "",
+        applicationFee: "",
+        petDeposit: "",
+        
+        // Lease Period
+        leaseStart: application.leaseStart,
+        leaseEnd: application.leaseEnd,
+        leaseTerm: application.leaseTerm,
+        noticePeriod: 30,
+        
+        // Emergency Contact
+        emergencyContactName: application.emergencyContactName,
+        emergencyContactPhone: application.emergencyContactPhone,
+        emergencyContactRelation: application.emergencyContactRelation,
+        
+        // Additional Information - Include ALL notes fields
+        tenantNotes: application.tenantNotes,
+        applicationNotes: application.description || application.notes || application.additionalInfo || "",
+        description: application.description,
+        notes: application.notes,
+        
+        // Application metadata
+        applicationId: application.id,
         appliedDate: application.appliedDate
       };
 
@@ -75,7 +204,7 @@ const Applications = () => {
       localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
       
       // Navigate to AddTenant page with prefill data
-      navigate('/tenants/add', { state: { prefillData } });
+      navigate('/tenants/add', { state: { prefillData, applicationId: application.id } });
       
     } catch (error) {
       console.error("Error approving application:", error);
@@ -109,10 +238,56 @@ const Applications = () => {
     setSelectedApp(application);
   };
 
+  // Format currency
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "Not specified";
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateInput) => {
+    if (!dateInput) return "Not specified";
+    
+    try {
+      let date;
+      
+      // Handle Firestore Timestamp
+      if (dateInput.toDate) {
+        date = dateInput.toDate();
+      } 
+      // Handle string date
+      else if (typeof dateInput === 'string') {
+        date = new Date(dateInput);
+      } 
+      // Handle Date object
+      else if (dateInput instanceof Date) {
+        date = dateInput;
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      }
+      return "Invalid date";
+    } catch (error) {
+      return "Date error";
+    }
+  };
+
   if (loading) {
     return (
       <div className="app-container">
-        <div className="app-loading">Loading applications...</div>
+        <div className="app-loading">
+          <div className="spinner"></div>
+          <p>Loading applications...</p>
+        </div>
       </div>
     );
   }
@@ -122,6 +297,9 @@ const Applications = () => {
       <div className="app-header">
         <h1>Tenant Applications</h1>
         <p>Review and approve tenant registration requests</p>
+        <div className="app-stats">
+          <span className="app-stat-badge">{applications.length} Pending Applications</span>
+        </div>
       </div>
 
       {applications.length === 0 ? (
@@ -139,26 +317,47 @@ const Applications = () => {
                   <FaUser />
                 </div>
                 <div className="app-info">
-                  <h3>{app.fullName}</h3>
+                  <h3>{app.fullName || "Unnamed Applicant"}</h3>
                   <p>
-                    <FaEnvelope /> {app.email}
+                    <FaEnvelope /> {app.email || "No email"}
                   </p>
                   <p>
-                    <FaPhone /> {app.phone}
+                    <FaPhone /> {app.phone || "No phone"}
                   </p>
                 </div>
               </div>
 
               <div className="app-details">
                 <div className="app-detail-row">
-                  <span className="app-label">Applied For:</span>
+                  <span className="app-label"><FaHome /> Property:</span>
                   <span className="app-value">
-                    <FaHome /> Property {app.propertyId}, Unit {app.unitId}
+                    {app.propertyName}
                   </span>
                 </div>
                 
                 <div className="app-detail-row">
-                  <span className="app-label">Applied Date:</span>
+                  <span className="app-label">Unit:</span>
+                  <span className="app-value">
+                    {app.unitNumber}
+                    {app.unitMonthlyRent > 0 && (
+                      <span className="app-rent-amount">
+                        • {formatCurrency(app.unitMonthlyRent)}/month
+                      </span>
+                    )}
+                  </span>
+                </div>
+                
+                {app.leaseStart && (
+                  <div className="app-detail-row">
+                    <span className="app-label"><FaCalendar /> Move-in:</span>
+                    <span className="app-value">
+                      {formatDate(app.leaseStart)}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="app-detail-row">
+                  <span className="app-label">Applied:</span>
                   <span className="app-value">
                     {app.appliedDate?.toLocaleDateString() || "N/A"}
                   </span>
@@ -211,38 +410,131 @@ const Applications = () => {
             <div className="app-modal-body">
               <div className="app-detail-section">
                 <h3>Personal Information</h3>
-                <p><strong>Full Name:</strong> {selectedApp.fullName}</p>
-                <p><strong>Email:</strong> {selectedApp.email}</p>
-                <p><strong>Phone:</strong> {selectedApp.phone}</p>
-                {selectedApp.idNumber && (
-                  <p><strong>ID Number:</strong> {selectedApp.idNumber}</p>
-                )}
-                {selectedApp.emergencyContactName && (
-                  <p><strong>Emergency Contact:</strong> {selectedApp.emergencyContactName}</p>
-                )}
-                {selectedApp.emergencyContactPhone && (
-                  <p><strong>Emergency Phone:</strong> {selectedApp.emergencyContactPhone}</p>
-                )}
+                <div className="app-detail-grid">
+                  <div className="app-detail-item">
+                    <strong>Full Name:</strong> {selectedApp.fullName || "Not provided"}
+                  </div>
+                  <div className="app-detail-item">
+                    <strong>Email:</strong> {selectedApp.email || "Not provided"}
+                  </div>
+                  <div className="app-detail-item">
+                    <strong>Phone:</strong> {selectedApp.phone || "Not provided"}
+                  </div>
+                  {selectedApp.idNumber && (
+                    <div className="app-detail-item">
+                      <strong>ID Number:</strong> {selectedApp.idNumber}
+                    </div>
+                  )}
+                  {selectedApp.occupation && (
+                    <div className="app-detail-item">
+                      <strong>Occupation:</strong> {selectedApp.occupation}
+                    </div>
+                  )}
+                  {selectedApp.employer && (
+                    <div className="app-detail-item">
+                      <strong>Employer:</strong> {selectedApp.employer}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="app-detail-section">
+                <h3>Emergency Contact</h3>
+                <div className="app-detail-grid">
+                  {selectedApp.emergencyContactName ? (
+                    <>
+                      <div className="app-detail-item">
+                        <strong>Name:</strong> {selectedApp.emergencyContactName}
+                      </div>
+                      <div className="app-detail-item">
+                        <strong>Phone:</strong> {selectedApp.emergencyContactPhone || "Not provided"}
+                      </div>
+                      {selectedApp.emergencyContactRelation && (
+                        <div className="app-detail-item">
+                          <strong>Relationship:</strong> {selectedApp.emergencyContactRelation}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="app-detail-item">
+                      <em>No emergency contact provided</em>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="app-detail-section">
                 <h3>Property Information</h3>
-                <p><strong>Property ID:</strong> {selectedApp.propertyId}</p>
-                <p><strong>Unit ID:</strong> {selectedApp.unitId}</p>
-                {selectedApp.monthlyRent && (
-                  <p><strong>Monthly Rent:</strong> KSh {selectedApp.monthlyRent.toLocaleString()}</p>
-                )}
-                {selectedApp.securityDeposit && (
-                  <p><strong>Security Deposit:</strong> KSh {selectedApp.securityDeposit.toLocaleString()}</p>
-                )}
+                <div className="app-detail-grid">
+                  <div className="app-detail-item">
+                    <strong>Property:</strong> {selectedApp.propertyName}
+                  </div>
+                  <div className="app-detail-item">
+                    <strong>Unit:</strong> {selectedApp.unitNumber}
+                  </div>
+                  {selectedApp.unitMonthlyRent > 0 && (
+                    <div className="app-detail-item">
+                      <strong>Monthly Rent:</strong> {formatCurrency(selectedApp.unitMonthlyRent)}
+                    </div>
+                  )}
+                  {selectedApp.unitType && (
+                    <div className="app-detail-item">
+                      <strong>Unit Type:</strong> {selectedApp.unitType}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="app-detail-section">
+                <h3>Lease Information</h3>
+                <div className="app-detail-grid">
+                  {selectedApp.leaseStart && (
+                    <div className="app-detail-item">
+                      <strong>Preferred Move-in Date:</strong> {formatDate(selectedApp.leaseStart)}
+                    </div>
+                  )}
+                  {selectedApp.leaseEnd && (
+                    <div className="app-detail-item">
+                      <strong>Preferred Lease End:</strong> {formatDate(selectedApp.leaseEnd)}
+                    </div>
+                  )}
+                  {selectedApp.leaseTerm && (
+                    <div className="app-detail-item">
+                      <strong>Lease Term:</strong> {selectedApp.leaseTerm} months
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="app-detail-section">
+                <h3><FaStickyNote /> Additional Information</h3>
+                <div className="app-notes-container">
+                  {selectedApp.tenantNotes ? (
+                    <div className="app-notes-content">
+                      {selectedApp.tenantNotes}
+                    </div>
+                  ) : (
+                    <div className="app-no-notes">
+                      <em>No additional information provided by the tenant.</em>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="app-detail-section">
                 <h3>Application Status</h3>
-                <p><strong>Applied:</strong> {selectedApp.appliedDate?.toLocaleDateString()}</p>
-                <p><strong>Status:</strong> 
-                  <span className="app-status-badge pending">Pending</span>
-                </p>
+                <div className="app-detail-grid">
+                  <div className="app-detail-item">
+                    <strong>Applied:</strong> {selectedApp.appliedDate?.toLocaleDateString() || "N/A"}
+                  </div>
+                  <div className="app-detail-item">
+                    <strong>Status:</strong> 
+                    <span className="app-status-badge pending">Pending</span>
+                  </div>
+                  <div className="app-detail-item">
+                    <strong>Application ID:</strong> {selectedApp.id}
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -256,25 +548,58 @@ const Applications = () => {
               <button 
                 className="app-btn-primary"
                 onClick={() => {
-                  // Prepare prefill data for AddTenant
+                  // Prepare comprehensive prefill data for AddTenant
                   const prefillData = {
+                    // Tenant Information
                     fullName: selectedApp.fullName,
                     email: selectedApp.email,
                     phone: selectedApp.phone,
-                    idNumber: selectedApp.idNumber || "",
+                    idNumber: selectedApp.idNumber,
+                    occupation: selectedApp.occupation,
+                    employer: selectedApp.employer,
+                    
+                    // Property & Unit Information
                     propertyId: selectedApp.propertyId,
+                    propertyName: selectedApp.propertyName,
                     unitId: selectedApp.unitId,
-                    monthlyRent: selectedApp.monthlyRent || "",
-                    securityDeposit: selectedApp.securityDeposit || selectedApp.monthlyRent || "",
-                    emergencyContactName: selectedApp.emergencyContactName || "",
-                    emergencyContactPhone: selectedApp.emergencyContactPhone || "",
+                    unitNumber: selectedApp.unitNumber,
+                    monthlyRent: selectedApp.unitMonthlyRent || selectedApp.monthlyRent,
+                    
+                    // Financial Details (will be fetched from property in AddTenant)
+                    securityDeposit: selectedApp.securityDeposit || "",
+                    applicationFee: "",
+                    petDeposit: "",
+                    
+                    // Lease Period
+                    leaseStart: selectedApp.leaseStart,
+                    leaseEnd: selectedApp.leaseEnd,
+                    leaseTerm: selectedApp.leaseTerm,
+                    noticePeriod: 30,
+                    
+                    // Emergency Contact
+                    emergencyContactName: selectedApp.emergencyContactName,
+                    emergencyContactPhone: selectedApp.emergencyContactPhone,
+                    emergencyContactRelation: selectedApp.emergencyContactRelation,
+                    
+                    // Additional Information - Include ALL notes fields
+                    tenantNotes: selectedApp.tenantNotes,
+                    applicationNotes: selectedApp.description || selectedApp.notes || selectedApp.additionalInfo || "",
+                    description: selectedApp.description,
+                    notes: selectedApp.notes,
+                    
+                    // Application metadata
                     applicationId: selectedApp.id,
                     appliedDate: selectedApp.appliedDate
                   };
                   
-                  // Save to localStorage (as backup) and navigate
+                  // Save to localStorage and navigate
                   localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
-                  navigate('/tenants/add', { state: { prefillData } });
+                  navigate('/tenants/add', { 
+                    state: { 
+                      prefillData,
+                      applicationId: selectedApp.id 
+                    } 
+                  });
                   setSelectedApp(null);
                 }}
               >
