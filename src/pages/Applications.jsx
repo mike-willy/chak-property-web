@@ -18,7 +18,9 @@ import {
   FaEnvelope, 
   FaEye, 
   FaTrash,
-  FaCalendar
+  FaCalendar,
+  FaCheckCircle,
+  FaThumbsDown
 } from "react-icons/fa";
 import "../styles/applications.css";
 
@@ -29,7 +31,7 @@ const Applications = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  // Fetch pending applications
+  // Fetch ALL applications (pending, approved, rejected)
   useEffect(() => {
     fetchApplications();
   }, []);
@@ -37,23 +39,30 @@ const Applications = () => {
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      const q = query(
-        collection(db, "tenantApplications"),
-        where("status", "==", "pending")
-      );
+      // Remove the where clause to get ALL applications
+      const q = query(collection(db, "tenantApplications"));
+      // Keep only if you want to filter out deleted ones:
+      // const q = query(collection(db, "tenantApplications"), where("status", "!=", "deleted"));
 
       const snapshot = await getDocs(q);
       const apps = [];
 
       snapshot.forEach((doc) => {
+        const data = doc.data();
         apps.push({
           id: doc.id,
-          ...doc.data(),
+          ...data,
           // Convert Firestore timestamp
-          appliedDate: doc.data().appliedDate?.toDate()
+          appliedDate: data.appliedDate?.toDate(),
+          // Handle other timestamps
+          processedAt: data.processedAt?.toDate(),
+          rejectedAt: data.rejectedAt?.toDate(),
+          reviewedAt: data.reviewedAt?.toDate()
         });
       });
 
+      // Sort by date (newest first)
+      apps.sort((a, b) => (b.appliedDate || 0) - (a.appliedDate || 0));
       setApplications(apps);
     } catch (error) {
       console.error("Error fetching applications:", error);
@@ -62,8 +71,13 @@ const Applications = () => {
     }
   };
 
-  // Navigate to AddTenant with prefill data
+  // Navigate to AddTenant with prefill data (only for pending)
   const viewApplicationDetails = (application) => {
+    if (application.status !== "pending") {
+      setSelectedApp(application);
+      return;
+    }
+    
     const prefillData = {
       fullName: application.fullName,
       email: application.email,
@@ -80,30 +94,22 @@ const Applications = () => {
       userId: application.tenantId
     };
 
-    // Save to localStorage (as backup) and navigate
     localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
     navigate('/tenants/add', { state: { prefillData } });
   };
 
-  // Delete an application
+  // Delete an application permanently
   const deleteApplication = async (application) => {
-    if (!window.confirm(`Delete ${application.fullName}'s application? This action cannot be undone.`)) return;
+    if (!window.confirm(`Permanently delete ${application.fullName}'s application? This action cannot be undone.`)) return;
 
     try {
       setDeletingId(application.id);
       
-      // Option 1: Soft delete (update status)
-      await updateDoc(doc(db, "tenantApplications", application.id), {
-        status: "deleted",
-        deletedAt: Timestamp.now(),
-        deletedBy: "admin"
-      });
-      
-      // Option 2: Hard delete (remove from database)
-      // await deleteDoc(doc(db, "tenantApplications", application.id));
+      // Hard delete (remove from database)
+      await deleteDoc(doc(db, "tenantApplications", application.id));
       
       setApplications(prev => prev.filter(app => app.id !== application.id));
-      alert("Application deleted successfully");
+      alert("Application permanently deleted");
       
     } catch (error) {
       console.error("Error deleting application:", error);
@@ -113,27 +119,41 @@ const Applications = () => {
     }
   };
 
-  // Quick approve from modal
-  const quickApproveApplication = (application) => {
-    const prefillData = {
-      fullName: application.fullName,
-      email: application.email,
-      phone: application.phone,
-      idNumber: application.idNumber || "",
-      propertyId: application.propertyId,
-      unitId: application.unitId,
-      monthlyRent: application.monthlyRent || "",
-      securityDeposit: application.securityDeposit || application.monthlyRent || "",
-      emergencyContactName: application.emergencyContactName || "",
-      emergencyContactPhone: application.emergencyContactPhone || "",
-      applicationId: application.id,
-      appliedDate: application.appliedDate,
-      userId: application.tenantId
-    };
+  // Get status badge class
+  const getStatusClass = (status) => {
+    switch(status) {
+      case "approved": return "approved";
+      case "rejected": return "rejected";
+      case "pending": return "pending";
+      default: return "pending";
+    }
+  };
 
-    localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
-    navigate('/tenants/add', { state: { prefillData } });
-    setSelectedApp(null);
+  // Get status text
+  const getStatusText = (status) => {
+    switch(status) {
+      case "approved": return "Approved";
+      case "rejected": return "Rejected";
+      case "pending": return "Pending Review";
+      default: return "Pending";
+    }
+  };
+
+  // Format date
+  const formatDate = (date) => {
+    if (!date) return "N/A";
+    return date.toLocaleDateString('en-GB');
+  };
+
+  // Get processed date text
+  const getProcessedDate = (app) => {
+    if (app.status === "approved" && app.processedAt) {
+      return `Approved: ${formatDate(app.processedAt)}`;
+    }
+    if (app.status === "rejected" && app.rejectedAt) {
+      return `Rejected: ${formatDate(app.rejectedAt)}`;
+    }
+    return `Applied: ${formatDate(app.appliedDate)}`;
   };
 
   if (loading) {
@@ -147,35 +167,62 @@ const Applications = () => {
     );
   }
 
+  // Count by status
+  const pendingCount = applications.filter(app => app.status === "pending").length;
+  const approvedCount = applications.filter(app => app.status === "approved").length;
+  const rejectedCount = applications.filter(app => app.status === "rejected").length;
+
   return (
     <div className="app-container">
       <div className="app-header">
         <h1>Tenant Applications</h1>
         <p>Review and approve tenant registration requests</p>
-        <div className="app-summary">
-          <span className="app-count">{applications.length} Pending Application{applications.length !== 1 ? 's' : ''}</span>
+        <div className="app-summary-stats">
+          <div className="app-stat-card pending">
+            <span className="app-stat-count">{pendingCount}</span>
+            <span className="app-stat-label">Pending</span>
+          </div>
+          <div className="app-stat-card approved">
+            <span className="app-stat-count">{approvedCount}</span>
+            <span className="app-stat-label">Approved</span>
+          </div>
+          <div className="app-stat-card rejected">
+            <span className="app-stat-count">{rejectedCount}</span>
+            <span className="app-stat-label">Rejected</span>
+          </div>
+          <div className="app-stat-card total">
+            <span className="app-stat-count">{applications.length}</span>
+            <span className="app-stat-label">Total</span>
+          </div>
         </div>
       </div>
 
       {applications.length === 0 ? (
         <div className="app-no-applications">
           <FaUser className="app-no-apps-icon" />
-          <h3>No pending applications</h3>
+          <h3>No applications found</h3>
           <p>When tenants register via mobile app, they'll appear here.</p>
         </div>
       ) : (
         <div className="app-horizontal-list">
           {applications.map((app) => (
-            <div key={app.id} className="app-horizontal-card">
+            <div key={app.id} className={`app-horizontal-card ${app.status}`}>
               <div className="app-horizontal-main">
                 <div className="app-horizontal-avatar">
                   <FaUser />
+                  {app.status !== "pending" && (
+                    <div className={`app-status-indicator ${app.status}`}>
+                      {app.status === "approved" ? <FaCheckCircle /> : <FaThumbsDown />}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="app-horizontal-info">
                   <div className="app-horizontal-name-section">
                     <h3>{app.fullName}</h3>
-                    <span className="app-horizontal-status pending">Pending Review</span>
+                    <span className={`app-horizontal-status ${getStatusClass(app.status)}`}>
+                      {getStatusText(app.status)}
+                    </span>
                   </div>
                   
                   <div className="app-horizontal-contact">
@@ -190,32 +237,63 @@ const Applications = () => {
                   
                   <div className="app-horizontal-meta">
                     <span className="app-date">
-                      <FaCalendar /> Applied: {app.appliedDate?.toLocaleDateString('en-GB') || "N/A"}
+                      <FaCalendar /> {getProcessedDate(app)}
                     </span>
+                    {app.rejectionReason && app.status === "rejected" && (
+                      <span className="app-rejection-reason">
+                        Reason: {app.rejectionReason}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
               
               <div className="app-horizontal-actions">
-                <button
-                  className="app-btn-view"
-                  onClick={() => viewApplicationDetails(app)}
-                >
-                  <FaEye /> View Details
-                </button>
-                
-                <button
-                  className="app-btn-delete"
-                  onClick={() => deleteApplication(app)}
-                  disabled={deletingId === app.id}
-                  title="Delete application"
-                >
-                  {deletingId === app.id ? (
-                    <span className="app-deleting">Deleting...</span>
-                  ) : (
-                    <FaTrash />
-                  )}
-                </button>
+                {app.status === "pending" ? (
+                  <>
+                    <button
+                      className="app-btn-view"
+                      onClick={() => viewApplicationDetails(app)}
+                    >
+                      <FaEye /> Review
+                    </button>
+                    
+                    <button
+                      className="app-btn-delete"
+                      onClick={() => deleteApplication(app)}
+                      disabled={deletingId === app.id}
+                      title="Delete application"
+                    >
+                      {deletingId === app.id ? (
+                        <span className="app-deleting">Deleting...</span>
+                      ) : (
+                        <FaTrash />
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="app-btn-view-details"
+                      onClick={() => setSelectedApp(app)}
+                    >
+                      <FaEye /> View Details
+                    </button>
+                    
+                    <button
+                      className="app-btn-delete"
+                      onClick={() => deleteApplication(app)}
+                      disabled={deletingId === app.id}
+                      title="Delete application"
+                    >
+                      {deletingId === app.id ? (
+                        <span className="app-deleting">Deleting...</span>
+                      ) : (
+                        <FaTrash />
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -264,10 +342,21 @@ const Applications = () => {
 
               <div className="app-detail-section">
                 <h3>Application Status</h3>
-                <p><strong>Applied:</strong> {selectedApp.appliedDate?.toLocaleDateString('en-GB')}</p>
+                <p><strong>Applied:</strong> {formatDate(selectedApp.appliedDate)}</p>
                 <p><strong>Status:</strong>
-                  <span className="app-status-badge pending">Pending</span>
+                  <span className={`app-status-badge ${getStatusClass(selectedApp.status)}`}>
+                    {getStatusText(selectedApp.status)}
+                  </span>
                 </p>
+                {selectedApp.processedAt && (
+                  <p><strong>Processed:</strong> {formatDate(selectedApp.processedAt)}</p>
+                )}
+                {selectedApp.rejectedAt && (
+                  <p><strong>Rejected:</strong> {formatDate(selectedApp.rejectedAt)}</p>
+                )}
+                {selectedApp.rejectionReason && (
+                  <p><strong>Rejection Reason:</strong> {selectedApp.rejectionReason}</p>
+                )}
               </div>
             </div>
 
@@ -280,17 +369,41 @@ const Applications = () => {
               </button>
               <button
                 className="app-btn-delete"
-                onClick={() => deleteApplication(selectedApp)}
+                onClick={() => {
+                  deleteApplication(selectedApp);
+                  setSelectedApp(null);
+                }}
                 style={{ marginRight: '10px' }}
               >
                 <FaTrash /> Delete
               </button>
-              <button
-                className="app-btn-primary"
-                onClick={() => quickApproveApplication(selectedApp)}
-              >
-                Review & Approve
-              </button>
+              {selectedApp.status === "pending" && (
+                <button
+                  className="app-btn-primary"
+                  onClick={() => {
+                    const prefillData = {
+                      fullName: selectedApp.fullName,
+                      email: selectedApp.email,
+                      phone: selectedApp.phone,
+                      idNumber: selectedApp.idNumber || "",
+                      propertyId: selectedApp.propertyId,
+                      unitId: selectedApp.unitId,
+                      monthlyRent: selectedApp.monthlyRent || "",
+                      securityDeposit: selectedApp.securityDeposit || selectedApp.monthlyRent || "",
+                      emergencyContactName: selectedApp.emergencyContactName || "",
+                      emergencyContactPhone: selectedApp.emergencyContactPhone || "",
+                      applicationId: selectedApp.id,
+                      appliedDate: selectedApp.appliedDate,
+                      userId: selectedApp.tenantId
+                    };
+                    localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
+                    navigate('/tenants/add', { state: { prefillData } });
+                    setSelectedApp(null);
+                  }}
+                >
+                  Review & Approve
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -1,20 +1,23 @@
-// src/pages/AddTenant.jsx - MODIFIED VERSION
+// src/pages/AddTenant.jsx - FIXED VERSION
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
-import {
-  collection,
-  addDoc,
+import { 
+  collection, 
+  addDoc, 
   updateDoc,
   doc,
   Timestamp,
-  getDoc
+  getDoc,
+  collection as firestoreCollection,
+  getDocs,
+  query,
+  where
 } from "firebase/firestore";
 import { useNavigate, useLocation } from "react-router-dom";
-import {
-  FaUserPlus,
-  FaHome,
-  FaCalendar,
-  FaUsers,
+import { 
+  FaHome, 
+  FaCalendar, 
+  FaUsers, 
   FaTimes,
   FaStickyNote,
   FaPhone,
@@ -24,166 +27,305 @@ import {
   FaLock,
   FaEye,
   FaCheckCircle,
-  FaThumbsDown,
-  FaTrash
+  FaExclamationTriangle,
+  FaThumbsDown
 } from "react-icons/fa";
 import "../styles/addTenant.css";
 
 const AddTenant = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Get prefill data from tenant application
-  const [prefillData, setPrefillData] = useState(() => {
-    if (location.state?.prefillData) {
-      return location.state.prefillData;
+  
+  // Get application ID from URL or state
+  const [applicationId, setApplicationId] = useState(() => {
+    if (location.state?.applicationId) {
+      return location.state.applicationId;
     }
-    const stored = localStorage.getItem('prefillTenantData');
-    if (stored) {
-      localStorage.removeItem('prefillTenantData');
-      return JSON.parse(stored);
+    if (location.state?.prefillData?.applicationId) {
+      return location.state.prefillData.applicationId;
     }
-    return null;
+    // Check URL params
+    const params = new URLSearchParams(location.search);
+    return params.get('applicationId') || null;
   });
 
   const [loading, setLoading] = useState(false);
   const [propertyDetails, setPropertyDetails] = useState(null);
+  const [unitDetails, setUnitDetails] = useState(null);
+  const [applicationData, setApplicationData] = useState(null);
+  const [error, setError] = useState(null);
+  const [unitRef, setUnitRef] = useState(null);
   
-  // NEW: Rejection reason state
+  // Rejection state - SIMPLIFIED
   const [rejectionReason, setRejectionReason] = useState("");
-  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
 
-  // Tenant data from application
-  const [tenantData, setTenantData] = useState({
+  // Initial state for tenant data
+  const initialTenantData = {
     // Tenant Information
-    fullName: prefillData?.fullName || "",
-    email: prefillData?.email || "",
-    phone: prefillData?.phone || "",
-    idNumber: prefillData?.idNumber || "",
-    occupation: prefillData?.occupation || "",
-    employer: prefillData?.employer || "",
-
+    fullName: "",
+    email: "",
+    phone: "",
+    idNumber: "",
+    occupation: "",
+    employer: "",
+    
     // Property & Unit
-    propertyId: prefillData?.propertyId || "",
-    propertyName: prefillData?.propertyName || "",
-    unitId: prefillData?.unitId || "",
-    unitNumber: prefillData?.unitNumber || "",
-    monthlyRent: prefillData?.monthlyRent || "",
-
+    propertyId: "",
+    propertyName: "",
+    unitId: "",
+    unitNumber: "",
+    monthlyRent: "",
+    
     // Financial Details
-    securityDeposit: prefillData?.securityDeposit || "",
-    applicationFee: prefillData?.applicationFee || "",
-    petDeposit: prefillData?.petDeposit || "",
+    securityDeposit: "",
+    applicationFee: "",
+    petDeposit: "",
     totalMoveInCost: 0,
-
+    
     // Lease Period
-    leaseStart: prefillData?.leaseStart || "",
-    leaseEnd: prefillData?.leaseEnd || "",
-    leaseTerm: prefillData?.leaseTerm || 12,
-    noticePeriod: prefillData?.noticePeriod || 30,
-
+    leaseStart: "",
+    leaseEnd: "",
+    leaseTerm: 12,
+    noticePeriod: 30,
+    
     // Emergency Contact
-    emergencyContactName: prefillData?.emergencyContactName || "",
-    emergencyContactPhone: prefillData?.emergencyContactPhone || "",
-    emergencyContactRelation: prefillData?.emergencyContactRelation || "",
-
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelation: "",
+    
     // Additional Information
-    tenantNotes: prefillData?.tenantNotes || prefillData?.applicationNotes || prefillData?.description || prefillData?.notes || "",
-
+    tenantNotes: "",
+    
     // Application metadata
-    applicationId: prefillData?.applicationId || "",
-    appliedDate: prefillData?.appliedDate || "",
-    userId: prefillData?.userId || "", // Link to original user account
-  });
+    applicationId: "",
+    appliedDate: "",
+    status: ""
+  };
 
-  // NEW: Handle reject application
-  const handleRejectApplication = async () => {
-    if (!rejectionReason.trim()) {
-      alert("Please provide a rejection reason");
-      return;
-    }
+  // Tenant data state
+  const [tenantData, setTenantData] = useState(initialTenantData);
 
-    if (!window.confirm("Are you sure you want to reject this application?")) return;
+  // NEW: Reset form function - IMPROVED
+  const resetForm = useCallback(() => {
+    console.log("Resetting form...");
+    setTenantData(initialTenantData);
+    setPropertyDetails(null);
+    setUnitDetails(null);
+    setApplicationData(null);
+    setUnitRef(null);
+    setRejectionReason("");
+    setIsRejecting(false);
+    setError(null);
+    setApplicationId(null);
+    setLoading(false);
+    // Clear localStorage if used
+    localStorage.removeItem('prefillTenantData');
+    localStorage.removeItem('currentApplication');
+    
+    // Force a navigation to clear any state
+    setTimeout(() => {
+      navigate("/applications", { replace: true });
+    }, 100);
+  }, [initialTenantData, navigate]);
 
-    try {
-      setLoading(true);
-      
-      // Update application status to rejected
-      if (tenantData.applicationId) {
-        await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
-          status: "rejected",
-          rejectedAt: Timestamp.now(),
-          rejectedBy: "admin",
-          rejectionReason: rejectionReason,
-          reviewedAt: Timestamp.now()
-        });
-      }
-
-      alert("Application rejected successfully!");
-      
-      // Reset form and navigate back to applications
+  // NEW: Handle cancel with confirmation
+  const handleCancel = () => {
+    if (window.confirm("Are you sure you want to cancel? Any unsaved changes will be lost.")) {
       resetForm();
-      navigate("/applications");
+    }
+  };
+
+  // Find unit document
+  const findUnitDocument = useCallback(async (unitId, propertyId) => {
+    if (!unitId) return null;
+    
+    try {
+      // Try 1: Check in separate units collection
+      try {
+        const unitDocRef = doc(db, "units", unitId);
+        const unitDoc = await getDoc(unitDocRef);
+        
+        if (unitDoc.exists()) {
+          console.log("Unit found in separate units collection");
+          return {
+            ref: unitDocRef,
+            data: unitDoc.data(),
+            collectionType: "units"
+          };
+        }
+      } catch (error) {
+        console.log("Unit not found in separate collection:", error.message);
+      }
+      
+      // Try 2: Check in property subcollection (properties/{propertyId}/units/{unitId})
+      if (propertyId) {
+        try {
+          const unitDocRef = doc(db, "properties", propertyId, "units", unitId);
+          const unitDoc = await getDoc(unitDocRef);
+          
+          if (unitDoc.exists()) {
+            console.log("Unit found in property subcollection");
+            return {
+              ref: unitDocRef,
+              data: unitDoc.data(),
+              collectionType: "property_subcollection"
+            };
+          }
+        } catch (error) {
+          console.log("Unit not found in property subcollection:", error.message);
+        }
+      }
+      
+      // Try 3: Search for unit by unitNumber in separate units collection
+      if (propertyId && tenantData.unitNumber) {
+        try {
+          const unitsQuery = query(
+            firestoreCollection(db, "units"),
+            where("propertyId", "==", propertyId),
+            where("unitNumber", "==", tenantData.unitNumber)
+          );
+          
+          const querySnapshot = await getDocs(unitsQuery);
+          if (!querySnapshot.empty) {
+            const unitDoc = querySnapshot.docs[0];
+            console.log("Unit found by unitNumber in units collection");
+            return {
+              ref: doc(db, "units", unitDoc.id),
+              data: unitDoc.data(),
+              collectionType: "units_by_unitNumber"
+            };
+          }
+        } catch (error) {
+          console.log("Error searching unit by unitNumber:", error.message);
+        }
+      }
+      
+      console.log("Unit document not found in any collection");
+      return null;
       
     } catch (error) {
-      console.error("Error rejecting application:", error);
-      alert("Failed to reject application. Please try again.");
+      console.error("Error finding unit document:", error);
+      return null;
+    }
+  }, [tenantData.unitNumber]);
+
+  // Fetch application data from Firestore
+  const fetchApplicationData = useCallback(async (appId) => {
+    if (!appId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch the application document
+      const applicationRef = doc(db, "tenantApplications", appId);
+      const applicationDoc = await getDoc(applicationRef);
+      
+      if (!applicationDoc.exists()) {
+        setError("Application not found");
+        setLoading(false);
+        return;
+      }
+      
+      const appData = applicationDoc.data();
+      setApplicationData(appData);
+      
+      // Store application ID in localStorage for persistence
+      localStorage.setItem('currentApplication', appId);
+      
+      // Extract and structure the data
+      const tenantInfo = {
+        // Tenant Information
+        fullName: appData.fullName || appData.name || "",
+        email: appData.email || "",
+        phone: appData.phone || appData.phoneNumber || "",
+        idNumber: appData.idNumber || appData.nationalId || "",
+        occupation: appData.occupation || appData.jobTitle || "",
+        employer: appData.employer || appData.company || "",
+        
+        // Property & Unit
+        propertyId: appData.propertyId || appData.selectedPropertyId || "",
+        propertyName: appData.propertyName || appData.selectedPropertyName || "",
+        unitId: appData.unitId || appData.selectedUnitId || "",
+        unitNumber: appData.unitNumber || appData.selectedUnitNumber || "",
+        monthlyRent: appData.monthlyRent || appData.rentAmount || "",
+        
+        // Lease Period
+        leaseStart: appData.leaseStart,
+        leaseEnd: appData.leaseEnd,
+        leaseTerm: appData.leaseTerm || appData.preferredLeaseTerm || 12,
+        noticePeriod: appData.noticePeriod || 30,
+        
+        // Emergency Contact
+        emergencyContactName: appData.emergencyContactName || appData.emergencyName || "",
+        emergencyContactPhone: appData.emergencyContactPhone || appData.emergencyPhone || "",
+        emergencyContactRelation: appData.emergencyContactRelation || appData.emergencyRelationship || "",
+        
+        // Additional Information
+        tenantNotes: appData.description || appData.notes || appData.additionalInfo || 
+                   appData.message || appData.comments || "",
+        
+        // Application metadata
+        applicationId: appId,
+        appliedDate: appData.createdAt || appData.appliedDate || "",
+        status: appData.status || ""
+      };
+
+      setTenantData(tenantInfo);
+
+      // Fetch property details if propertyId exists
+      if (tenantInfo.propertyId) {
+        await loadPropertyDetails(tenantInfo.propertyId);
+      }
+
+      // Find unit document
+      if (tenantInfo.unitId && tenantInfo.propertyId) {
+        const unitDocInfo = await findUnitDocument(tenantInfo.unitId, tenantInfo.propertyId);
+        if (unitDocInfo) {
+          setUnitRef(unitDocInfo.ref);
+          setUnitDetails(unitDocInfo.data);
+          
+          // Update tenant data with unit information
+          setTenantData(prev => ({
+            ...prev,
+            unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
+            monthlyRent: unitDocInfo.data.rentAmount || unitDocInfo.data.monthlyRent || prev.monthlyRent || "",
+            propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
+          }));
+        } else {
+          console.warn("Unit document not found, but proceeding with application data");
+          setTenantData(prev => ({
+            ...prev,
+            unitNumber: appData.unitNumber || prev.unitNumber || "",
+            monthlyRent: appData.monthlyRent || prev.monthlyRent || "",
+            propertyName: appData.propertyName || prev.propertyName || ""
+          }));
+        }
+      }
+
+      // Recalculate total
+      calculateTotalMoveInCost(tenantInfo);
+
+    } catch (error) {
+      console.error("Error fetching application data:", error);
+      setError("Failed to load application data");
     } finally {
       setLoading(false);
-      setShowRejectForm(false);
     }
-  };
+  }, [findUnitDocument]);
 
-  // NEW: Reset form to blank state
-  const resetForm = () => {
-    setTenantData({
-      fullName: "",
-      email: "",
-      phone: "",
-      idNumber: "",
-      occupation: "",
-      employer: "",
-      propertyId: "",
-      propertyName: "",
-      unitId: "",
-      unitNumber: "",
-      monthlyRent: "",
-      securityDeposit: "",
-      applicationFee: "",
-      petDeposit: "",
-      totalMoveInCost: 0,
-      leaseStart: "",
-      leaseEnd: "",
-      leaseTerm: 12,
-      noticePeriod: 30,
-      emergencyContactName: "",
-      emergencyContactPhone: "",
-      emergencyContactRelation: "",
-      tenantNotes: "",
-      applicationId: "",
-      appliedDate: "",
-      userId: ""
-    });
-    setRejectionReason("");
-    setPrefillData(null);
-  };
-
-  // NEW: Handle cancel/back without rejecting
-  const handleCancel = () => {
-    resetForm();
-    navigate("/applications");
-  };
-
-  // Load property details (same as before)
+  // Load property details
   const loadPropertyDetails = useCallback(async (propertyId) => {
     try {
       const propertyRef = doc(db, "properties", propertyId);
       const propertyDoc = await getDoc(propertyRef);
-
+      
       if (propertyDoc.exists()) {
         const propertyData = propertyDoc.data();
         setPropertyDetails(propertyData);
-
+        
+        // Update tenant data with property's fee information
         setTenantData(prev => ({
           ...prev,
           securityDeposit: propertyData.securityDeposit || prev.securityDeposit || "",
@@ -192,23 +334,21 @@ const AddTenant = () => {
           leaseTerm: propertyData.leaseTerm || prev.leaseTerm || 12,
           noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30
         }));
-
-        calculateTotalMoveInCost();
       }
     } catch (error) {
       console.error("Error loading property details:", error);
     }
   }, []);
 
-  // Calculate total move-in cost (same as before)
-  const calculateTotalMoveInCost = () => {
-    const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
-    const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
-    const applicationFee = parseFloat(tenantData.applicationFee) || 0;
-    const petDeposit = parseFloat(tenantData.petDeposit) || 0;
-
+  // Calculate total move-in cost
+  const calculateTotalMoveInCost = (data) => {
+    const monthlyRent = parseFloat(data?.monthlyRent || tenantData.monthlyRent) || 0;
+    const securityDeposit = parseFloat(data?.securityDeposit || tenantData.securityDeposit) || 0;
+    const applicationFee = parseFloat(data?.applicationFee || tenantData.applicationFee) || 0;
+    const petDeposit = parseFloat(data?.petDeposit || tenantData.petDeposit) || 0;
+    
     const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
-
+    
     setTenantData(prev => ({
       ...prev,
       totalMoveInCost: total
@@ -216,16 +356,60 @@ const AddTenant = () => {
   };
 
   useEffect(() => {
-    if (prefillData?.propertyId) {
-      loadPropertyDetails(prefillData.propertyId);
+    // Check for saved application in localStorage on mount
+    const savedAppId = localStorage.getItem('currentApplication');
+    const appIdToUse = applicationId || savedAppId;
+    
+    if (appIdToUse) {
+      fetchApplicationData(appIdToUse);
+    } else if (location.state?.prefillData) {
+      const prefill = location.state.prefillData;
+      setApplicationData(prefill);
+      setTenantData(prev => ({
+        ...prev,
+        ...prefill,
+        applicationId: prefill.applicationId || ""
+      }));
+      
+      if (prefill.propertyId) {
+        loadPropertyDetails(prefill.propertyId);
+      }
+      if (prefill.unitId && prefill.propertyId) {
+        findUnitDocument(prefill.unitId, prefill.propertyId).then(unitDocInfo => {
+          if (unitDocInfo) {
+            setUnitRef(unitDocInfo.ref);
+            setUnitDetails(unitDocInfo.data);
+          }
+        });
+      }
+    } else {
+      const stored = localStorage.getItem('prefillTenantData');
+      if (stored) {
+        const prefill = JSON.parse(stored);
+        setApplicationData(prefill);
+        setTenantData(prev => ({
+          ...prev,
+          ...prefill,
+          applicationId: prefill.applicationId || ""
+        }));
+        localStorage.removeItem('prefillTenantData');
+        
+        if (prefill.propertyId) {
+          loadPropertyDetails(prefill.propertyId);
+        }
+        if (prefill.unitId && prefill.propertyId) {
+          findUnitDocument(prefill.unitId, prefill.propertyId).then(unitDocInfo => {
+            if (unitDocInfo) {
+              setUnitRef(unitDocInfo.ref);
+              setUnitDetails(unitDocInfo.data);
+            }
+          });
+        }
+      }
     }
+  }, [applicationId, location.state, fetchApplicationData, loadPropertyDetails, findUnitDocument]);
 
-    if (prefillData?.monthlyRent) {
-      calculateTotalMoveInCost();
-    }
-  }, [prefillData, loadPropertyDetails]);
-
-  // Format currency (same as before)
+  // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -234,22 +418,109 @@ const AddTenant = () => {
     }).format(amount || 0);
   };
 
-  // Format date (same as before)
-  const formatDate = (dateString) => {
-    if (!dateString) return "Not specified";
+  // Format date from Firestore Timestamp or string
+  const formatDate = (dateInput) => {
+    if (!dateInput) return "Not specified";
+    
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
+      let date;
+      
+      // Handle Firestore Timestamp (from Flutter)
+      if (dateInput.toDate) {
+        date = dateInput.toDate();
+      } 
+      // Handle string date
+      else if (typeof dateInput === 'string') {
+        date = new Date(dateInput);
+      } 
+      // Handle Date object
+      else if (dateInput instanceof Date) {
+        date = dateInput;
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      }
+      return "Invalid date";
     } catch (error) {
-      return dateString;
+      console.error("Date formatting error:", error);
+      return "Date error";
     }
   };
 
-  // Handle approve tenant (same as before)
+  // Format timestamp (for applied date)
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return "Not specified";
+    
+    try {
+      if (timestamp.toDate) {
+        const date = timestamp.toDate();
+        return date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      return formatDate(timestamp);
+    } catch (error) {
+      return "Date error";
+    }
+  };
+
+  // NEW: SIMPLIFIED reject handler with immediate action
+  const handleRejectClick = () => {
+    const reason = window.prompt("Please provide a reason for rejecting this application:", "");
+    
+    if (reason === null) {
+      return; // User cancelled
+    }
+    
+    if (!reason.trim()) {
+      alert("Please provide a rejection reason");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to reject this application?")) {
+      handleRejectApplication(reason.trim());
+    }
+  };
+
+  // Handle reject application - SIMPLIFIED
+  const handleRejectApplication = async (reason) => {
+    try {
+      setIsRejecting(true);
+      
+      // Update application status to rejected
+      if (tenantData.applicationId) {
+        await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
+          status: "rejected",
+          rejectedAt: Timestamp.now(),
+          rejectedBy: "admin",
+          rejectionReason: reason,
+          reviewedAt: Timestamp.now()
+        });
+      }
+
+      alert("Application rejected successfully!");
+      
+      // Clear form and navigate
+      resetForm();
+      
+    } catch (error) {
+      console.error("Error rejecting application:", error);
+      alert("Failed to reject application. Please try again.");
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  // Handle approve tenant - UPDATED to reset form after approval
   const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -262,44 +533,91 @@ const AddTenant = () => {
         return;
       }
 
+      // Check if unit exists and is available
+      if (unitRef) {
+        const unitDoc = await getDoc(unitRef);
+        if (unitDoc.exists()) {
+          const unitData = unitDoc.data();
+          if (unitData.status === "occupied") {
+            alert("This unit is already occupied. Please select another unit.");
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Handle lease dates
+      let leaseStartDate = Timestamp.now();
+      let leaseEndDate = null;
+      
+      if (tenantData.leaseStart && tenantData.leaseStart.toDate) {
+        leaseStartDate = tenantData.leaseStart;
+      } else if (tenantData.leaseStart && typeof tenantData.leaseStart === 'string') {
+        const date = new Date(tenantData.leaseStart);
+        if (!isNaN(date.getTime())) {
+          leaseStartDate = Timestamp.fromDate(date);
+        }
+      }
+      
+      if (tenantData.leaseEnd && tenantData.leaseEnd.toDate) {
+        leaseEndDate = tenantData.leaseEnd;
+      } else if (tenantData.leaseEnd && typeof tenantData.leaseEnd === 'string') {
+        const date = new Date(tenantData.leaseEnd);
+        if (!isNaN(date.getTime())) {
+          leaseEndDate = Timestamp.fromDate(date);
+        }
+      }
+      
+      if (!leaseEndDate && tenantData.leaseTerm) {
+        const startDate = leaseStartDate.toDate();
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + parseInt(tenantData.leaseTerm));
+        leaseEndDate = Timestamp.fromDate(endDate);
+      }
+
       // Prepare tenant record
       const tenantRecord = {
         // Tenant Information
         fullName: tenantData.fullName,
         email: tenantData.email,
         phone: tenantData.phone,
-        userId: tenantData.userId,
         idNumber: tenantData.idNumber,
         occupation: tenantData.occupation,
         employer: tenantData.employer,
-
+        
         // Property & Unit
         propertyId: tenantData.propertyId,
         unitId: tenantData.unitId,
         propertyName: tenantData.propertyName || propertyDetails?.name || "",
         unitNumber: tenantData.unitNumber || "",
-
+        
         // Financial Details
         monthlyRent: parseFloat(tenantData.monthlyRent) || 0,
         securityDeposit: parseFloat(tenantData.securityDeposit) || 0,
         applicationFee: parseFloat(tenantData.applicationFee) || 0,
         petDeposit: parseFloat(tenantData.petDeposit) || 0,
         totalMoveInCost: tenantData.totalMoveInCost || 0,
-
+        
         // Lease Information
-        leaseStart: tenantData.leaseStart ? Timestamp.fromDate(new Date(tenantData.leaseStart)) : Timestamp.now(),
-        leaseEnd: tenantData.leaseEnd ? Timestamp.fromDate(new Date(tenantData.leaseEnd)) : null,
+        leaseStart: leaseStartDate,
+        leaseEnd: leaseEndDate,
         leaseTerm: parseInt(tenantData.leaseTerm) || 12,
         noticePeriod: parseInt(tenantData.noticePeriod) || 30,
-
+        
         // Emergency Contact
         emergencyContactName: tenantData.emergencyContactName,
         emergencyContactPhone: tenantData.emergencyContactPhone,
         emergencyContactRelation: tenantData.emergencyContactRelation,
-
+        
         // Additional Information
         tenantNotes: tenantData.tenantNotes,
-
+        applicationNotes: applicationData?.description || applicationData?.notes || "",
+        
+        // Pet Information
+        hasPet: applicationData?.hasPet || false,
+        petInfo: applicationData?.petInfo || {},
+        petDetails: applicationData?.petDetails || null,
+        
         // Status & Timestamps
         status: "active",
         balance: parseFloat(tenantData.monthlyRent) || 0,
@@ -308,27 +626,51 @@ const AddTenant = () => {
         approvedAt: Timestamp.now(),
         createdBy: "admin",
         applicationId: tenantData.applicationId,
-
+        
+        // Application Source
+        applicationSource: "mobile_app",
+        
         // Property Fee References
         propertyFees: {
           latePaymentFee: propertyDetails?.latePaymentFee || 0,
           gracePeriod: propertyDetails?.gracePeriod || 5,
           feeDetails: propertyDetails?.feeDetails || {}
+        },
+        
+        // Additional data
+        propertyAddress: applicationData?.propertyAddress || "",
+        propertyCity: applicationData?.propertyCity || "",
+        unitType: applicationData?.unitType || "",
+        unitBedrooms: applicationData?.bedrooms || applicationData?.unitBedrooms || 1,
+        unitBathrooms: applicationData?.bathrooms || applicationData?.unitBathrooms || 1,
+        unitSize: applicationData?.unitSize || "",
+        
+        // Original application data
+        originalApplication: {
+          submittedAt: applicationData?.submittedAt || Timestamp.now(),
+          totalFees: applicationData?.totalFees || tenantData.totalMoveInCost,
+          otherFees: applicationData?.otherFees || ""
         }
       };
 
       // Save tenant to Firestore
       const tenantRef = await addDoc(collection(db, "tenants"), tenantRecord);
 
-      // Update unit status
-      if (tenantData.unitId && tenantData.propertyId) {
-        await updateDoc(doc(db, "properties", tenantData.propertyId, "units", tenantData.unitId), {
-          status: "occupied",
-          tenantId: tenantRef.id,
-          tenantName: tenantData.fullName,
-          occupiedAt: Timestamp.now(),
-          rentAmount: parseFloat(tenantData.monthlyRent) || 0
-        });
+      // Update unit status if unit document exists
+      if (unitRef) {
+        try {
+          await updateDoc(unitRef, {
+            status: "occupied",
+            tenantId: tenantRef.id,
+            tenantName: tenantData.fullName,
+            occupiedAt: Timestamp.now(),
+            rentAmount: parseFloat(tenantData.monthlyRent) || 0,
+            lastRentIncrease: Timestamp.now()
+          });
+          console.log("Unit status updated successfully");
+        } catch (updateError) {
+          console.warn("Could not update unit status:", updateError.message);
+        }
       }
 
       // Update application status
@@ -336,17 +678,17 @@ const AddTenant = () => {
         await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
           status: "approved",
           processedAt: Timestamp.now(),
-          linkedTenantId: tenantRef.id,
-          approvedBy: "admin"
+          tenantId: tenantRef.id,
+          approvedBy: "admin",
+          approvedDate: Timestamp.now()
         });
       }
 
       alert("✅ Tenant application approved successfully!");
       
-      // Reset form and navigate to tenants page
+      // Reset form and navigate
       resetForm();
-      navigate("/tenants");
-
+      
     } catch (error) {
       console.error("Error approving tenant:", error);
       alert("Failed to approve tenant application. Please try again.");
@@ -355,16 +697,51 @@ const AddTenant = () => {
     }
   };
 
-  // If no prefill data
-  if (!prefillData) {
+  // Loading state
+  if (loading && !applicationData) {
+    return (
+      <div className="tenant-form-container">
+        <div className="tenant-form-content">
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Loading application data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="tenant-form-container">
+        <div className="tenant-form-content">
+          <div className="error-state">
+            <FaExclamationTriangle className="error-icon" />
+            <h2>Error Loading Application</h2>
+            <p>{error}</p>
+            <button 
+              className="tenant-form-view-tenants-btn" 
+              onClick={resetForm}
+            >
+              Back to Applications
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no application data
+  if (!applicationData && !tenantData.applicationId) {
     return (
       <div className="tenant-form-container">
         <div className="tenant-form-content">
           <h2>No Tenant Application Data Found</h2>
           <p>Please select a tenant application to review.</p>
-          <button
-            className="tenant-form-view-tenants-btn"
-            onClick={() => navigate("/applications")}
+          <button 
+            className="tenant-form-view-tenants-btn" 
+            onClick={resetForm}
           >
             View Applications
           </button>
@@ -380,14 +757,19 @@ const AddTenant = () => {
         <div className="tenant-form-header-left">
           <h1 className="tenant-form-title"><FaClipboardCheck /> Review Tenant Application</h1>
           <div className="tenant-form-prefill-notice">
-            <FaEye /> Viewing application submitted by tenant
+            <FaEye /> Viewing application #{tenantData.applicationId || "N/A"}
           </div>
+          {tenantData.appliedDate && (
+            <div className="tenant-form-applied-date">
+              Applied on: {formatTimestamp(tenantData.appliedDate)}
+            </div>
+          )}
         </div>
-
+        
         <div className="tenant-form-header-actions">
-          <button
-            className="tenant-form-view-tenants-btn"
-            onClick={() => navigate("/applications")}
+          <button 
+            className="tenant-form-view-tenants-btn" 
+            onClick={handleCancel}
           >
             <FaUsers /> View Applications
           </button>
@@ -396,100 +778,60 @@ const AddTenant = () => {
 
       <div className="tenant-form-content">
         <div className="tenant-form-sections">
-
-          {/* Rejection Reason Form - NEW */}
-          {showRejectForm && (
-            <div className="tenant-form-section tenant-form-reject-section">
-              <h2 className="tenant-form-section-title"><FaThumbsDown /> Reject Application</h2>
-              <div className="tenant-form-group tenant-form-group-full-width">
-                <label className="tenant-form-label">Rejection Reason *</label>
-                <textarea
-                  className="tenant-form-textarea"
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Provide a reason for rejecting this application..."
-                  rows="4"
-                />
-                <p className="tenant-form-helper-text">
-                  This reason will be visible to the tenant
-                </p>
-              </div>
-              
-              <div className="tenant-form-button-group" style={{ marginTop: '1.5rem' }}>
-                <button
-                  type="button"
-                  className="tenant-form-btn-cancel"
-                  onClick={() => setShowRejectForm(false)}
-                >
-                  <FaTimes /> Cancel
-                </button>
-                <button
-                  type="button"
-                  className="tenant-form-btn-danger"
-                  onClick={handleRejectApplication}
-                  disabled={loading || !rejectionReason.trim()}
-                >
-                  {loading ? (
-                    <>
-                      <span className="tenant-form-spinner-small"></span>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <FaThumbsDown /> Confirm Reject
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Section 1: Tenant Information - READ ONLY */}
+          
+          {/* Section 1: Tenant Information */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaUser /> Tenant Information</h2>
             <div className="tenant-form-grid">
               {[
-                { label: "Full Name", value: tenantData.fullName },
-                { label: "Email Address", value: tenantData.email },
-                { label: "Phone Number", value: tenantData.phone },
+                { label: "Full Name", value: tenantData.fullName, required: true },
+                { label: "Email Address", value: tenantData.email, required: true },
+                { label: "Phone Number", value: tenantData.phone, required: true },
                 { label: "ID/Passport Number", value: tenantData.idNumber || "Not provided" },
                 { label: "Occupation", value: tenantData.occupation || "Not provided" },
                 { label: "Employer", value: tenantData.employer || "Not provided" },
               ].map((field, index) => (
                 <div className="tenant-form-group" key={index}>
-                  <label className="tenant-form-label">{field.label}</label>
+                  <label className="tenant-form-label">
+                    {field.label} {field.required && <span className="required">*</span>}
+                  </label>
                   <div className="tenant-form-input tenant-form-readonly">
-                    <FaLock /> {field.value}
+                    <FaLock /> {field.value || "Not provided"}
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Section 2: Property & Unit - READ ONLY */}
+          {/* Section 2: Property & Unit Selected */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaHome /> Property & Unit Selected</h2>
-
+            
             <div className="tenant-form-grid">
               <div className="tenant-form-group">
                 <label className="tenant-form-label">Selected Property</label>
                 <div className="tenant-form-input tenant-form-readonly">
                   <FaLock /> {tenantData.propertyName || "Not selected"}
                 </div>
-                <p className="tenant-form-helper-text">
-                  Selected by tenant in mobile application
-                </p>
+                {tenantData.propertyId && (
+                  <small className="tenant-form-helper-text">
+                    Property ID: {tenantData.propertyId}
+                  </small>
+                )}
               </div>
-
+              
               <div className="tenant-form-group">
                 <label className="tenant-form-label">Selected Unit</label>
                 <div className="tenant-form-input tenant-form-readonly">
                   <FaLock /> {tenantData.unitNumber || "Not selected"}
                   {tenantData.monthlyRent && ` • ${formatCurrency(tenantData.monthlyRent)}/month`}
                 </div>
-                <p className="tenant-form-helper-text">
-                  Selected by tenant in mobile application
-                </p>
+                {tenantData.unitId && (
+                  <small className="tenant-form-helper-text">
+                    Unit ID: {tenantData.unitId}
+                    {!unitRef && " (Unit document not found in database)"}
+                  </small>
+                )}
               </div>
             </div>
 
@@ -516,15 +858,19 @@ const AddTenant = () => {
                     <span className="tenant-form-fee-label">Standard Lease Term:</span>
                     <span className="tenant-form-fee-value">{propertyDetails.leaseTerm || 12} months</span>
                   </div>
+                  <div className="tenant-form-fee-item">
+                    <span className="tenant-form-fee-label">Notice Period:</span>
+                    <span className="tenant-form-fee-value">{propertyDetails.noticePeriod || 30} days</span>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Section 3: Financial Details - READ ONLY */}
+          {/* Section 3: Financial Details */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaMoneyBillWave /> Financial Details</h2>
-
+            
             <div className="tenant-form-grid">
               {[
                 { label: "Monthly Rent", value: formatCurrency(tenantData.monthlyRent) },
@@ -574,10 +920,10 @@ const AddTenant = () => {
             </div>
           </div>
 
-          {/* Section 4: Lease Period - READ ONLY */}
+          {/* Section 4: Lease Period */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaCalendar /> Lease Period</h2>
-
+            
             <div className="tenant-form-grid">
               <div className="tenant-form-group">
                 <label className="tenant-form-label">Lease Start Date</label>
@@ -585,7 +931,7 @@ const AddTenant = () => {
                   {formatDate(tenantData.leaseStart) || "Not specified"}
                 </div>
               </div>
-
+              
               <div className="tenant-form-group">
                 <label className="tenant-form-label">Lease End Date</label>
                 <div className="tenant-form-input tenant-form-readonly">
@@ -598,9 +944,6 @@ const AddTenant = () => {
                 <div className="tenant-form-input tenant-form-readonly">
                   {tenantData.leaseTerm} months
                 </div>
-                <p className="tenant-form-helper-text">
-                  Property default: {propertyDetails?.leaseTerm || 12} months
-                </p>
               </div>
 
               <div className="tenant-form-group">
@@ -608,14 +951,11 @@ const AddTenant = () => {
                 <div className="tenant-form-input tenant-form-readonly">
                   {tenantData.noticePeriod} days
                 </div>
-                <p className="tenant-form-helper-text">
-                  Property default: {propertyDetails?.noticePeriod || 30} days
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Section 5: Emergency Contact - READ ONLY */}
+          {/* Section 5: Emergency Contact */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaPhone /> Emergency Contact</h2>
             <div className="tenant-form-grid">
@@ -625,7 +965,7 @@ const AddTenant = () => {
                   {tenantData.emergencyContactName || "Not provided"}
                 </div>
               </div>
-
+              
               <div className="tenant-form-group">
                 <label className="tenant-form-label">Contact Phone</label>
                 <div className="tenant-form-input tenant-form-readonly">
@@ -642,7 +982,7 @@ const AddTenant = () => {
             </div>
           </div>
 
-          {/* Section 6: Additional Information - READ ONLY */}
+          {/* Section 6: Additional Information */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaStickyNote /> Additional Information</h2>
             <div className="tenant-form-grid">
@@ -651,52 +991,72 @@ const AddTenant = () => {
                 <div className="tenant-form-textarea tenant-form-readonly" style={{ minHeight: '100px', padding: '1rem' }}>
                   {tenantData.tenantNotes || "No additional information provided by tenant"}
                 </div>
-                <p className="tenant-form-helper-text">
-                  Information provided by tenant during application
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Form Actions - NEW Layout */}
+          {/* Form Actions - UPDATED */}
           <div className="tenant-form-actions">
+            {/* Cancel button on left side */}
+            <button 
+              type="button" 
+              className="tenant-form-btn-cancel" 
+              onClick={handleCancel}
+              disabled={loading || isRejecting}
+            >
+              <FaTimes /> Cancel
+            </button>
+            
+            {/* Approve and Reject buttons together on right side */}
             <div className="tenant-form-button-group">
               <button 
                 type="button" 
-                className="tenant-form-btn-cancel" 
-                onClick={handleCancel}
+                className="tenant-form-btn-danger"
+                onClick={handleRejectClick}
+                disabled={loading || isRejecting}
               >
-                <FaTimes /> Cancel
+                {isRejecting ? (
+                  <>
+                    <span className="tenant-form-spinner-small"></span>
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <FaThumbsDown /> Reject
+                  </>
+                )}
               </button>
               
               <button 
                 type="button" 
-                className="tenant-form-btn-danger"
-                onClick={() => setShowRejectForm(true)}
-                disabled={loading}
+                className="tenant-form-btn-submit" 
+                onClick={handleApproveTenant} 
+                disabled={loading || isRejecting}
+                title={!unitRef ? "Warning: Unit document not found in database. Tenant will be created but unit status won't be updated." : ""}
               >
-                <FaThumbsDown /> Reject
+                {loading ? (
+                  <>
+                    <span className="tenant-form-spinner-small"></span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <FaCheckCircle /> 
+                    {!unitRef ? " Approve (Unit Not Found)" : " Approve Tenant"}
+                  </>
+                )}
               </button>
             </div>
-            
-            <button 
-              type="button" 
-              className="tenant-form-btn-submit" 
-              onClick={handleApproveTenant} 
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <span className="tenant-form-spinner-small"></span>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <FaCheckCircle /> Approve Tenant
-                </>
-              )}
-            </button>
           </div>
+          
+          {!unitRef && tenantData.unitId && (
+            <div className="tenant-form-warning">
+              <FaExclamationTriangle /> 
+              <strong>Warning:</strong> Unit document ({tenantData.unitId}) not found in database. 
+              The tenant will be created but the unit status will not be updated to "occupied".
+              Please manually update the unit status after approval.
+            </div>
+          )}
         </div>
       </div>
     </div>
