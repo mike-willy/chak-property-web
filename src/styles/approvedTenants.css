@@ -1,7 +1,7 @@
-/* Tenants.css - Polished Version */
+/* src/styles/approvedTenants.css - Polished Version */
 
 /* Main Container */
-.tenant-container {
+.approved-container {
   padding: 2rem;
   background: #f8fafc;
   min-height: 100vh;
@@ -9,7 +9,7 @@
 }
 
 /* Header */
-.tenant-header {
+.approved-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -18,79 +18,129 @@
   gap: 1rem;
 }
 
-.tenant-header-left h1 {
+.approved-header-left {
+  flex: 1;
+  min-width: 300px;
+}
+
+.approved-title {
   font-size: 2rem;
   font-weight: 700;
   color: #1e293b;
   margin: 0 0 0.5rem 0;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.tenant-header-left p {
+.approved-title-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+}
+
+.approved-title-sub {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 0.5rem;
+  position: relative;
+  top: 2px;
+}
+
+.approved-subtitle {
   color: #64748b;
   font-size: 0.95rem;
   margin: 0;
 }
 
-.tenant-header-right {
+.approved-header-right {
   display: flex;
   gap: 0.75rem;
   align-items: center;
   flex-wrap: wrap;
 }
 
-/* Header Buttons - Updated to remove tenant-add-btn */
-.tenant-approved-btn {
+.approved-payment-date {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+.approved-date-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  background: white;
+  color: #1e293b;
+  transition: all 0.2s ease;
+}
+
+.approved-date-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.approved-action-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  color: white;
   border: none;
   border-radius: 8px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
-.tenant-approved-btn:hover {
+.approved-action-btn.primary {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+}
+
+.approved-action-btn.primary:hover {
   background: linear-gradient(135deg, #2563eb, #1e40af);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
 }
 
-.tenant-approved-btn:active {
-  transform: translateY(0);
-}
-
-.tenant-applications-btn {
-  padding: 0.75rem 1.25rem;
+.approved-action-btn.secondary {
   background: #f1f5f9;
   color: #475569;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.9rem;
 }
 
-.tenant-applications-btn:hover {
+.approved-action-btn.secondary:hover {
   background: #e2e8f0;
   border-color: #cbd5e1;
 }
 
 /* Stats Cards */
-.tenant-stats {
+.approved-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-.tenant-stat-card {
+.approved-stat-card {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
@@ -104,13 +154,13 @@
   overflow: hidden;
 }
 
-.tenant-stat-card:hover {
+.approved-stat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border-color: #cbd5e1;
 }
 
-.tenant-stat-card::before {
+.approved-stat-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -120,23 +170,23 @@
   background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
 }
 
-.tenant-stat-card.total-tenants::before {
+.approved-stat-card.total::before {
   background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
 }
 
-.tenant-stat-card.monthly-revenue::before {
+.approved-stat-card.amount::before {
   background: linear-gradient(to bottom, #10b981, #059669);
 }
 
-.tenant-stat-card.average-rent::before {
+.approved-stat-card.average::before {
   background: linear-gradient(to bottom, #f59e0b, #d97706);
 }
 
-.tenant-stat-card.properties::before {
+.approved-stat-card.properties::before {
   background: linear-gradient(to bottom, #8b5cf6, #7c3aed);
 }
 
-.tenant-stat-icon {
+.approved-stat-icon {
   width: 56px;
   height: 56px;
   border-radius: 12px;
@@ -147,27 +197,27 @@
   flex-shrink: 0;
 }
 
-.tenant-stat-card.total-tenants .tenant-stat-icon {
+.approved-stat-card.total .approved-stat-icon {
   background: linear-gradient(135deg, #93c5fd, #3b82f6);
   color: white;
 }
 
-.tenant-stat-card.monthly-revenue .tenant-stat-icon {
+.approved-stat-card.amount .approved-stat-icon {
   background: linear-gradient(135deg, #86efac, #10b981);
   color: white;
 }
 
-.tenant-stat-card.average-rent .tenant-stat-icon {
+.approved-stat-card.average .approved-stat-icon {
   background: linear-gradient(135deg, #fcd34d, #f59e0b);
   color: white;
 }
 
-.tenant-stat-card.properties .tenant-stat-icon {
+.approved-stat-card.properties .approved-stat-icon {
   background: linear-gradient(135deg, #c4b5fd, #8b5cf6);
   color: white;
 }
 
-.tenant-stat-content h3 {
+.approved-stat-content h3 {
   font-size: 1.75rem;
   font-weight: 700;
   color: #1e293b;
@@ -175,20 +225,20 @@
   line-height: 1;
 }
 
-.tenant-stat-content p {
+.approved-stat-content p {
   font-size: 0.95rem;
   color: #475569;
   margin: 0 0 0.25rem 0;
   font-weight: 500;
 }
 
-.tenant-stat-content small {
+.approved-stat-content small {
   font-size: 0.8rem;
   color: #94a3b8;
 }
 
 /* Controls */
-.tenant-controls {
+.approved-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -197,7 +247,7 @@
   flex-wrap: wrap;
 }
 
-.tenant-search-box {
+.approved-search-box {
   flex: 1;
   min-width: 300px;
   position: relative;
@@ -205,7 +255,7 @@
   align-items: center;
 }
 
-.tenant-search-box svg {
+.approved-search-box svg {
   position: absolute;
   left: 1rem;
   color: #94a3b8;
@@ -213,7 +263,7 @@
   z-index: 1;
 }
 
-.tenant-search-box input {
+.approved-search-input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 2.75rem;
   border: 1px solid #e2e8f0;
@@ -224,51 +274,18 @@
   transition: all 0.2s ease;
 }
 
-.tenant-search-box input:focus {
+.approved-search-input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.tenant-search-box input::placeholder {
+.approved-search-input::placeholder {
   color: #94a3b8;
-}
-
-.tenant-filter-box {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.tenant-filter-box svg {
-  position: absolute;
-  left: 1rem;
-  color: #94a3b8;
-  font-size: 1rem;
-  z-index: 1;
-}
-
-.tenant-filter-box select {
-  padding: 0.875rem 1rem 0.875rem 2.75rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 0.95rem;
-  background: white;
-  color: #1e293b;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 180px;
-  appearance: none;
-}
-
-.tenant-filter-box select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* Results Info */
-.tenant-results-info {
+.approved-results-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -279,13 +296,13 @@
   border: 1px solid #e2e8f0;
 }
 
-.tenant-results-count {
+.approved-results-count {
   font-size: 0.95rem;
   color: #475569;
   font-weight: 500;
 }
 
-.tenant-total-revenue {
+.approved-total-amount {
   font-size: 0.95rem;
   color: #10b981;
   font-weight: 600;
@@ -294,15 +311,15 @@
   border-radius: 20px;
 }
 
-/* Tenant Grid */
-.tenant-grid {
+/* Approved Grid */
+.approved-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-.tenant-card {
+.approved-tenant-card {
   background: white;
   border-radius: 12px;
   overflow: hidden;
@@ -313,13 +330,13 @@
   flex-direction: column;
 }
 
-.tenant-card:hover {
+.approved-tenant-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
   border-color: #cbd5e1;
 }
 
-.tenant-card-header {
+.approved-tenant-header {
   padding: 1.5rem;
   background: linear-gradient(135deg, #f8fafc, #f1f5f9);
   border-bottom: 1px solid #e2e8f0;
@@ -328,12 +345,12 @@
   gap: 1rem;
 }
 
-.tenant-avatar {
+.approved-tenant-avatar {
   position: relative;
   width: 60px;
   height: 60px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -342,13 +359,13 @@
   flex-shrink: 0;
 }
 
-.tenant-avatar-badge {
+.approved-tenant-avatar-badge {
   position: absolute;
   bottom: -4px;
   right: -4px;
   width: 24px;
   height: 24px;
-  background: #10b981;
+  background: #ef4444;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -358,12 +375,12 @@
   border: 2px solid white;
 }
 
-.tenant-basic-info {
+.approved-tenant-basic-info {
   flex: 1;
   min-width: 0;
 }
 
-.tenant-basic-info h3 {
+.approved-tenant-basic-info h3 {
   font-size: 1.1rem;
   font-weight: 600;
   color: #1e293b;
@@ -373,7 +390,7 @@
   text-overflow: ellipsis;
 }
 
-.tenant-basic-info p {
+.approved-tenant-basic-info p {
   font-size: 0.85rem;
   color: #64748b;
   margin: 0.25rem 0;
@@ -382,18 +399,18 @@
   gap: 0.5rem;
 }
 
-.tenant-basic-info svg {
+.approved-tenant-basic-info svg {
   color: #94a3b8;
   font-size: 0.8rem;
   flex-shrink: 0;
 }
 
-.tenant-status {
+.approved-tenant-status {
   text-align: right;
   flex-shrink: 0;
 }
 
-.status-badge {
+.approved-status-badge {
   display: inline-block;
   padding: 0.375rem 0.75rem;
   border-radius: 20px;
@@ -402,44 +419,36 @@
   margin-bottom: 0.5rem;
 }
 
-.status-badge.active {
-  background: #d1fae5;
-  color: #059669;
-}
-
-.status-badge.pending {
+.approved-status-badge.pending {
   background: #fef3c7;
-  color: #d97706;
+  color: #92400e;
 }
 
-.status-badge.inactive {
-  background: #f1f5f9;
-  color: #64748b;
+.approved-status-badge.urgent {
+  background: #fee2e2;
+  color: #dc2626;
+  animation: pulse 2s infinite;
 }
 
-.status-badge.pending-payment {
-  background: #dbeafe;
-  color: #1d4ed8;
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 
-.status-badge.unknown {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.tenant-payment-date {
+.approved-waiting-time {
   display: block;
   font-size: 0.75rem;
   color: #94a3b8;
   font-weight: 500;
 }
 
-.tenant-card-details {
+.approved-tenant-details {
   padding: 1.5rem;
   flex: 1;
 }
 
-.detail-row {
+.approved-detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -448,13 +457,13 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
-.detail-row:last-child {
+.approved-detail-row:last-child {
   margin-bottom: 0;
   padding-bottom: 0;
   border-bottom: none;
 }
 
-.detail-label {
+.approved-detail-label {
   font-size: 0.9rem;
   color: #64748b;
   display: flex;
@@ -463,12 +472,12 @@
   font-weight: 500;
 }
 
-.detail-label svg {
+.approved-detail-label svg {
   color: #94a3b8;
   font-size: 0.85rem;
 }
 
-.detail-value {
+.approved-detail-value {
   font-size: 0.95rem;
   color: #1e293b;
   font-weight: 600;
@@ -477,31 +486,14 @@
   word-break: break-word;
 }
 
-.detail-value.rent-amount {
-  color: #059669;
-}
-
-.balance-row .detail-label {
-  color: #dc2626;
-}
-
-.detail-value.balance-negative {
-  color: #dc2626;
-  background: #fee2e2;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-}
-
-.detail-value.balance-positive {
+.approved-detail-value.amount-due {
   color: #059669;
   background: #d1fae5;
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
-  font-size: 0.85rem;
 }
 
-.lease-term {
+.approved-app-id {
   display: block;
   font-size: 0.8rem;
   color: #94a3b8;
@@ -509,7 +501,43 @@
   margin-top: 0.125rem;
 }
 
-.tenant-card-actions {
+/* Breakdown Section */
+.approved-breakdown-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.approved-breakdown-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.approved-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.approved-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.approved-breakdown-item span:last-child {
+  font-weight: 600;
+  color: #475569;
+}
+
+.approved-tenant-actions {
   padding: 1.5rem;
   border-top: 1px solid #f1f5f9;
   display: flex;
@@ -517,7 +545,7 @@
   background: #f8fafc;
 }
 
-.tenant-card-actions button {
+.approved-tenant-actions button {
   flex: 1;
   padding: 0.75rem;
   border: none;
@@ -532,6 +560,15 @@
   gap: 0.5rem;
 }
 
+.btn-reminder {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.btn-reminder:hover {
+  background: #fde68a;
+}
+
 .btn-view {
   background: #e0f2fe;
   color: #0369a1;
@@ -541,35 +578,52 @@
   background: #bae6fd;
 }
 
-.btn-edit {
-  background: #fef3c7;
-  color: #92400e;
+.btn-paid {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.btn-edit:hover {
-  background: #fde68a;
+.btn-paid:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
 }
 
-.btn-collect {
-  background: #d1fae5;
-  color: #065f46;
+.btn-paid:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.btn-collect:hover {
-  background: #a7f3d0;
+.paid-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.btn-delete {
-  background: #fee2e2;
-  color: #991b1b;
+.paid-icon {
+  font-size: 1rem;
+  color: white;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
 }
 
-.btn-delete:hover {
-  background: #fecaca;
+.approved-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* No Tenants State */
-.tenant-no-tenants {
+.approved-no-tenants {
   text-align: center;
   padding: 4rem 2rem;
   background: white;
@@ -577,20 +631,27 @@
   border: 2px dashed #e2e8f0;
 }
 
-.tenant-no-tenants-icon {
-  font-size: 3rem;
-  color: #cbd5e1;
-  margin-bottom: 1.5rem;
+.approved-no-tenants-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #93c5fd, #3b82f6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2rem;
+  margin: 0 auto 1.5rem;
 }
 
-.tenant-no-tenants h3 {
+.approved-no-tenants h3 {
   font-size: 1.5rem;
   color: #475569;
   margin: 0 0 0.75rem 0;
   font-weight: 600;
 }
 
-.tenant-no-tenants p {
+.approved-no-tenants p {
   color: #94a3b8;
   margin-bottom: 2rem;
   max-width: 400px;
@@ -599,17 +660,93 @@
   line-height: 1.5;
 }
 
-.tenant-no-tenants-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
+/* Footer Info */
+.approved-footer-info {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
 }
 
-.tenant-approved-action-btn {
+.approved-footer-content {
   display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.approved-footer-icon {
+  color: #f59e0b;
+  font-size: 1.25rem;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.approved-footer-content p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* Loading State */
+.approved-loading {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.875rem 1.5rem;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+}
+
+.approved-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.approved-loading p {
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+/* Error State */
+.approved-error {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #fee2e2;
+}
+
+.approved-error-icon {
+  font-size: 3rem;
+  color: #ef4444;
+  margin-bottom: 1.5rem;
+}
+
+.approved-error h3 {
+  font-size: 1.5rem;
+  color: #dc2626;
+  margin: 0 0 1rem 0;
+  font-weight: 600;
+}
+
+.approved-error p {
+  color: #64748b;
+  margin-bottom: 2rem;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+}
+
+.approved-retry-btn {
+  padding: 0.75rem 1.5rem;
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   color: white;
   border: none;
@@ -619,146 +756,87 @@
   transition: all 0.2s ease;
 }
 
-.tenant-approved-action-btn:hover {
+.approved-retry-btn:hover {
   background: linear-gradient(135deg, #2563eb, #1e40af);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
-}
-
-.tenant-applications-action-btn {
-  padding: 0.875rem 1.5rem;
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.tenant-applications-action-btn:hover {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-}
-
-/* Loading State */
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  gap: 1rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.loading p {
-  color: #64748b;
-  font-size: 0.95rem;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .tenant-container {
+  .approved-container {
     padding: 1rem;
   }
   
-  .tenant-header {
+  .approved-header {
     flex-direction: column;
     align-items: stretch;
   }
   
-  .tenant-header-right {
+  .approved-header-right {
     justify-content: flex-start;
     margin-top: 1rem;
   }
   
-  .tenant-stats {
+  .approved-stats {
     grid-template-columns: 1fr;
   }
   
-  .tenant-grid {
+  .approved-grid {
     grid-template-columns: 1fr;
   }
   
-  .tenant-controls {
+  .approved-controls {
     flex-direction: column;
     align-items: stretch;
   }
   
-  .tenant-search-box,
-  .tenant-filter-box {
+  .approved-search-box {
     min-width: 100%;
   }
   
-  .tenant-results-info {
+  .approved-results-info {
     flex-direction: column;
     gap: 0.75rem;
     align-items: flex-start;
   }
   
-  .tenant-no-tenants-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-@media (max-width: 480px) {
-  .tenant-card-header {
+  .approved-tenant-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
   }
   
-  .tenant-status {
+  .approved-tenant-status {
     text-align: left;
     width: 100%;
   }
   
-  .tenant-card-actions {
+  .approved-tenant-actions {
     flex-wrap: wrap;
   }
   
-  .tenant-card-actions button {
+  .approved-tenant-actions button {
     min-width: calc(50% - 0.375rem);
+  }
+  
+  .approved-breakdown-grid {
+    grid-template-columns: 1fr;
   }
 }
 
-/* Smooth scrollbar */
-.tenant-table-container {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
-}
-
-.tenant-table-container::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.tenant-table-container::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 3px;
-}
-
-.tenant-table-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.tenant-table-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+@media (max-width: 480px) {
+  .approved-tenant-actions button {
+    min-width: 100%;
+  }
+  
+  .approved-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .approved-detail-value {
+    text-align: left;
+    max-width: 100%;
+  }
 }

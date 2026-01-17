@@ -702,6 +702,50 @@
   }
 }
 
+/* Add to addTenant.css */
+.tenant-form-info-box {
+  background: #e8f5e9;
+  border: 1px solid #4CAF50;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.tenant-form-info-box svg {
+  color: #4CAF50;
+  font-size: 1.2rem;
+  margin-top: 0.2rem;
+}
+
+.tenant-form-info-box p {
+  margin: 0;
+  color: #2e7d32;
+  flex: 1;
+}
+
+.view-approved-link {
+  background: transparent;
+  color: #1b5e20;
+  border: 1px solid #1b5e20;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  margin-left: 1rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.view-approved-link:hover {
+  background: #1b5e20;
+  color: white;
+}
+
 @media (max-width: 480px) {
   .tenant-form-container {
     padding: 1rem;

@@ -25,6 +25,7 @@ import LandlordDetails from "./pages/LandlordDetails";
 import EditLandlord from "./pages/EditLandlord";
 import Units from "./pages/Units";
 import AssignTenant from "./pages/AssignTenant";
+import ApprovedTenants from './pages/ApprovedTenants'; // Import the new component
 
 // Wrapper component for admin pages with layout
 const AdminPage = ({ children }) => {
@@ -148,6 +149,16 @@ function App() {
         element={
           <AdminPage>
             <AddTenant />
+          </AdminPage>
+        }
+      />
+
+      {/* NEW ROUTE: Approved Tenants Page */}
+      <Route
+        path="/approved-tenants"
+        element={
+          <AdminPage>
+            <ApprovedTenants />
           </AdminPage>
         }
       />

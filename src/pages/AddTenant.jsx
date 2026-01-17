@@ -1,4 +1,4 @@
-// src/pages/AddTenant.jsx - FIXED VERSION
+// src/pages/AddTenant.jsx - UPDATED VERSION
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
 import { 
@@ -28,7 +28,9 @@ import {
   FaEye,
   FaCheckCircle,
   FaExclamationTriangle,
-  FaThumbsDown
+  FaThumbsDown,
+  FaArrowRight,
+  FaInfoCircle
 } from "react-icons/fa";
 import "../styles/addTenant.css";
 
@@ -123,16 +125,16 @@ const AddTenant = () => {
     localStorage.removeItem('prefillTenantData');
     localStorage.removeItem('currentApplication');
     
-    // Force a navigation to clear any state
+    // Navigate to approved tenants page after approval
     setTimeout(() => {
-      navigate("/applications", { replace: true });
+      navigate("/approved-tenants", { replace: true });
     }, 100);
   }, [initialTenantData, navigate]);
 
   // NEW: Handle cancel with confirmation
   const handleCancel = () => {
     if (window.confirm("Are you sure you want to cancel? Any unsaved changes will be lost.")) {
-      resetForm();
+      navigate("/applications", { replace: true });
     }
   };
 
@@ -510,7 +512,7 @@ const AddTenant = () => {
       alert("Application rejected successfully!");
       
       // Clear form and navigate
-      resetForm();
+      navigate("/applications", { replace: true });
       
     } catch (error) {
       console.error("Error rejecting application:", error);
@@ -520,7 +522,7 @@ const AddTenant = () => {
     }
   };
 
-  // Handle approve tenant - UPDATED to reset form after approval
+  // Handle approve tenant - UPDATED to set "approved_pending_payment" status
   const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -575,7 +577,7 @@ const AddTenant = () => {
         leaseEndDate = Timestamp.fromDate(endDate);
       }
 
-      // Prepare tenant record
+      // Prepare tenant record - UPDATED STATUS
       const tenantRecord = {
         // Tenant Information
         fullName: tenantData.fullName,
@@ -618,10 +620,10 @@ const AddTenant = () => {
         petInfo: applicationData?.petInfo || {},
         petDetails: applicationData?.petDetails || null,
         
-        // Status & Timestamps
-        status: "active",
+        // Status & Timestamps - UPDATED: approved_pending_payment instead of active
+        status: "approved_pending_payment", // CHANGED HERE
         balance: parseFloat(tenantData.monthlyRent) || 0,
-        paymentStatus: "pending",
+        paymentStatus: "initial_fees_pending", // CHANGED HERE
         createdAt: Timestamp.now(),
         approvedAt: Timestamp.now(),
         createdBy: "admin",
@@ -684,9 +686,9 @@ const AddTenant = () => {
         });
       }
 
-      alert("✅ Tenant application approved successfully!");
+      alert("✅ Tenant application approved! Tenant now appears in 'Approved Tenants' page.");
       
-      // Reset form and navigate
+      // Reset form and navigate to approved tenants page
       resetForm();
       
     } catch (error) {
@@ -722,7 +724,7 @@ const AddTenant = () => {
             <p>{error}</p>
             <button 
               className="tenant-form-view-tenants-btn" 
-              onClick={resetForm}
+              onClick={() => navigate("/applications")}
             >
               Back to Applications
             </button>
@@ -741,7 +743,7 @@ const AddTenant = () => {
           <p>Please select a tenant application to review.</p>
           <button 
             className="tenant-form-view-tenants-btn" 
-            onClick={resetForm}
+            onClick={() => navigate("/applications")}
           >
             View Applications
           </button>
@@ -1042,11 +1044,26 @@ const AddTenant = () => {
                 ) : (
                   <>
                     <FaCheckCircle /> 
-                    {!unitRef ? " Approve (Unit Not Found)" : " Approve Tenant"}
+                    {!unitRef ? " Approve (Unit Not Found)" : " Approve & Send to Payment"}
                   </>
                 )}
               </button>
             </div>
+          </div>
+          
+          {/* New Info Box */}
+          <div className="tenant-form-info-box">
+            <FaInfoCircle />
+            <p>
+              <strong>After approval:</strong> Tenant will appear in "Approved Tenants" page 
+              (not in regular tenant collection). They need to pay initial fees first.
+              <button 
+                className="view-approved-link"
+                onClick={() => navigate("/approved-tenants")}
+              >
+                View Approved Tenants <FaArrowRight />
+              </button>
+            </p>
           </div>
           
           {!unitRef && tenantData.unitId && (
