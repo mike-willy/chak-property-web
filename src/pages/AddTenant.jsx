@@ -1,4 +1,4 @@
-// src/pages/AddTenant.jsx - UPDATED VERSION
+// src/pages/AddTenant.jsx - FIXED WITH TWO-ROW LAYOUT
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
 import { 
@@ -108,9 +108,28 @@ const AddTenant = () => {
   // Tenant data state
   const [tenantData, setTenantData] = useState(initialTenantData);
 
-  // NEW: Reset form function - IMPROVED
+  // Calculate total move-in cost (CORRECT VERSION)
+  const calculateTotalMoveInCost = useCallback(() => {
+    const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
+    const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
+    const applicationFee = parseFloat(tenantData.applicationFee) || 0;
+    const petDeposit = parseFloat(tenantData.petDeposit) || 0;
+
+    const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
+
+    setTenantData(prev => ({
+      ...prev,
+      totalMoveInCost: total
+    }));
+  }, [tenantData.monthlyRent, tenantData.securityDeposit, tenantData.applicationFee, tenantData.petDeposit]);
+
+  // Calculate total whenever financial fields change
+  useEffect(() => {
+    calculateTotalMoveInCost();
+  }, [calculateTotalMoveInCost]);
+
+  // Reset form function
   const resetForm = useCallback(() => {
-    console.log("Resetting form...");
     setTenantData(initialTenantData);
     setPropertyDetails(null);
     setUnitDetails(null);
@@ -121,17 +140,16 @@ const AddTenant = () => {
     setError(null);
     setApplicationId(null);
     setLoading(false);
-    // Clear localStorage if used
+    
     localStorage.removeItem('prefillTenantData');
     localStorage.removeItem('currentApplication');
     
-    // Navigate to approved tenants page after approval
     setTimeout(() => {
       navigate("/approved-tenants", { replace: true });
     }, 100);
   }, [initialTenantData, navigate]);
 
-  // NEW: Handle cancel with confirmation
+  // Handle cancel with confirmation
   const handleCancel = () => {
     if (window.confirm("Are you sure you want to cancel? Any unsaved changes will be lost.")) {
       navigate("/applications", { replace: true });
@@ -149,7 +167,6 @@ const AddTenant = () => {
         const unitDoc = await getDoc(unitDocRef);
         
         if (unitDoc.exists()) {
-          console.log("Unit found in separate units collection");
           return {
             ref: unitDocRef,
             data: unitDoc.data(),
@@ -160,14 +177,13 @@ const AddTenant = () => {
         console.log("Unit not found in separate collection:", error.message);
       }
       
-      // Try 2: Check in property subcollection (properties/{propertyId}/units/{unitId})
+      // Try 2: Check in property subcollection
       if (propertyId) {
         try {
           const unitDocRef = doc(db, "properties", propertyId, "units", unitId);
           const unitDoc = await getDoc(unitDocRef);
           
           if (unitDoc.exists()) {
-            console.log("Unit found in property subcollection");
             return {
               ref: unitDocRef,
               data: unitDoc.data(),
@@ -179,7 +195,7 @@ const AddTenant = () => {
         }
       }
       
-      // Try 3: Search for unit by unitNumber in separate units collection
+      // Try 3: Search for unit by unitNumber
       if (propertyId && tenantData.unitNumber) {
         try {
           const unitsQuery = query(
@@ -191,7 +207,6 @@ const AddTenant = () => {
           const querySnapshot = await getDocs(unitsQuery);
           if (!querySnapshot.empty) {
             const unitDoc = querySnapshot.docs[0];
-            console.log("Unit found by unitNumber in units collection");
             return {
               ref: doc(db, "units", unitDoc.id),
               data: unitDoc.data(),
@@ -203,7 +218,6 @@ const AddTenant = () => {
         }
       }
       
-      console.log("Unit document not found in any collection");
       return null;
       
     } catch (error) {
@@ -220,7 +234,6 @@ const AddTenant = () => {
       setLoading(true);
       setError(null);
       
-      // Fetch the application document
       const applicationRef = doc(db, "tenantApplications", appId);
       const applicationDoc = await getDoc(applicationRef);
       
@@ -233,62 +246,49 @@ const AddTenant = () => {
       const appData = applicationDoc.data();
       setApplicationData(appData);
       
-      // Store application ID in localStorage for persistence
       localStorage.setItem('currentApplication', appId);
       
-      // Extract and structure the data
       const tenantInfo = {
-        // Tenant Information
         fullName: appData.fullName || appData.name || "",
         email: appData.email || "",
         phone: appData.phone || appData.phoneNumber || "",
         idNumber: appData.idNumber || appData.nationalId || "",
         occupation: appData.occupation || appData.jobTitle || "",
         employer: appData.employer || appData.company || "",
-        
-        // Property & Unit
         propertyId: appData.propertyId || appData.selectedPropertyId || "",
         propertyName: appData.propertyName || appData.selectedPropertyName || "",
         unitId: appData.unitId || appData.selectedUnitId || "",
         unitNumber: appData.unitNumber || appData.selectedUnitNumber || "",
         monthlyRent: appData.monthlyRent || appData.rentAmount || "",
-        
-        // Lease Period
         leaseStart: appData.leaseStart,
         leaseEnd: appData.leaseEnd,
         leaseTerm: appData.leaseTerm || appData.preferredLeaseTerm || 12,
         noticePeriod: appData.noticePeriod || 30,
-        
-        // Emergency Contact
         emergencyContactName: appData.emergencyContactName || appData.emergencyName || "",
         emergencyContactPhone: appData.emergencyContactPhone || appData.emergencyPhone || "",
         emergencyContactRelation: appData.emergencyContactRelation || appData.emergencyRelationship || "",
-        
-        // Additional Information
         tenantNotes: appData.description || appData.notes || appData.additionalInfo || 
                    appData.message || appData.comments || "",
-        
-        // Application metadata
         applicationId: appId,
         appliedDate: appData.createdAt || appData.appliedDate || "",
         status: appData.status || ""
       };
 
-      setTenantData(tenantInfo);
+      setTenantData(prev => ({
+        ...prev,
+        ...tenantInfo
+      }));
 
-      // Fetch property details if propertyId exists
       if (tenantInfo.propertyId) {
         await loadPropertyDetails(tenantInfo.propertyId);
       }
 
-      // Find unit document
       if (tenantInfo.unitId && tenantInfo.propertyId) {
         const unitDocInfo = await findUnitDocument(tenantInfo.unitId, tenantInfo.propertyId);
         if (unitDocInfo) {
           setUnitRef(unitDocInfo.ref);
           setUnitDetails(unitDocInfo.data);
           
-          // Update tenant data with unit information
           setTenantData(prev => ({
             ...prev,
             unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
@@ -296,7 +296,6 @@ const AddTenant = () => {
             propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
           }));
         } else {
-          console.warn("Unit document not found, but proceeding with application data");
           setTenantData(prev => ({
             ...prev,
             unitNumber: appData.unitNumber || prev.unitNumber || "",
@@ -305,9 +304,6 @@ const AddTenant = () => {
           }));
         }
       }
-
-      // Recalculate total
-      calculateTotalMoveInCost(tenantInfo);
 
     } catch (error) {
       console.error("Error fetching application data:", error);
@@ -327,12 +323,10 @@ const AddTenant = () => {
         const propertyData = propertyDoc.data();
         setPropertyDetails(propertyData);
         
-        // Update tenant data with property's fee information
         setTenantData(prev => ({
           ...prev,
           securityDeposit: propertyData.securityDeposit || prev.securityDeposit || "",
           applicationFee: propertyData.applicationFee || prev.applicationFee || "",
-          petDeposit: propertyData.petDeposit || prev.petDeposit || "",
           leaseTerm: propertyData.leaseTerm || prev.leaseTerm || 12,
           noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30
         }));
@@ -342,23 +336,7 @@ const AddTenant = () => {
     }
   }, []);
 
-  // Calculate total move-in cost
-  const calculateTotalMoveInCost = (data) => {
-    const monthlyRent = parseFloat(data?.monthlyRent || tenantData.monthlyRent) || 0;
-    const securityDeposit = parseFloat(data?.securityDeposit || tenantData.securityDeposit) || 0;
-    const applicationFee = parseFloat(data?.applicationFee || tenantData.applicationFee) || 0;
-    const petDeposit = parseFloat(data?.petDeposit || tenantData.petDeposit) || 0;
-    
-    const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
-    
-    setTenantData(prev => ({
-      ...prev,
-      totalMoveInCost: total
-    }));
-  };
-
   useEffect(() => {
-    // Check for saved application in localStorage on mount
     const savedAppId = localStorage.getItem('currentApplication');
     const appIdToUse = applicationId || savedAppId;
     
@@ -367,6 +345,7 @@ const AddTenant = () => {
     } else if (location.state?.prefillData) {
       const prefill = location.state.prefillData;
       setApplicationData(prefill);
+      
       setTenantData(prev => ({
         ...prev,
         ...prefill,
@@ -381,6 +360,13 @@ const AddTenant = () => {
           if (unitDocInfo) {
             setUnitRef(unitDocInfo.ref);
             setUnitDetails(unitDocInfo.data);
+            
+            setTenantData(prev => ({
+              ...prev,
+              unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
+              monthlyRent: unitDocInfo.data.rentAmount || unitDocInfo.data.monthlyRent || prev.monthlyRent || "",
+              propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
+            }));
           }
         });
       }
@@ -404,6 +390,13 @@ const AddTenant = () => {
             if (unitDocInfo) {
               setUnitRef(unitDocInfo.ref);
               setUnitDetails(unitDocInfo.data);
+              
+              setTenantData(prev => ({
+                ...prev,
+                unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
+                monthlyRent: unitDocInfo.data.rentAmount || unitDocInfo.data.monthlyRent || prev.monthlyRent || "",
+                propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
+              }));
             }
           });
         }
@@ -427,16 +420,11 @@ const AddTenant = () => {
     try {
       let date;
       
-      // Handle Firestore Timestamp (from Flutter)
       if (dateInput.toDate) {
         date = dateInput.toDate();
-      } 
-      // Handle string date
-      else if (typeof dateInput === 'string') {
+      } else if (typeof dateInput === 'string') {
         date = new Date(dateInput);
-      } 
-      // Handle Date object
-      else if (dateInput instanceof Date) {
+      } else if (dateInput instanceof Date) {
         date = dateInput;
       }
       
@@ -454,7 +442,7 @@ const AddTenant = () => {
     }
   };
 
-  // Format timestamp (for applied date)
+  // Format timestamp
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return "Not specified";
     
@@ -475,12 +463,12 @@ const AddTenant = () => {
     }
   };
 
-  // NEW: SIMPLIFIED reject handler with immediate action
+  // Reject handler
   const handleRejectClick = () => {
     const reason = window.prompt("Please provide a reason for rejecting this application:", "");
     
     if (reason === null) {
-      return; // User cancelled
+      return;
     }
     
     if (!reason.trim()) {
@@ -493,12 +481,11 @@ const AddTenant = () => {
     }
   };
 
-  // Handle reject application - SIMPLIFIED
+  // Handle reject application
   const handleRejectApplication = async (reason) => {
     try {
       setIsRejecting(true);
       
-      // Update application status to rejected
       if (tenantData.applicationId) {
         await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
           status: "rejected",
@@ -510,8 +497,6 @@ const AddTenant = () => {
       }
 
       alert("Application rejected successfully!");
-      
-      // Clear form and navigate
       navigate("/applications", { replace: true });
       
     } catch (error) {
@@ -522,20 +507,18 @@ const AddTenant = () => {
     }
   };
 
-  // Handle approve tenant - UPDATED to set "approved_pending_payment" status
+  // Handle approve tenant
   const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Validation
       if (!tenantData.fullName || !tenantData.email || !tenantData.propertyId || !tenantData.unitId) {
         alert("Missing required tenant information");
         setLoading(false);
         return;
       }
 
-      // Check if unit exists and is available
       if (unitRef) {
         const unitDoc = await getDoc(unitRef);
         if (unitDoc.exists()) {
@@ -548,7 +531,6 @@ const AddTenant = () => {
         }
       }
 
-      // Handle lease dates
       let leaseStartDate = Timestamp.now();
       let leaseEndDate = null;
       
@@ -577,88 +559,62 @@ const AddTenant = () => {
         leaseEndDate = Timestamp.fromDate(endDate);
       }
 
-      // Prepare tenant record - UPDATED STATUS
       const tenantRecord = {
-        // Tenant Information
         fullName: tenantData.fullName,
         email: tenantData.email,
         phone: tenantData.phone,
         idNumber: tenantData.idNumber,
         occupation: tenantData.occupation,
         employer: tenantData.employer,
-        
-        // Property & Unit
         propertyId: tenantData.propertyId,
         unitId: tenantData.unitId,
         propertyName: tenantData.propertyName || propertyDetails?.name || "",
         unitNumber: tenantData.unitNumber || "",
-        
-        // Financial Details
         monthlyRent: parseFloat(tenantData.monthlyRent) || 0,
         securityDeposit: parseFloat(tenantData.securityDeposit) || 0,
         applicationFee: parseFloat(tenantData.applicationFee) || 0,
         petDeposit: parseFloat(tenantData.petDeposit) || 0,
         totalMoveInCost: tenantData.totalMoveInCost || 0,
-        
-        // Lease Information
         leaseStart: leaseStartDate,
         leaseEnd: leaseEndDate,
         leaseTerm: parseInt(tenantData.leaseTerm) || 12,
         noticePeriod: parseInt(tenantData.noticePeriod) || 30,
-        
-        // Emergency Contact
         emergencyContactName: tenantData.emergencyContactName,
         emergencyContactPhone: tenantData.emergencyContactPhone,
         emergencyContactRelation: tenantData.emergencyContactRelation,
-        
-        // Additional Information
         tenantNotes: tenantData.tenantNotes,
         applicationNotes: applicationData?.description || applicationData?.notes || "",
-        
-        // Pet Information
         hasPet: applicationData?.hasPet || false,
         petInfo: applicationData?.petInfo || {},
         petDetails: applicationData?.petDetails || null,
-        
-        // Status & Timestamps - UPDATED: approved_pending_payment instead of active
-        status: "approved_pending_payment", // CHANGED HERE
+        status: "approved_pending_payment",
         balance: parseFloat(tenantData.monthlyRent) || 0,
-        paymentStatus: "initial_fees_pending", // CHANGED HERE
+        paymentStatus: "initial_fees_pending",
         createdAt: Timestamp.now(),
         approvedAt: Timestamp.now(),
         createdBy: "admin",
         applicationId: tenantData.applicationId,
-        
-        // Application Source
         applicationSource: "mobile_app",
-        
-        // Property Fee References
         propertyFees: {
           latePaymentFee: propertyDetails?.latePaymentFee || 0,
           gracePeriod: propertyDetails?.gracePeriod || 5,
           feeDetails: propertyDetails?.feeDetails || {}
         },
-        
-        // Additional data
         propertyAddress: applicationData?.propertyAddress || "",
         propertyCity: applicationData?.propertyCity || "",
         unitType: applicationData?.unitType || "",
         unitBedrooms: applicationData?.bedrooms || applicationData?.unitBedrooms || 1,
         unitBathrooms: applicationData?.bathrooms || applicationData?.unitBathrooms || 1,
         unitSize: applicationData?.unitSize || "",
-        
-        // Original application data
         originalApplication: {
           submittedAt: applicationData?.submittedAt || Timestamp.now(),
-          totalFees: applicationData?.totalFees || tenantData.totalMoveInCost,
+          totalFees: tenantData.totalMoveInCost,
           otherFees: applicationData?.otherFees || ""
         }
       };
 
-      // Save tenant to Firestore
       const tenantRef = await addDoc(collection(db, "tenants"), tenantRecord);
 
-      // Update unit status if unit document exists
       if (unitRef) {
         try {
           await updateDoc(unitRef, {
@@ -669,13 +625,11 @@ const AddTenant = () => {
             rentAmount: parseFloat(tenantData.monthlyRent) || 0,
             lastRentIncrease: Timestamp.now()
           });
-          console.log("Unit status updated successfully");
         } catch (updateError) {
           console.warn("Could not update unit status:", updateError.message);
         }
       }
 
-      // Update application status
       if (tenantData.applicationId) {
         await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
           status: "approved",
@@ -687,8 +641,6 @@ const AddTenant = () => {
       }
 
       alert("✅ Tenant application approved! Tenant now appears in 'Approved Tenants' page.");
-      
-      // Reset form and navigate to approved tenants page
       resetForm();
       
     } catch (error) {
@@ -997,73 +949,80 @@ const AddTenant = () => {
             </div>
           </div>
 
-          {/* Form Actions - UPDATED */}
+          {/* FORM ACTIONS - UPDATED FOR TWO-ROW LAYOUT */}
           <div className="tenant-form-actions">
-            {/* Cancel button on left side */}
-            <button 
-              type="button" 
-              className="tenant-form-btn-cancel" 
-              onClick={handleCancel}
-              disabled={loading || isRejecting}
-            >
-              <FaTimes /> Cancel
-            </button>
-            
-            {/* Approve and Reject buttons together on right side */}
-            <div className="tenant-form-button-group">
+            {/* First line: Buttons only */}
+            <div className="tenant-form-buttons-row">
+              {/* Cancel button on left side */}
               <button 
                 type="button" 
-                className="tenant-form-btn-danger"
-                onClick={handleRejectClick}
+                className="tenant-form-btn-cancel" 
+                onClick={handleCancel}
                 disabled={loading || isRejecting}
               >
-                {isRejecting ? (
-                  <>
-                    <span className="tenant-form-spinner-small"></span>
-                    Rejecting...
-                  </>
-                ) : (
-                  <>
-                    <FaThumbsDown /> Reject
-                  </>
-                )}
+                <FaTimes /> Cancel
               </button>
               
-              <button 
-                type="button" 
-                className="tenant-form-btn-submit" 
-                onClick={handleApproveTenant} 
-                disabled={loading || isRejecting}
-                title={!unitRef ? "Warning: Unit document not found in database. Tenant will be created but unit status won't be updated." : ""}
-              >
-                {loading ? (
-                  <>
-                    <span className="tenant-form-spinner-small"></span>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FaCheckCircle /> 
-                    {!unitRef ? " Approve (Unit Not Found)" : " Approve & Send to Payment"}
-                  </>
-                )}
-              </button>
+              {/* Approve and Reject buttons on right side */}
+              <div className="tenant-form-button-group">
+                <button 
+                  type="button" 
+                  className="tenant-form-btn-danger"
+                  onClick={handleRejectClick}
+                  disabled={loading || isRejecting}
+                >
+                  {isRejecting ? (
+                    <>
+                      <span className="tenant-form-spinner-small"></span>
+                      Rejecting...
+                    </>
+                  ) : (
+                    <>
+                      <FaThumbsDown /> Reject
+                    </>
+                  )}
+                </button>
+                
+                <button 
+                  type="button" 
+                  className="tenant-form-btn-submit" 
+                  onClick={handleApproveTenant} 
+                  disabled={loading || isRejecting}
+                  title={!unitRef ? "Warning: Unit document not found in database. Tenant will be created but unit status won't be updated." : ""}
+                >
+                  {loading ? (
+                    <>
+                      <span className="tenant-form-spinner-small"></span>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheckCircle /> 
+                      {!unitRef ? " Approve (Unit Not Found)" : " Approve & Send to Payment"}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-          
-          {/* New Info Box */}
-          <div className="tenant-form-info-box">
-            <FaInfoCircle />
-            <p>
-              <strong>After approval:</strong> Tenant will appear in "Approved Tenants" page 
-              (not in regular tenant collection). They need to pay initial fees first.
-              <button 
-                className="view-approved-link"
-                onClick={() => navigate("/approved-tenants")}
-              >
-                View Approved Tenants <FaArrowRight />
-              </button>
-            </p>
+            
+            {/* Second line: Info box only - This goes BELOW the buttons */}
+            <div className="tenant-form-info-row">
+              <div className="tenant-form-info-box">
+                <FaInfoCircle />
+                <div className="tenant-form-info-box-content">
+                  <p>
+                    <strong>After approval:</strong> Tenant will appear in "Approved Tenants" page. 
+                    They need to pay initial fees first.
+                  </p>
+                  <button 
+                    className="tenant-form-view-approved-link"
+                    onClick={() => navigate("/approved-tenants")}
+                  >
+                    View Approved Tenants <FaArrowRight />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           
           {!unitRef && tenantData.unitId && (

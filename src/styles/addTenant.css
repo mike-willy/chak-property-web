@@ -1,4 +1,4 @@
-/* src/styles/addTenant.css - UPDATED BUTTON SIZES */
+/* src/styles/addTenant.css - UPDATED FOR VISIBILITY */
 /* Unique class prefix: tenant-form- */
 :root {
   --tenant-primary: #3b82f6;
@@ -19,17 +19,20 @@
   --tenant-radius-pill: 9999px;
 }
 
-/* Main Container - UNIQUE */
+/* ========== MAIN CONTAINER - EXPANDED FOR VISIBILITY ========== */
 .tenant-form-container {
   padding: 2rem;
-  max-width: 1400px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   min-height: 100vh;
+  height: auto;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: visible !important;
 }
 
-/* Header - UNIQUE */
+/* ========== HEADER ========== */
 .tenant-form-header {
   display: flex;
   justify-content: space-between;
@@ -37,12 +40,16 @@
   margin-bottom: 2.5rem;
   padding-bottom: 1.5rem;
   border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .tenant-form-header-left {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  flex: 1;
+  min-width: 300px;
 }
 
 .tenant-form-title {
@@ -57,6 +64,7 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  word-break: break-word;
 }
 
 .tenant-form-prefill-notice {
@@ -70,6 +78,8 @@
   font-size: 0.875rem;
   font-weight: 600;
   border: 1px solid #86efac;
+  max-width: fit-content;
+  white-space: nowrap;
 }
 
 .tenant-form-prefill-notice::before {
@@ -80,6 +90,7 @@
 .tenant-form-header-actions {
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .tenant-form-view-tenants-btn {
@@ -98,6 +109,7 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .tenant-form-view-tenants-btn::before {
@@ -120,7 +132,7 @@
   left: 100%;
 }
 
-/* Page Content - UNIQUE */
+/* ========== PAGE CONTENT - EXPANDED FOR VISIBILITY ========== */
 .tenant-form-content {
   background: white;
   border-radius: var(--tenant-radius);
@@ -128,7 +140,8 @@
   padding: 2.5rem;
   border: 1px solid rgba(0, 0, 0, 0.05);
   position: relative;
-  overflow: hidden;
+  overflow: visible !important;
+  min-height: auto;
 }
 
 .tenant-form-content::before {
@@ -141,11 +154,12 @@
   background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
 }
 
-/* Form Sections - UNIQUE */
+/* ========== FORM SECTIONS - ENSURED VISIBILITY ========== */
 .tenant-form-sections {
   display: flex;
   flex-direction: column;
   gap: 2.5rem;
+  overflow: visible !important;
 }
 
 .tenant-form-section {
@@ -156,6 +170,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
   transition: all 0.3s ease;
   position: relative;
+  overflow: visible !important;
 }
 
 .tenant-form-section:hover {
@@ -174,6 +189,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  word-break: break-word;
 }
 
 .tenant-form-section-title::before {
@@ -184,7 +200,7 @@
   border-radius: 2px;
 }
 
-/* Form Grid - UNIQUE */
+/* ========== FORM GRID ========== */
 .tenant-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -195,6 +211,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
+  overflow: visible;
 }
 
 .tenant-form-group-full-width {
@@ -211,6 +228,7 @@
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 0.25rem;
+  word-break: break-word;
 }
 
 .tenant-form-label.required::after {
@@ -220,7 +238,7 @@
   margin-left: 0.125rem;
 }
 
-/* Thinner form inputs */
+/* ========== FORM INPUTS - FIXED FOR VISIBILITY ========== */
 .tenant-form-input,
 .tenant-form-select,
 .tenant-form-textarea {
@@ -234,6 +252,11 @@
   font-family: inherit;
   line-height: 1.4;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  overflow: visible;
+  word-wrap: break-word;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
 }
 
 .tenant-form-input:hover,
@@ -268,11 +291,49 @@
 
 .tenant-form-textarea {
   resize: vertical;
-  min-height: 80px;
-  line-height: 1.4;
+  min-height: 120px;
+  line-height: 1.5;
+  overflow-y: auto;
+  max-height: 500px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-/* Helper Text - UNIQUE */
+/* ========== READONLY INPUTS - FULLY VISIBLE ========== */
+.tenant-form-input.tenant-form-readonly,
+.tenant-form-textarea.tenant-form-readonly {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 42px;
+  max-height: none;
+}
+
+.tenant-form-textarea.tenant-form-readonly {
+  white-space: pre-wrap;
+  overflow-y: auto;
+  min-height: 120px;
+  max-height: 400px;
+  line-height: 1.6;
+  padding: 1rem;
+}
+
+.tenant-form-input.tenant-form-readonly {
+  overflow-x: auto;
+  white-space: nowrap;
+  text-overflow: clip;
+  min-width: 0;
+}
+
+/* ========== HELPER TEXT ========== */
 .tenant-form-helper-text {
   font-size: 0.75rem;
   color: #64748b;
@@ -281,6 +342,7 @@
   font-style: italic;
   padding-left: 0.5rem;
   border-left: 2px solid #e2e8f0;
+  word-break: break-word;
 }
 
 .tenant-form-helper-text.error {
@@ -288,13 +350,14 @@
   border-left-color: var(--tenant-danger);
 }
 
-/* Property Fees Info - UNIQUE */
+/* ========== PROPERTY FEES INFO ========== */
 .tenant-form-property-fees-info {
   margin-top: 1.5rem;
   padding: 1.5rem;
   background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
   border-radius: var(--tenant-radius-sm);
   border-left: 4px solid var(--tenant-info);
+  overflow: visible;
 }
 
 .tenant-form-property-fees-title {
@@ -305,6 +368,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  word-break: break-word;
 }
 
 .tenant-form-fees-grid {
@@ -321,12 +385,14 @@
   background: white;
   border: 1px solid #bae6fd;
   border-radius: var(--tenant-radius-sm);
+  word-break: break-word;
 }
 
 .tenant-form-fee-label {
   font-size: 0.8125rem;
   color: #475569;
   font-weight: 500;
+  word-break: break-word;
 }
 
 .tenant-form-fee-value {
@@ -334,15 +400,17 @@
   font-weight: 600;
   color: var(--tenant-info);
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  word-break: break-word;
 }
 
-/* Total Cost Summary - UNIQUE */
+/* ========== TOTAL COST SUMMARY ========== */
 .tenant-form-total-cost-summary {
   margin-top: 2rem;
   padding: 1.5rem;
   background: linear-gradient(135deg, #f0fdf4, #dcfce7);
   border-radius: var(--tenant-radius-sm);
   border-left: 4px solid var(--tenant-success);
+  overflow: visible;
 }
 
 .tenant-form-total-cost-title {
@@ -350,6 +418,7 @@
   font-weight: 600;
   color: #166534;
   margin-bottom: 1.25rem;
+  word-break: break-word;
 }
 
 .tenant-form-cost-breakdown {
@@ -366,6 +435,7 @@
   background: white;
   border: 1px solid #bbf7d0;
   border-radius: var(--tenant-radius-sm);
+  word-break: break-word;
 }
 
 .tenant-form-cost-total {
@@ -378,14 +448,16 @@
   border-radius: var(--tenant-radius-sm);
   margin-top: 0.5rem;
   font-weight: 600;
+  word-break: break-word;
 }
 
 .tenant-form-total-amount {
   font-size: 1.125rem;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  word-break: break-word;
 }
 
-/* Spinner - UNIQUE */
+/* ========== SPINNER ========== */
 .tenant-form-spinner-small {
   width: 18px;
   height: 18px;
@@ -401,39 +473,56 @@
   to { transform: rotate(360deg); }
 }
 
-/* UPDATED: SMALLER BUTTONS - Form Actions */
+/* ========== TWO-ROW LAYOUT ========== */
 .tenant-form-actions {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 1.5rem;
   margin-top: 3rem;
   padding-top: 2rem;
   border-top: 1px solid var(--tenant-border);
-  gap: 1.5rem;
+  overflow: visible;
 }
 
-/* SMALLER: Cancel Button */
+.tenant-form-buttons-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.tenant-form-info-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ========== BUTTON STYLES ========== */
 .tenant-form-btn-cancel {
-  padding: 0.625rem 1.75rem; /* Reduced from 0.75rem 2rem */
+  padding: 0.625rem 1.75rem;
   background: transparent;
   border: 1px solid #d1d5db;
   border-radius: var(--tenant-radius);
   color: #6b7280;
-  font-size: 0.8125rem; /* Reduced from 0.875rem */
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem; /* Reduced from 0.75rem */
-  min-width: 160px; /* Reduced from 180px */
-  letter-spacing: 0.3px; /* Reduced from 0.5px */
+  gap: 0.5rem;
+  min-width: 160px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
   position: relative;
   overflow: hidden;
   background: linear-gradient(to bottom, white, #f9fafb);
-  height: 40px; /* Added fixed height */
+  height: 40px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tenant-form-btn-cancel::before {
@@ -459,28 +548,28 @@
   left: 100%;
 }
 
-/* SMALLER: Submit/Approve Button */
 .tenant-form-btn-submit {
-  padding: 0.625rem 2rem; /* Reduced from 0.75rem 2.5rem */
+  padding: 0.625rem 2rem;
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   border: none;
   border-radius: var(--tenant-radius);
   color: white;
-  font-size: 0.8125rem; /* Reduced from 0.875rem */
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem; /* Reduced from 0.75rem */
+  gap: 0.5rem;
   position: relative;
   overflow: hidden;
-  letter-spacing: 0.3px; /* Reduced from 0.5px */
-  min-width: 160px; /* Reduced from 180px */
+  letter-spacing: 0.3px;
+  min-width: 160px;
   text-transform: uppercase;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-  height: 40px; /* Added fixed height */
+  height: 40px;
+  white-space: nowrap;
 }
 
 .tenant-form-btn-submit::before {
@@ -495,9 +584,9 @@
 }
 
 .tenant-form-btn-submit:hover:not(:disabled) {
-  transform: translateY(-2px); /* Reduced from -3px */
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25); /* Reduced shadow */
-  letter-spacing: 0.5px; /* Reduced from 1px */
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+  letter-spacing: 0.5px;
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
 }
 
@@ -512,35 +601,36 @@
   box-shadow: none !important;
 }
 
-/* Button Group for Multiple Actions */
 .tenant-form-button-group {
   display: flex;
-  gap: 0.75rem; /* Reduced from 1rem */
+  gap: 0.75rem;
   align-items: center;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-/* SMALLER: Danger/Reject Button */
 .tenant-form-btn-danger {
-  padding: 0.625rem 1.75rem; /* Reduced from 0.75rem 2rem */
+  padding: 0.625rem 1.75rem;
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   border: none;
   border-radius: var(--tenant-radius);
   color: white;
-  font-size: 0.8125rem; /* Reduced from 0.875rem */
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem; /* Reduced from 0.75rem */
-  min-width: 160px; /* Reduced from 180px */
-  letter-spacing: 0.3px; /* Reduced from 0.5px */
+  gap: 0.5rem;
+  min-width: 160px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
   position: relative;
   overflow: hidden;
-  height: 40px; /* Added fixed height */
+  height: 40px;
+  white-space: nowrap;
 }
 
 .tenant-form-btn-danger::before {
@@ -556,9 +646,9 @@
 
 .tenant-form-btn-danger:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25); /* Reduced shadow */
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25);
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  letter-spacing: 0.5px; /* Reduced from 1px */
+  letter-spacing: 0.5px;
 }
 
 .tenant-form-btn-danger:hover:not(:disabled)::before {
@@ -572,53 +662,153 @@
   box-shadow: none !important;
 }
 
-/* Secondary Button (for reference, not used in current layout) */
 .tenant-form-btn-secondary {
-  padding: 0.625rem 1.75rem; /* Reduced from 0.75rem 2rem */
+  padding: 0.625rem 1.75rem;
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   border: none;
   border-radius: var(--tenant-radius);
   color: white;
-  font-size: 0.8125rem; /* Reduced from 0.875rem */
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem; /* Reduced from 0.75rem */
-  min-width: 160px; /* Reduced from 180px */
-  letter-spacing: 0.3px; /* Reduced from 0.5px */
+  gap: 0.5rem;
+  min-width: 160px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-  height: 40px; /* Added fixed height */
+  height: 40px;
 }
 
 .tenant-form-btn-secondary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25); /* Reduced shadow */
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25);
   background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
 }
 
-/* Read-only input styling */
-.tenant-form-input.tenant-form-readonly,
-.tenant-form-textarea.tenant-form-readonly {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #64748b;
-  cursor: not-allowed;
-  user-select: none;
+/* ========== UPDATED INFO BOX FOR SINGLE LINE LAYOUT ========== */
+.tenant-form-info-box {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #22c55e;
+  border-radius: var(--tenant-radius);
+  padding: 1rem 1.5rem;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.08);
+  position: relative;
+  overflow: visible;
+  width: 100%;
+  max-width: 100%;
+  justify-content: space-between; /* Changed from center to space-between */
+}
+
+.tenant-form-info-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.3) 100%);
+  pointer-events: none;
+}
+
+.tenant-form-info-box svg {
+  color: #16a34a;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(22, 163, 74, 0.2));
+}
+
+.tenant-form-info-box-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Changed to space-between */
+  gap: 1.5rem;
+  flex-wrap: nowrap; /* Ensure everything stays on one line */
+}
+
+.tenant-form-info-box-content p {
+  margin: 0;
+  color: #166534;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 500;
+  flex: 1; /* Allow text to take available space */
+  white-space: nowrap; /* Keep text on one line */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Add ellipsis if text is too long */
+}
+
+/* Updated View Approved Link Button */
+.tenant-form-view-approved-link {
+  display: inline-flex;
+  align-items: center;
   gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: white;
+  border: none;
+  border-radius: var(--tenant-radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2);
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  min-width: 120px;
+  height: 32px;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0; /* Prevent button from shrinking */
+  margin-left: 1rem; /* Add some space between text and button */
 }
 
-.tenant-form-textarea.tenant-form-readonly {
-  white-space: pre-wrap;
-  overflow-y: auto;
+.tenant-form-view-approved-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.7s ease;
 }
 
-/* Reject Section Styling */
+.tenant-form-view-approved-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+  background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+  letter-spacing: 0.3px;
+}
+
+.tenant-form-view-approved-link:hover::before {
+  left: 100%;
+}
+
+.tenant-form-view-approved-link svg {
+  font-size: 0.75rem;
+  transition: transform 0.3s ease;
+  color: white;
+  margin: 0;
+  filter: none;
+}
+
+.tenant-form-view-approved-link:hover svg {
+  transform: translateX(1px);
+}
+
+/* ========== SPECIAL SECTIONS ========== */
 .tenant-form-reject-section {
   background: linear-gradient(135deg, #fff5f5, #fee2e2);
   border: 2px solid #fca5a5;
@@ -630,7 +820,76 @@
   border-bottom-color: #fca5a5;
 }
 
-/* Responsive Design */
+.tenant-form-warning {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #fbbf24;
+  border-left: 4px solid #f59e0b;
+  border-radius: var(--tenant-radius);
+  padding: 1.25rem;
+  margin: 1rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  color: #92400e;
+  font-size: 0.875rem;
+  word-break: break-word;
+}
+
+.tenant-form-warning svg {
+  color: #d97706;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+/* ========== LOADING AND ERROR STATES ========== */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.loading-state .spinner,
+.error-state .error-icon {
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+}
+
+.loading-state .spinner {
+  color: var(--tenant-primary);
+}
+
+.error-state .error-icon {
+  color: var(--tenant-danger);
+}
+
+.loading-state p,
+.error-state p {
+  color: var(--tenant-secondary);
+  margin-bottom: 2rem;
+  word-break: break-word;
+}
+
+/* ========== APPLIED DATE ========== */
+.tenant-form-applied-date {
+  font-size: 0.875rem;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.5rem 1rem;
+  border-radius: var(--tenant-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+/* ========== RESPONSIVE DESIGN ========== */
 @media (max-width: 1200px) {
   .tenant-form-container {
     padding: 1.5rem;
@@ -650,6 +909,10 @@
 }
 
 @media (max-width: 768px) {
+  .tenant-form-container {
+    padding: 1rem;
+  }
+  
   .tenant-form-header {
     flex-direction: column;
     align-items: stretch;
@@ -658,6 +921,7 @@
   
   .tenant-form-header-actions {
     flex-direction: column;
+    width: 100%;
   }
   
   .tenant-form-view-tenants-btn {
@@ -687,68 +951,41 @@
     gap: 1rem;
   }
   
+  .tenant-form-buttons-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
   .tenant-form-btn-cancel,
-  .tenant-form-btn-submit,
-  .tenant-form-btn-danger {
+  .tenant-form-button-group {
     width: 100%;
     justify-content: center;
-    min-width: 0;
   }
   
   .tenant-form-button-group {
-    width: 100%;
     flex-direction: column;
-    gap: 0.75rem;
   }
-}
-
-/* Add to addTenant.css */
-.tenant-form-info-box {
-  background: #e8f5e9;
-  border: 1px solid #4CAF50;
-  border-radius: 8px;
-  padding: 1rem;
-  margin: 1rem 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.tenant-form-info-box svg {
-  color: #4CAF50;
-  font-size: 1.2rem;
-  margin-top: 0.2rem;
-}
-
-.tenant-form-info-box p {
-  margin: 0;
-  color: #2e7d32;
-  flex: 1;
-}
-
-.view-approved-link {
-  background: transparent;
-  color: #1b5e20;
-  border: 1px solid #1b5e20;
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  margin-left: 1rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  transition: all 0.3s;
-}
-
-.view-approved-link:hover {
-  background: #1b5e20;
-  color: white;
+  
+  .tenant-form-info-box {
+    padding: 1rem;
+    max-width: 100%;
+  }
+  
+  .tenant-form-info-box-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .tenant-form-info-box-content p {
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 @media (max-width: 480px) {
   .tenant-form-container {
-    padding: 1rem;
+    padding: 0.75rem;
   }
   
   .tenant-form-title {
@@ -778,9 +1015,10 @@
   .tenant-form-btn-cancel,
   .tenant-form-btn-submit,
   .tenant-form-btn-danger {
-    padding: 0.5rem 1.25rem; /* Smaller on mobile */
+    padding: 0.5rem 1.25rem;
     font-size: 0.75rem;
     height: 36px;
+    min-width: 140px;
   }
   
   .tenant-form-btn-cancel,
@@ -790,4 +1028,60 @@
     justify-content: center;
     min-width: 0;
   }
+  
+  .tenant-form-info-box {
+    padding: 0.75rem;
+  }
+  
+  .tenant-form-info-box-content p {
+    font-size: 0.75rem;
+  }
+  
+  .tenant-form-view-approved-link {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.6875rem;
+    min-width: 100px;
+  }
+}
+
+/* Remove old duplicate styles */
+.view-approved-link {
+  display: none;
+}
+
+/* ========== SCROLLBAR STYLING ========== */
+.tenant-form-textarea::-webkit-scrollbar,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tenant-form-textarea::-webkit-scrollbar-track,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.tenant-form-textarea::-webkit-scrollbar-thumb,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.tenant-form-textarea::-webkit-scrollbar-thumb:hover,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* ========== ENSURE ALL CONTENT IS VISIBLE ========== */
+.tenant-form-container * {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.tenant-form-content,
+.tenant-form-sections,
+.tenant-form-section {
+  max-height: none !important;
+  overflow: visible !important;
 }
