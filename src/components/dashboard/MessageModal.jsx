@@ -41,6 +41,7 @@ const MessageModal = ({ isOpen, onClose }) => {
         
         recipientsList = querySnapshot.docs.map(doc => {
           const data = doc.data();
+          // For landlords: try name field, then firstName + lastName
           const fullName = data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim();
           
           return {
@@ -56,33 +57,43 @@ const MessageModal = ({ isOpen, onClose }) => {
       } else if (messageType === 'tenant') {
         console.log("📋 Fetching tenants...");
         
-        // Fetch from USERS collection (MATCHING MOBILE APP)
-        const usersRef = collection(db, 'users');
-        const querySnapshot = await getDocs(usersRef);
+        // Fetch from TENANTS collection
+        const tenantsRef = collection(db, 'tenants');
+        const querySnapshot = await getDocs(tenantsRef);
         
-        console.log(`✅ Found ${querySnapshot.size} users`);
+        console.log(`✅ Found ${querySnapshot.size} tenants`);
+        console.log("📊 Sample tenant data:", querySnapshot.docs[0]?.data());
         
         recipientsList = querySnapshot.docs.map(doc => {
           const data = doc.data();
-          // Mobile app uses 'firstName' and 'lastName', or just display whatever is available
-          const fullName = data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || "Unnamed User";
+          
+          // FIXED: For tenants, use fullName field (from AddTenant component)
+          // Check for fullName first, then name, then firstName + lastName
+          const fullName = data.fullName || data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim();
           
           return {
             id: doc.id,
-            name: fullName,
+            name: fullName || "Unnamed Tenant",
             email: data.email || "",
-            phone: data.phoneNumber || data.phone || "", // Mobile often uses phoneNumber
-            type: "tenant", // Treating all users as potential tenants/viewers for now
-            role: data.role || "user",
-            ...data
+            phone: data.phone || data.phoneNumber || "",
+            type: "tenant",
+            propertyId: data.propertyId || "",
+            propertyName: data.propertyName || "",
+            propertyAddress: data.propertyAddress || "",
+            status: data.status || "active",
+            // Debug info
+            _debug: {
+              hasFullName: !!data.fullName,
+              hasName: !!data.name,
+              hasFirstName: !!data.firstName,
+              hasLastName: !!data.lastName,
+              rawData: Object.keys(data).filter(k => k.includes('name') || k.includes('Name'))
+            }
           };
         });
         
-        // Filter? The prompt implies "Tenants". If your users collection mixes roles, filter here.
-        // For now, assuming all 'users' are candidates for messages (Tenants).
-        // recipientsList = recipientsList.filter(u => u.role === 'tenant'); 
-        
-        console.log("📊 Users found:", recipientsList.length);
+        console.log("📊 Tenants found:", recipientsList.length);
+        console.log("📊 First tenant:", recipientsList[0]);
       }
       
       console.log("📊 Recipients list:", recipientsList);
@@ -119,10 +130,11 @@ const MessageModal = ({ isOpen, onClose }) => {
       
       const messageData = {
         recipientId: selectedRecipient,
-        recipientType: messageType, // 'tenant' (actually user) or 'landlord'
+        recipientType: messageType, // 'tenant' or 'landlord'
         recipientName: selectedRecipientData?.name || "Unknown",
         recipientEmail: selectedRecipientData?.email || "",
         recipientPhone: selectedRecipientData?.phone || "",
+        recipientProperty: selectedRecipientData?.propertyName || "",
         subject: subject || `Message from Admin - ${new Date().toLocaleDateString()}`,
         message: message,
         sender: 'Admin',
@@ -151,17 +163,16 @@ const MessageModal = ({ isOpen, onClose }) => {
         );
         console.log("✅ Message saved to landlord's subcollection");
       } else {
-        // Save to USER'S messages subcollection (MATCHING MOBILE APP)
-        // messageType is 'tenant', but collection is 'users'
+        // Save to TENANT'S messages subcollection
         await addDoc(
-          collection(db, 'users', selectedRecipient, 'messages'),
+          collection(db, 'tenants', selectedRecipient, 'messages'),
           {
             ...messageData,
             messageId: messageRef.id,
             receivedAt: serverTimestamp()
           }
         );
-        console.log("✅ Message saved to user's subcollection");
+        console.log("✅ Message saved to tenant's subcollection");
       }
 
       alert('✅ Message sent successfully!');
@@ -287,10 +298,9 @@ const MessageModal = ({ isOpen, onClose }) => {
                       <option value="">Select a {messageType}...</option>
                       {recipients.map(recipient => (
                         <option key={recipient.id} value={recipient.id}>
-                          {recipient.name} 
+                          {recipient.name}
                           {recipient.email && ` - ${recipient.email}`}
                           {!recipient.email && recipient.phone && ` - ${recipient.phone}`}
-                          {recipient.status && ` (${recipient.status})`}
                         </option>
                       ))}
                     </select>
@@ -314,13 +324,6 @@ const MessageModal = ({ isOpen, onClose }) => {
                         recipients.find(r => r.id === selectedRecipient)?.phone || "Not provided"
                       }
                     </div>
-                    {messageType === 'tenant' && (
-                      <div className="info-item">
-                        <strong>Status:</strong> {
-                          recipients.find(r => r.id === selectedRecipient)?.status || "Not specified"
-                        }
-                      </div>
-                    )}
                   </div>
                 )}
 

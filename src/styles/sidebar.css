@@ -13,29 +13,32 @@
   top: 0;
   overflow: hidden;
   z-index: 101;
-  padding-top: 70px; /* CHANGED: Match navbar height (70px not 60px) */
+  padding-top: 70px;
+  transition: width 0.3s ease;
 }
 
 /* REMOVE THIS DIVIDER - it creates a gap */
 .sidebar::before {
-  display: none; /* REMOVED: This was causing issues */
+  display: none;
 }
 
 /* ===============================
    PROFILE SECTION - REDUCED
 ================================ */
 .sidebar-profile {
-  padding: 15px 16px; /* REDUCED from 20px */
+  padding: 15px 16px;
   border-bottom: 1px solid #e5e7eb;
   background: #f9fafb;
   flex-shrink: 0;
+  transition: all 0.3s ease;
 }
 
 .profile-avatar-container {
   position: relative;
-  width: 60px; /* REDUCED from 70px */
-  height: 60px; /* REDUCED from 70px */
-  margin: 0 auto 10px; /* REDUCED from 12px */
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 10px;
+  transition: all 0.3s ease;
 }
 
 .profile-avatar {
@@ -63,7 +66,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px; /* REDUCED from 22px */
+  font-size: 20px;
   font-weight: 600;
 }
 
@@ -86,7 +89,7 @@
 }
 
 .upload-overlay svg {
-  font-size: 16px; /* REDUCED from 18px */
+  font-size: 16px;
 }
 
 /* Uploading spinner */
@@ -101,8 +104,8 @@
 }
 
 .uploading-spinner {
-  width: 20px; /* REDUCED from 24px */
-  height: 20px; /* REDUCED from 24px */
+  width: 20px;
+  height: 20px;
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-top-color: white;
   border-radius: 50%;
@@ -112,18 +115,19 @@
 /* Profile info - REDUCED */
 .profile-info {
   text-align: center;
+  transition: all 0.3s ease;
 }
 
 .profile-name {
-  margin: 0 0 3px; /* REDUCED from 4px */
-  font-size: 15px; /* REDUCED from 16px */
+  margin: 0 0 3px;
+  font-size: 15px;
   font-weight: 600;
   color: #1f2937;
 }
 
 .profile-email {
-  margin: 0 0 6px; /* REDUCED from 8px */
-  font-size: 11px; /* REDUCED from 12px */
+  margin: 0 0 6px;
+  font-size: 11px;
   color: #6b7280;
   word-break: break-word;
   line-height: 1.3;
@@ -133,9 +137,9 @@
   display: inline-block;
   background: #dbeafe;
   color: #1e40af;
-  padding: 3px 8px; /* REDUCED from 4px 10px */
+  padding: 3px 8px;
   border-radius: 20px;
-  font-size: 10px; /* REDUCED from 11px */
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -147,7 +151,7 @@
 .sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 0 100px 0; /* CHANGED: Added 100px bottom padding */
+  padding: 12px 0 100px 0;
   display: flex;
   flex-direction: column;
 }
@@ -159,14 +163,15 @@
   font-size: 12px;
   font-weight: 600;
   color: #9ca3af;
-  margin: 12px 16px 8px; /* CHANGED: Reduced top from 20px to 12px */
+  margin: 12px 16px 8px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  transition: all 0.3s ease;
 }
 
 /* First title should have less margin */
 .sidebar-scrollable > .sidebar-title:first-child {
-  margin-top: 0; /* No extra margin for first title */
+  margin-top: 0;
 }
 
 /* ===============================
@@ -191,6 +196,7 @@
   color: #374151;
   transition: all 0.2s;
   margin-bottom: 4px;
+  position: relative;
 }
 
 .sidebar-menu li:hover,
@@ -219,6 +225,7 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  min-width: 16px;
 }
 
 /* ===============================
@@ -260,7 +267,7 @@
 ================================ */
 .sidebar-system {
   margin-top: auto;
-  padding-bottom: 40px; /* INCREASED from 20px to 40px */
+  padding-bottom: 40px;
 }
 
 .sidebar-bottom {
@@ -306,22 +313,243 @@
 }
 
 /* ===============================
-   RESPONSIVE (Optional)
+   COLLAPSED SIDEBAR STYLES (FOR DESKTOP)
+================================ */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+/* Collapsed profile styles */
+.sidebar.collapsed .sidebar-profile {
+  padding: 15px 8px;
+}
+
+.sidebar.collapsed .profile-avatar-container {
+  width: 40px;
+  height: 40px;
+}
+
+.sidebar.collapsed .avatar-initial {
+  font-size: 16px;
+}
+
+.sidebar.collapsed .profile-info {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-title {
+  display: none;
+}
+
+/* Hide labels when collapsed */
+.sidebar.collapsed .sidebar-item-content span:not(.sidebar-badge) {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-item-content {
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebar.collapsed .sidebar-menu,
+.sidebar.collapsed .sidebar-bottom {
+  margin: 0 4px;
+}
+
+.sidebar.collapsed li {
+  justify-content: center;
+  padding: 12px 0 !important;
+}
+
+.sidebar.collapsed .sidebar-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  min-width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+
+/* ===============================
+   EXPANDED SIDEBAR STYLES (FOR DESKTOP)
+================================ */
+.sidebar:not(.collapsed) {
+  width: 250px;
+}
+
+/* Show everything when expanded */
+.sidebar:not(.collapsed) .sidebar-item-content span:not(.sidebar-badge) {
+  display: inline !important;
+}
+
+.sidebar:not(.collapsed) .profile-info {
+  display: block !important;
+}
+
+.sidebar:not(.collapsed) .sidebar-title {
+  display: block !important;
+}
+
+.sidebar:not(.collapsed) .sidebar-item-content {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+/* ===============================
+   MOBILE RESPONSIVE FIXES - UPDATED FOR OVERLAY
 ================================ */
 @media (max-width: 768px) {
+  /* Sidebar always fixed on mobile */
   .sidebar {
-    width: 220px;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    position: fixed !important;
+    z-index: 101 !important;
+    height: 100vh !important;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, width 0.3s ease !important;
+    transform: translateX(0); /* Always visible when collapsed */
   }
   
-  .sidebar.open {
-    transform: translateX(0);
+  /* When sidebar is COLLAPSED on mobile - show icons only */
+  .sidebar.collapsed {
+    width: 60px !important;
+    transform: translateX(0) !important; /* Visible */
   }
   
-  .sidebar-badge {
-    font-size: 9px;
-    min-width: 16px;
-    height: 16px;
+  /* When sidebar is EXPANDED on mobile - slide to show full */
+  .sidebar:not(.collapsed) {
+    width: 250px !important;
+    transform: translateX(0) !important; /* Same position, just wider */
+  }
+  
+  /* Profile section - compact for collapsed */
+  .sidebar.collapsed .sidebar-profile {
+    padding: 10px 4px !important;
+    min-height: auto !important;
+  }
+  
+  /* Profile section - normal for expanded */
+  .sidebar:not(.collapsed) .sidebar-profile {
+    padding: 15px 16px !important;
+  }
+  
+  /* Profile image small for collapsed */
+  .sidebar.collapsed .profile-avatar-container {
+    width: 40px !important;
+    height: 40px !important;
+    margin: 0 auto 6px !important;
+  }
+  
+  /* Profile image normal for expanded */
+  .sidebar:not(.collapsed) .profile-avatar-container {
+    width: 60px !important;
+    height: 60px !important;
+    margin: 0 auto 10px !important;
+  }
+  
+  .avatar-initial {
+    font-size: 16px !important;
+  }
+  
+  /* Hide text elements ONLY when collapsed on mobile */
+  .sidebar.collapsed .profile-info,
+  .sidebar.collapsed .sidebar-title,
+  .sidebar.collapsed .sidebar-item-content span:not(.sidebar-badge) {
+    display: none !important;
+  }
+  
+  /* Show text elements when EXPANDED on mobile */
+  .sidebar:not(.collapsed) .profile-info,
+  .sidebar:not(.collapsed) .sidebar-title,
+  .sidebar:not(.collapsed) .sidebar-item-content span:not(.sidebar-badge) {
+    display: block !important;
+  }
+  
+  /* Menu container adjustments for collapsed */
+  .sidebar.collapsed .sidebar-menu,
+  .sidebar.collapsed .sidebar-bottom {
+    margin: 0 2px !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  
+  /* Menu container adjustments for expanded */
+  .sidebar:not(.collapsed) .sidebar-menu,
+  .sidebar:not(.collapsed) .sidebar-bottom {
+    margin: 0 8px !important;
+  }
+  
+  /* Menu items - center everything when collapsed */
+  .sidebar.collapsed .sidebar-menu li,
+  .sidebar.collapsed .sidebar-bottom li {
+    padding: 8px 0 !important;
+    margin: 0 0 2px 0 !important;
+    justify-content: center !important;
+    min-height: 40px !important;
+  }
+  
+  /* Menu items - normal when expanded */
+  .sidebar:not(.collapsed) .sidebar-menu li,
+  .sidebar:not(.collapsed) .sidebar-bottom li {
+    padding: 10px 12px !important;
+    margin: 0 0 4px 0 !important;
+    justify-content: space-between !important;
+    min-height: auto !important;
+  }
+  
+  /* Content wrapper - center icons when collapsed */
+  .sidebar.collapsed .sidebar-item-content {
+    justify-content: center !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+  }
+  
+  /* Content wrapper - normal when expanded */
+  .sidebar:not(.collapsed) .sidebar-item-content {
+    justify-content: flex-start !important;
+    width: auto !important;
+    gap: 12px !important;
+  }
+  
+  /* Center icons only when collapsed */
+  .sidebar.collapsed .sidebar-item-content svg {
+    margin: 0 auto !important;
+    display: block !important;
+    width: 18px !important;
+    height: 18px !important;
+  }
+  
+  /* Normal icon placement when expanded */
+  .sidebar:not(.collapsed) .sidebar-item-content svg {
+    margin: 0 !important;
+    width: 16px !important;
+    height: 16px !important;
+  }
+  
+  /* Badge adjustments for collapsed */
+  .sidebar.collapsed .sidebar-badge {
+    position: absolute !important;
+    top: 4px !important;
+    right: 4px !important;
+    min-width: 14px !important;
+    height: 14px !important;
+    font-size: 8px !important;
+    padding: 0 3px !important;
+    line-height: 14px !important;
+  }
+  
+  /* Badge adjustments for expanded */
+  .sidebar:not(.collapsed) .sidebar-badge {
+    position: static !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    font-size: 10px !important;
+    padding: 0 5px !important;
+  }
+  
+  /* Scrollable area */
+  .sidebar-scrollable {
+    padding: 8px 0 60px 0 !important;
   }
 }

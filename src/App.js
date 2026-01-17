@@ -1,11 +1,12 @@
 // App.js - Updated
 import { Routes, Route, Navigate } from "react-router-dom";
 
-import Dashboard from "./pages/Dashboard";
+import DashboardLayout from "./components/DashboardLayout";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRoute from "./routes/AdminRoute";
 
 // Admin pages
+import Dashboard from "./pages/Dashboard";
 import Properties from "./pages/Properties";
 import AddProperty from "./pages/AddProperty";
 import Tenants from "./pages/Tenants";
@@ -25,127 +26,192 @@ import EditLandlord from "./pages/EditLandlord";
 import Units from "./pages/Units";
 import AssignTenant from "./pages/AssignTenant";
 
+// Wrapper component for admin pages with layout
+const AdminPage = ({ children }) => {
+  return (
+    <AdminRoute>
+      <DashboardLayout>
+        {children}
+      </DashboardLayout>
+    </AdminRoute>
+  );
+};
+
 function App() {
   return (
     <Routes>
       {/* PUBLIC ROUTE */}
       <Route path="/login" element={<AdminLogin />} />
 
-      {/* PROTECTED ADMIN ROUTES */}
+      {/* PROTECTED ADMIN ROUTES WITH LAYOUT */}
       <Route
         path="/dashboard"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Dashboard />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/properties/add"
         element={
-          <AdminRoute>
+          <AdminPage>
             <AddProperty />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/properties"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Properties />
-          </AdminRoute>
+          </AdminPage>
         }
       />
-      
-<Route path="/property/:id/units" element={<PropertyUnits />} />
-<Route path="/properties/edit/:id" element={<EditProperty />} />
-<Route path="/applications" element={<Applications />} />
-<Route path="/landlords/:id" element={<LandlordDetails />} />
-<Route path="/landlords/edit/:id" element={<EditLandlord />} />
-<Route path="/property/:id/units" element={<Units />} />
-<Route path="/units/:unitId/assign-tenant/:propertyId" element={<AssignTenant />} />
+
+      <Route
+        path="/property/:id/units"
+        element={
+          <AdminPage>
+            <PropertyUnits />
+          </AdminPage>
+        }
+      />
+
+      <Route
+        path="/properties/edit/:id"
+        element={
+          <AdminPage>
+            <EditProperty />
+          </AdminPage>
+        }
+      />
+
+      <Route
+        path="/applications"
+        element={
+          <AdminPage>
+            <Applications />
+          </AdminPage>
+        }
+      />
+
+      <Route
+        path="/landlords/:id"
+        element={
+          <AdminPage>
+            <LandlordDetails />
+          </AdminPage>
+        }
+      />
+
+      <Route
+        path="/landlords/edit/:id"
+        element={
+          <AdminPage>
+            <EditLandlord />
+          </AdminPage>
+        }
+      />
+
+      <Route
+        path="/units"
+        element={
+          <AdminPage>
+            <Units />
+          </AdminPage>
+        }
+      />
+
+      <Route
+        path="/units/:unitId/assign-tenant/:propertyId"
+        element={
+          <AdminPage>
+            <AssignTenant />
+          </AdminPage>
+        }
+      />
 
       <Route
         path="/tenants"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Tenants />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/tenants/add"
         element={
-          <AdminRoute>
+          <AdminPage>
             <AddTenant />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/landlords"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Landlords />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/landlords/add"
         element={
-          <AdminRoute>
+          <AdminPage>
             <AddLandlord />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
-      {/* Messages Route */}
       <Route
         path="/messages"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Messages />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/maintenance"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Maintenance />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/finance"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Finance />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/settings"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Settings />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 
       <Route
         path="/support"
         element={
-          <AdminRoute>
+          <AdminPage>
             <Support />
-          </AdminRoute>
+          </AdminPage>
         }
       />
 

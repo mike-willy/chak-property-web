@@ -1,11 +1,30 @@
-/* Replace everything in your dashboard.css with this: */
+/* dashboard.css - FIXED FOR MOBILE OVERLAY */
 
+/* Dashboard wrapper */
+.dashboard-wrapper {
+  min-height: 100vh;
+  background-color: #f9fafb;
+  overflow-x: hidden;
+}
+
+/* Dashboard main container */
+.dashboard-container {
+  padding: 24px;
+  margin-top: 70px;
+  min-height: calc(100vh - 70px);
+  background-color: #f9fafb;
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Charts layout - responsive grid */
 .dashboard-charts-layout {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 24px;
   margin-top: 24px;
-  
+  width: 100%;
 }
 
 /* Make the left column stack vertically */
@@ -13,6 +32,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  width: 100%;
 }
 
 /* Make the right column stack vertically */
@@ -20,42 +40,93 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  
+  width: 100%;
 }
 
-/* Ensure all cards take full height of their grid cell */
-.charts-left > *,
-.charts-right > * {
-  min-height: 0; /* Important for flex children */
+/* Card styling */
+.dashboard-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s ease;
 }
 
-/* Specific height adjustments for alignment */
-.financial-chart-card,
-.quick-actions-card,
-.property-status-card {
-  display: flex;
-  flex-direction: column;
+.dashboard-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Make FinancialChart and (QuickActions + PropertyStatus) the same height */
+/* Height settings */
 .financial-chart-card {
   flex: 1;
-  min-height: 350px; /* Adjust as needed */
-}
-
-/* Make QuickActions and PropertyStatus share the height */
-.charts-right {
-  flex: 1;
+  min-height: 350px;
 }
 
 .quick-actions-card,
 .property-status-card {
   flex: 1;
-  min-height: 0; /* Allow them to shrink/grow */
+  min-height: 160px;
 }
 
-/* For the bottom row */
 .overdue-payments-card,
 .recent-activity-card {
-  min-height: 350px; /* Adjust as needed */
+  min-height: 350px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .dashboard-charts-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  /* MOBILE: Add overlay when sidebar is expanded */
+  .dashboard-wrapper.sidebar-expanded::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+  
+  .dashboard-container {
+    padding: 16px;
+    margin-top: 60px;
+    min-height: calc(100vh - 60px);
+  }
+  
+  .dashboard-charts-layout {
+    gap: 16px;
+    margin-top: 16px;
+  }
+  
+  .dashboard-card {
+    padding: 16px;
+  }
+  
+  .financial-chart-card,
+  .overdue-payments-card,
+  .recent-activity-card {
+    min-height: 300px;
+  }
+  
+  .quick-actions-card,
+  .property-status-card {
+    min-height: 140px;
+  }
+}
+@media (max-width: 768px) {
+  /* NO MARGIN on mobile - sidebar overlays */
+  .dashboard-wrapper.sidebar-collapsed .dashboard-container,
+  .dashboard-wrapper.sidebar-expanded .dashboard-container {
+    margin-left: 0 !important;
+  }
 }

@@ -14,7 +14,6 @@ import { db } from './firebase/firebase';
 import { FaSearch, FaPaperPlane, FaTrash, FaEnvelopeOpen, FaSpinner, FaPlus } from 'react-icons/fa';
 import '../styles/messages.css';
 import MessageModal from '../components/dashboard/MessageModal';
-import DashboardLayout from '../components/DashboardLayout';
 
 const Messages = () => {
     const [messages, setMessages] = useState([]);
@@ -30,7 +29,6 @@ const Messages = () => {
 
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
-    const conversationUnsubscribeRef = useRef(null);
 
     // State for Sidebar Lists
     const [incomingMsgsList, setIncomingMsgsList] = useState([]);
@@ -147,7 +145,6 @@ const Messages = () => {
     // 2. Listeners for Conversation Detail
     useEffect(() => {
         // CLEANUP: Reset conversation state immediately when switching users
-        // This prevents "ghosting" of previous user's messages
         setChatIncoming([]);
         setChatOutgoing([]);
         setConversation([]);
@@ -202,7 +199,7 @@ const Messages = () => {
             setChatOutgoing(outgoingMsgs);
         });
 
-        // Set loading false once listeners attach (approximated)
+        // Set loading false once listeners attach
         setLoadingConversation(false);
 
         return () => {
@@ -297,38 +294,10 @@ const Messages = () => {
                 console.log("Message saved to user's subcollection");
             } catch (subcollectionError) {
                 console.warn("Could not save to user subcollection:", subcollectionError);
-                // Continue anyway - main message is saved
             }
 
             // Clear reply text
             setReplyText("");
-
-            // REMOVED: Manual state update to avoid duplication. 
-            // The onSnapshot listeners (unsub2) will pick up the new message and update the UI automatically.
-            /*
-            // Update local state immediately
-            const messageWithId = {
-                id: docRef.id,
-                ...newMessage,
-                direction: 'outgoing',
-                // Add temporary timestamp for immediate display
-                createdAt: newMessage.createdAt || { toDate: () => new Date() }
-            };
-
-            // Update conversation
-            setConversation(prev => [...prev, messageWithId]);
-
-            // Update sender's last message
-            setUniqueSenders(prev => prev.map(sender =>
-                sender.senderId === selectedSender.senderId
-                    ? {
-                        ...sender,
-                        lastMessage: messageWithId,
-                        unreadCount: 0
-                    }
-                    : sender
-            ));
-            */
 
             console.log("Message sent successfully. Waiting for listener update...");
 
@@ -380,206 +349,204 @@ const Messages = () => {
     };
 
     return (
-        <DashboardLayout>
-            <div className="messages-container">
-                <div className="messages-header">
-                    <h1>Messages</h1>
-                    <button
-                        className="new-message-btn"
-                        onClick={() => setIsModalOpen(true)}
-                        type="button"
-                    >
-                        <FaPlus /> New Message
-                    </button>
-                </div>
+        <div className="messages-container">
+            <div className="messages-header">
+                <h1>Messages</h1>
+                <button
+                    className="new-message-btn"
+                    onClick={() => setIsModalOpen(true)}
+                    type="button"
+                >
+                    <FaPlus /> New Message
+                </button>
+            </div>
 
-                <MessageModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+            <MessageModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
-                <div className="messages-content">
-                    {/* CONVERSATIONS LIST SIDEBAR */}
-                    <div className="messages-list">
-                        <div className="list-header">
-                            <div className="search-box">
-                                <FaSearch className="search-icon" />
-                                <input
-                                    type="text"
-                                    placeholder="Search conversations..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="search-input"
-                                    autoComplete="off"
-                                />
-                            </div>
-                        </div>
-                        <div className="messages-scroll">
-                            {loading ? (
-                                <div className="loading-state">
-                                    <FaSpinner className="spin" /> Loading conversations...
-                                </div>
-                            ) : filteredSenders.length === 0 ? (
-                                <div className="empty-state">
-                                    <FaEnvelopeOpen />
-                                    <p>No conversations found</p>
-                                </div>
-                            ) : (
-                                filteredSenders.map((sender) => (
-                                    <div
-                                        key={sender.senderId}
-                                        className={`message-item ${selectedSender?.senderId === sender.senderId ? 'active' : ''
-                                            } ${sender.unreadCount > 0 ? 'unread' : ''}`}
-                                        onClick={() => handleSelectConversation(sender)}
-                                    >
-                                        <div className="message-item-header">
-                                            <span className="sender-name">{sender.senderName}</span>
-                                            <span className="message-date">
-                                                {formatDate(sender.lastMessage.createdAt)}
-                                            </span>
-                                        </div>
-                                        <div className="message-subject">
-                                            {sender.lastMessage.subject || 'No Subject'}
-                                        </div>
-                                        <div className="message-preview">
-                                            {sender.lastMessage.message ?
-                                                (sender.lastMessage.message.substring(0, 60) +
-                                                    (sender.lastMessage.message.length > 60 ? '...' : ''))
-                                                : 'No message content'
-                                            }
-                                        </div>
-                                        {sender.unreadCount > 0 && (
-                                            <div className="unread-badge">{sender.unreadCount}</div>
-                                        )}
-                                    </div>
-                                ))
-                            )}
+            <div className="messages-content">
+                {/* CONVERSATIONS LIST SIDEBAR */}
+                <div className="messages-list">
+                    <div className="list-header">
+                        <div className="search-box">
+                            <FaSearch className="search-icon" />
+                            <input
+                                type="text"
+                                placeholder="Search conversations..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="search-input"
+                                autoComplete="off"
+                            />
                         </div>
                     </div>
-
-                    {/* CHAT DETAIL PANEL */}
-                    <div className="message-detail">
-                        {selectedSender ? (
-                            <>
-                                <div className="detail-header">
-                                    <div className="detail-info">
-                                        <h2>{selectedSender.senderName}</h2>
-                                        <div className="detail-meta">
-                                            <span className="subject">{selectedSender.lastMessage.subject || 'No Subject'}</span>
-                                            <span className="message-date">
-                                                {selectedSender.lastMessage.createdAt?.toDate
-                                                    ? selectedSender.lastMessage.createdAt.toDate().toLocaleString([], {
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
-                                                    })
-                                                    : ''}
-                                            </span>
-                                        </div>
+                    <div className="messages-scroll">
+                        {loading ? (
+                            <div className="loading-state">
+                                <FaSpinner className="spin" /> Loading conversations...
+                            </div>
+                        ) : filteredSenders.length === 0 ? (
+                            <div className="empty-state">
+                                <FaEnvelopeOpen />
+                                <p>No conversations found</p>
+                            </div>
+                        ) : (
+                            filteredSenders.map((sender) => (
+                                <div
+                                    key={sender.senderId}
+                                    className={`message-item ${selectedSender?.senderId === sender.senderId ? 'active' : ''
+                                        } ${sender.unreadCount > 0 ? 'unread' : ''}`}
+                                    onClick={() => handleSelectConversation(sender)}
+                                >
+                                    <div className="message-item-header">
+                                        <span className="sender-name">{sender.senderName}</span>
+                                        <span className="message-date">
+                                            {formatDate(sender.lastMessage.createdAt)}
+                                        </span>
                                     </div>
-                                    <div className="detail-actions">
-                                        <button
-                                            className="action-btn delete-btn"
-                                            onClick={() => handleDeleteMessage(selectedSender.lastMessage.id)}
-                                            title="Delete conversation"
-                                            type="button"
-                                        >
-                                            <FaTrash />
-                                        </button>
+                                    <div className="message-subject">
+                                        {sender.lastMessage.subject || 'No Subject'}
                                     </div>
-                                </div>
-
-                                <div className="chat-content">
-                                    {loadingConversation ? (
-                                        <div className="loading-spinner">
-                                            <FaSpinner className="spin" /> Loading chat history...
-                                        </div>
-                                    ) : conversation.length === 0 ? (
-                                        <div className="empty-chat">
-                                            <p>No messages yet. Start the conversation!</p>
-                                        </div>
-                                    ) : (
-                                        <div className="chat-messages">
-                                            {conversation.map((msg, index) => {
-                                                const isAdmin = msg.senderId === 'admin';
-                                                const messageTime = msg.createdAt?.toDate
-                                                    ? msg.createdAt.toDate()
-                                                    : new Date();
-
-                                                return (
-                                                    <div
-                                                        key={msg.id || index}
-                                                        className={`chat-bubble ${isAdmin ? 'admin-bubble' : 'user-bubble'}`}
-                                                    >
-                                                        <div className="bubble-content">
-                                                            {msg.message}
-                                                        </div>
-                                                        <div className="bubble-meta">
-                                                            <span className="sender">
-                                                                {isAdmin ? 'You' : msg.sender || 'User'}
-                                                            </span>
-                                                            <span className="time">
-                                                                {messageTime.toLocaleTimeString([], {
-                                                                    hour: '2-digit',
-                                                                    minute: '2-digit'
-                                                                })}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                            <div ref={messagesEndRef} />
-                                        </div>
+                                    <div className="message-preview">
+                                        {sender.lastMessage.message ?
+                                            (sender.lastMessage.message.substring(0, 60) +
+                                                (sender.lastMessage.message.length > 60 ? '...' : ''))
+                                            : 'No message content'
+                                        }
+                                    </div>
+                                    {sender.unreadCount > 0 && (
+                                        <div className="unread-badge">{sender.unreadCount}</div>
                                     )}
                                 </div>
-
-                                <div className="reply-section">
-                                    <div className="reply-input-wrapper">
-                                        <textarea
-                                            ref={textareaRef}
-                                            className="reply-input"
-                                            placeholder="Type your reply here..."
-                                            value={replyText}
-                                            onChange={(e) => setReplyText(e.target.value)}
-                                            rows="3"
-                                            disabled={sendingReply}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && !e.shiftKey && !sendingReply) {
-                                                    e.preventDefault();
-                                                    handleSendReply();
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <div className="reply-actions">
-                                        <button
-                                            className="send-reply-btn"
-                                            onClick={handleSendReply}
-                                            disabled={sendingReply || !replyText.trim()}
-                                            type="button"
-                                        >
-                                            {sendingReply ? (
-                                                <>
-                                                    <FaSpinner className="spin" /> Sending...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <FaPaperPlane /> Send
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="empty-selection">
-                                <FaEnvelopeOpen className="empty-icon" />
-                                <h3>Select a conversation to start chatting</h3>
-                                <p>Choose a user from the list to view and reply to messages</p>
-                            </div>
+                            ))
                         )}
                     </div>
                 </div>
+
+                {/* CHAT DETAIL PANEL */}
+                <div className="message-detail">
+                    {selectedSender ? (
+                        <>
+                            <div className="detail-header">
+                                <div className="detail-info">
+                                    <h2>{selectedSender.senderName}</h2>
+                                    <div className="detail-meta">
+                                        <span className="subject">{selectedSender.lastMessage.subject || 'No Subject'}</span>
+                                        <span className="message-date">
+                                            {selectedSender.lastMessage.createdAt?.toDate
+                                                ? selectedSender.lastMessage.createdAt.toDate().toLocaleString([], {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })
+                                                : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="detail-actions">
+                                    <button
+                                        className="action-btn delete-btn"
+                                        onClick={() => handleDeleteMessage(selectedSender.lastMessage.id)}
+                                        title="Delete conversation"
+                                        type="button"
+                                    >
+                                        <FaTrash />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="chat-content">
+                                {loadingConversation ? (
+                                    <div className="loading-spinner">
+                                        <FaSpinner className="spin" /> Loading chat history...
+                                    </div>
+                                ) : conversation.length === 0 ? (
+                                    <div className="empty-chat">
+                                        <p>No messages yet. Start the conversation!</p>
+                                    </div>
+                                ) : (
+                                    <div className="chat-messages">
+                                        {conversation.map((msg, index) => {
+                                            const isAdmin = msg.senderId === 'admin';
+                                            const messageTime = msg.createdAt?.toDate
+                                                ? msg.createdAt.toDate()
+                                                : new Date();
+
+                                            return (
+                                                <div
+                                                    key={msg.id || index}
+                                                    className={`chat-bubble ${isAdmin ? 'admin-bubble' : 'user-bubble'}`}
+                                                >
+                                                    <div className="bubble-content">
+                                                        {msg.message}
+                                                    </div>
+                                                    <div className="bubble-meta">
+                                                        <span className="sender">
+                                                            {isAdmin ? 'You' : msg.sender || 'User'}
+                                                        </span>
+                                                        <span className="time">
+                                                            {messageTime.toLocaleTimeString([], {
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="reply-section">
+                                <div className="reply-input-wrapper">
+                                    <textarea
+                                        ref={textareaRef}
+                                        className="reply-input"
+                                        placeholder="Type your reply here..."
+                                        value={replyText}
+                                        onChange={(e) => setReplyText(e.target.value)}
+                                        rows="3"
+                                        disabled={sendingReply}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey && !sendingReply) {
+                                                e.preventDefault();
+                                                handleSendReply();
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="reply-actions">
+                                    <button
+                                        className="send-reply-btn"
+                                        onClick={handleSendReply}
+                                        disabled={sendingReply || !replyText.trim()}
+                                        type="button"
+                                    >
+                                        {sendingReply ? (
+                                            <>
+                                                <FaSpinner className="spin" /> Sending...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FaPaperPlane /> Send
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="empty-selection">
+                            <FaEnvelopeOpen className="empty-icon" />
+                            <h3>Select a conversation to start chatting</h3>
+                            <p>Choose a user from the list to view and reply to messages</p>
+                        </div>
+                    )}
+                </div>
             </div>
-        </DashboardLayout>
+        </div>
     );
 };
 

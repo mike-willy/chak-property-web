@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useContext } from "react";
 import {
   FaTachometerAlt,
   FaHome,
@@ -11,12 +11,15 @@ import {
   FaCamera,
   FaClipboardList,
   FaEnvelope,
+  FaBars,
+  FaTimes,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db, storage } from "../pages/firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { useSidebar } from "./DashboardLayout"; // Import the context
 import "../styles/sidebar.css";
 
 const Sidebar = () => {
@@ -30,6 +33,7 @@ const Sidebar = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { isSidebarExpanded, toggleSidebar } = useSidebar(); // Get from context
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -172,11 +176,14 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${isSidebarExpanded ? "" : "collapsed"}`}>
+      {/* TOGGLE BUTTON */}
+  
+
       {/* PROFILE */}
       <div className="sidebar-profile">
         {loading ? (
-          <div className="profile-loading">Loading...</div>
+          <div className="profile-loading">...</div>
         ) : (
           <>
             <div className="profile-avatar-container">
@@ -196,9 +203,11 @@ const Sidebar = () => {
                   </div>
                 )}
 
-                <div className="upload-overlay">
-                  <FaCamera />
-                </div>
+                {isSidebarExpanded && (
+                  <div className="upload-overlay">
+                    <FaCamera />
+                  </div>
+                )}
 
                 {uploading && (
                   <div className="uploading-overlay">
@@ -216,32 +225,35 @@ const Sidebar = () => {
               />
             </div>
 
-            <div className="profile-info">
-              <h3 className="profile-name">{getUserName()}</h3>
-              <p className="profile-email">
-                {user?.email || "admin@chakestates.com"}
-              </p>
-              <span className="profile-role">Agent</span>
-            </div>
+            {isSidebarExpanded && (
+              <div className="profile-info">
+                <h3 className="profile-name">{getUserName()}</h3>
+                <p className="profile-email">
+                  {user?.email || "admin@chakestates.com"}
+                </p>
+                <span className="profile-role">Agent</span>
+              </div>
+            )}
           </>
         )}
       </div>
 
       {/* MENU */}
       <div className="sidebar-scrollable">
-        <p className="sidebar-title">MENU</p>
+        {isSidebarExpanded && <p className="sidebar-title">MENU</p>}
         <ul className="sidebar-menu">
           {menuItems.map((item, index) => (
             <li
               key={index}
               className={`sidebar-item ${isActive(item.path) ? "active" : ""}`}
               onClick={() => navigate(item.path)}
+              title={!isSidebarExpanded ? item.label : ""}
             >
               <div className="sidebar-item-content">
                 {item.icon} 
-                <span>{item.label}</span>
+                {isSidebarExpanded && <span>{item.label}</span>}
                 {item.badge > 0 && (
-                  <span className="sidebar-badge">
+                  <span className={`sidebar-badge ${!isSidebarExpanded ? "collapsed-badge" : ""}`}>
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
@@ -250,20 +262,20 @@ const Sidebar = () => {
           ))}
         </ul>
 
-        {/* SYSTEM (FIXED) - UPDATED WITH WRAPPER DIV */}
+        {/* SYSTEM */}
         <div className="sidebar-system">
-          <p className="sidebar-title">SYSTEM</p>
+          {isSidebarExpanded && <p className="sidebar-title">SYSTEM</p>}
           <ul className="sidebar-bottom">
             {systemItems.map((item, index) => (
               <li
                 key={index}
                 className={`sidebar-item ${isActive(item.path) ? "active" : ""}`}
                 onClick={() => navigate(item.path)}
+                title={!isSidebarExpanded ? item.label : ""}
               >
-                {/* ADDED THIS WRAPPER DIV (SAME AS MENU ITEMS) */}
                 <div className="sidebar-item-content">
                   {item.icon} 
-                  <span>{item.label}</span>
+                  {isSidebarExpanded && <span>{item.label}</span>}
                 </div>
               </li>
             ))}

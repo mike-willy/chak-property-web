@@ -1,5 +1,4 @@
 import React from "react";
-import DashboardLayout from "../components/DashboardLayout";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import StatsGrid from "../components/dashboard/StatsGrid";
 import FinancialChart from "../components/dashboard/FinancialChart";
@@ -11,7 +10,7 @@ import "../styles/dashboard.css";
 
 const Dashboard = () => {
   return (
-    <DashboardLayout>
+    <>
       <DashboardHeader />
       <StatsGrid />
 
@@ -38,7 +37,7 @@ const Dashboard = () => {
           <RecentActivity />
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 
