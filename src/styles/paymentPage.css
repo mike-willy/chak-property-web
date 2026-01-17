@@ -1,0 +1,245 @@
+/* PaymentPage.css */
+
+.payment-page {
+  padding: 24px;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #2d3748;
+}
+
+.header-icon {
+  color: #4361ee;
+  font-size: 32px !important;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.export-btn {
+  border-color: #4361ee;
+  color: #4361ee;
+}
+
+.export-btn:hover {
+  background-color: rgba(67, 97, 238, 0.1);
+}
+
+.refresh-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.refresh-btn:hover {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+}
+
+/* Stats Cards */
+.stats-grid {
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease;
+  height: 100%;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.stat-card.total-revenue {
+  border-left: 4px solid #10b981;
+}
+
+.stat-card.pending-payments {
+  border-left: 4px solid #f59e0b;
+}
+
+.stat-card.completed-payments {
+  border-left: 4px solid #4361ee;
+}
+
+.stat-card.total-payments {
+  border-left: 4px solid #8b5cf6;
+}
+
+.stat-card .MuiTypography-h4 {
+  color: #2d3748;
+  margin: 8px 0;
+}
+
+.stat-change {
+  display: block;
+  margin-top: 4px;
+  color: #718096;
+}
+
+/* Filters Section */
+.filters-section {
+  padding: 24px;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Table Section */
+.payments-table-section {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.table-header {
+  background: #f8fafc;
+}
+
+.table-header th {
+  font-weight: 600;
+  color: #2d3748;
+  padding: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.payment-row td {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.payment-row:hover {
+  background-color: #f8fafc;
+}
+
+.loading-cell {
+  padding: 60px !important;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top: 3px solid #4361ee;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.empty-cell {
+  padding: 60px !important;
+  color: #718096;
+}
+
+.status-chip.completed {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.status-chip.pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.status-chip.failed {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.mpesa-chip {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  font-family: 'Courier New', monospace;
+}
+
+/* Responsive Design */
+@media (max-width: 900px) {
+  .payment-page {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .header-actions {
+    justify-content: flex-start;
+  }
+  
+  .filters-section {
+    padding: 16px;
+  }
+  
+  .table-header th,
+  .payment-row td {
+    padding: 12px 8px;
+    font-size: 14px;
+  }
+  
+  .MuiTableCell-root {
+    padding: 8px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .stats-grid {
+    gap: 16px;
+  }
+  
+  .stat-card {
+    margin-bottom: 16px;
+  }
+  
+  .MuiGrid-item {
+    width: 100%;
+  }
+  
+  .payment-row {
+    display: block;
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+  
+  .payment-row td {
+    display: block;
+    text-align: right;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  
+  .payment-row td:before {
+    content: attr(data-label);
+    float: left;
+    font-weight: 600;
+    color: #4b5563;
+  }
+  
+  .table-header {
+    display: none;
+  }
+}
