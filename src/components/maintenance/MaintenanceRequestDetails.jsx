@@ -1,13 +1,13 @@
 // components/maintenance/MaintenanceRequestDetails.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  X, Home, User, Calendar, MessageSquare, CheckCircle, 
+import {
+  X, Home, User, Calendar, MessageSquare, CheckCircle,
   AlertCircle, Lock, Edit2, Save, Phone, Mail,
   Trash2, RotateCcw, Pause, Ban, History, Clock, Tag,
   EyeOff, Archive
 } from 'lucide-react';
 import { maintenanceService } from '../../pages/firebase/maintenanceService';
-import '../../styles/maintenance-details.css'; 
+import '../../styles/maintenance-details.css';
 
 const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteRequest, userRole }) => {
   const [adminNotes, setAdminNotes] = useState(request.adminNotes || '');
@@ -58,9 +58,9 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
   const formatDate = (timestamp) => {
     if (!timestamp) return '—';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -69,19 +69,19 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
       setShowEditNotes(false);
       return;
     }
-    
+
     setIsSavingNotes(true);
     try {
-      await maintenanceService.admin.updateRequest(request.id, { 
+      await maintenanceService.admin.updateRequest(request.id, {
         adminNotes: tempNotes,
-        updatedAt: new Date() 
+        updatedAt: new Date()
       });
-      
+
       setAdminNotes(tempNotes);
       setShowEditNotes(false);
-      
+
       console.log('Notes saved successfully');
-      
+
     } catch (error) {
       console.error('Error saving notes:', error);
       alert('Failed to save notes: ' + error.message);
@@ -123,9 +123,9 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
         success: 'Request cancelled'
       }
     };
-    
+
     const statusInfo = statusMessages[newStatus] || { confirm: 'Update status?', success: 'Status updated' };
-    
+
     if (window.confirm(statusInfo.confirm)) {
       try {
         await onStatusUpdate(request.id, newStatus);
@@ -158,7 +158,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
         }
         onClose();
       }
-      
+
     } catch (error) {
       console.error('Error deleting/hiding request:', error);
       alert('Failed to delete/hide request: ' + error.message);
@@ -169,12 +169,12 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
 
   const getAvailableStatusOptions = () => {
     const options = [];
-    
+
     if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
       options.push({ value: 'on-hold', label: 'Put On Hold', icon: Pause, class: 'mnt-detail-action-hold' });
       options.push({ value: 'cancelled', label: 'Cancel Request', icon: Ban, class: 'mnt-detail-action-cancel' });
     }
-    
+
     switch (request.status) {
       case 'pending':
         if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
@@ -213,7 +213,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
         }
         break;
     }
-    
+
     return options;
   };
 
@@ -296,7 +296,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
             </div>
             <div className="mnt-detail-header-actions">
               {(currentUserRole === 'admin' || currentUserRole === 'landlord' || currentUserRole === 'tenant') && (
-                <button 
+                <button
                   onClick={() => setShowDeleteConfirm(true)}
                   className="mnt-detail-delete-btn"
                   title={`${deleteAction.actionText} Request`}
@@ -309,8 +309,8 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   )}
                 </button>
               )}
-              <button 
-                onClick={onClose} 
+              <button
+                onClick={onClose}
                 className="mnt-detail-close-btn"
                 aria-label="Close"
               >
@@ -318,7 +318,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
               </button>
             </div>
           </div>
-          
+
           <div className="mnt-detail-badges">
             <span className={getStatusClass(request.status)}>
               {request.status.replace('-', ' ').toUpperCase()}
@@ -332,8 +332,8 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
               </span>
             )}
           </div>
-          <h3 className="mnt-detail-category">{request.category}</h3>
-          
+          <h3 className="mnt-detail-category">{request.title || request.category}</h3>
+
           <div className="mnt-detail-status-timeline">
             <div className={`mnt-detail-timeline-step ${['pending', 'in-progress', 'on-hold', 'completed'].includes(request.status) ? 'active' : ''}`}>
               <div className="mnt-detail-timeline-dot">1</div>
@@ -361,31 +361,31 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
               This information was submitted by the tenant and cannot be modified
             </div>
             <div className="mnt-detail-info-grid-readonly">
-              <TenantInfoBox 
-                label="Tenant Name" 
-                value={request.tenantName || 'Unknown Tenant'} 
+              <TenantInfoBox
+                label="Tenant Name"
+                value={request.tenantName || 'Unknown Tenant'}
                 icon={User}
               />
-              
-              <TenantInfoBox 
-                label="Property" 
-                value={request.propertyName || 'Unknown Property'} 
+
+              <TenantInfoBox
+                label="Property"
+                value={request.propertyName || 'Unknown Property'}
                 icon={Home}
-                subValue={request.unitNumber ? `Unit ${request.unitNumber}` : '—'}
+                subValue={request.unitName || (request.unitNumber ? `Unit ${request.unitNumber}` : '—')}
               />
-              
+
               {request.tenantPhone && (
-                <TenantInfoBox 
-                  label="Phone" 
-                  value={request.tenantPhone} 
+                <TenantInfoBox
+                  label="Phone"
+                  value={request.tenantPhone}
                   icon={Phone}
                 />
               )}
-              
+
               {request.tenantEmail && (
-                <TenantInfoBox 
-                  label="Email" 
-                  value={request.tenantEmail} 
+                <TenantInfoBox
+                  label="Email"
+                  value={request.tenantEmail}
                   icon={Mail}
                 />
               )}
@@ -400,9 +400,9 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
             <div className="mnt-detail-description-box readonly">
               <div className="mnt-detail-category-display">
                 <Tag size={14} />
-                <strong>Category:</strong> {request.category || 'Uncategorized'}
+                <strong>Category:</strong> {request.title || request.category || 'Uncategorized'}
               </div>
-              
+
               <div className="mnt-detail-description-header">
                 <strong>Description:</strong>
               </div>
@@ -425,7 +425,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   <p className="mnt-detail-info-text">{formatDate(request.createdAt)}</p>
                 </div>
               </div>
-              
+
               <div className="mnt-detail-info-item">
                 <Calendar className="mnt-detail-info-icon" size={20} />
                 <div className="mnt-detail-info-content">
@@ -433,13 +433,13 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   <p className="mnt-detail-info-text">{formatDate(request.updatedAt)}</p>
                 </div>
               </div>
-              
+
               {request.completedAt && (
                 <div className="mnt-detail-info-item">
-                  <CheckCircle 
-                    className="mnt-detail-info-icon" 
+                  <CheckCircle
+                    className="mnt-detail-info-icon"
                     size={20}
-                    style={{ color: '#10b981' }} 
+                    style={{ color: '#10b981' }}
                   />
                   <div className="mnt-detail-info-content">
                     <h4>Completed On</h4>
@@ -447,12 +447,12 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   </div>
                 </div>
               )}
-              
+
               <div className="mnt-detail-info-item">
                 <History className="mnt-detail-info-icon" size={20} style={{ color: '#8b5cf6' }} />
                 <div className="mnt-detail-info-content">
                   <h4>Status History</h4>
-                  <button 
+                  <button
                     className="mnt-detail-history-btn"
                     onClick={() => alert('Status history feature coming soon!')}
                   >
@@ -490,7 +490,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   Admin Notes (Private)
                 </h4>
                 {!showEditNotes && (
-                  <button 
+                  <button
                     onClick={handleStartEditNotes}
                     className="mnt-detail-edit-notes-btn"
                   >
@@ -499,7 +499,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   </button>
                 )}
               </div>
-              
+
               {showEditNotes ? (
                 <div className="mnt-detail-notes-edit-container">
                   <textarea
@@ -538,7 +538,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   )}
                 </div>
               )}
-              
+
               <p className="mnt-detail-notes-help">
                 <Lock size={14} />
                 These notes are visible to admin only. Tenant cannot see these notes.
@@ -552,7 +552,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                 Update Status
                 <span className="mnt-detail-current-status">Current: {request.status.replace('-', ' ')}</span>
               </h4>
-              
+
               <div className="mnt-detail-actions-grid">
                 {statusOptions.map((option) => (
                   <button
@@ -565,7 +565,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                   </button>
                 ))}
               </div>
-              
+
               <div className="mnt-detail-status-help">
                 <AlertCircle size={14} />
                 Status changes are visible to the tenant in real-time

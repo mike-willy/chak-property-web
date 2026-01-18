@@ -1,16 +1,17 @@
-// pages/Maintenance.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  Wrench, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Wrench,
+  Clock,
+  CheckCircle,
+  AlertCircle,
   Eye,
   RefreshCw,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 import MaintenanceCategories from '../components/maintenance/MaintenanceCategories';
 import MaintenanceRequestDetails from '../components/maintenance/MaintenanceRequestDetails';
+import CreateMaintenanceRequestModal from '../components/maintenance/CreateMaintenanceRequestModal';
 import { maintenanceService } from '../pages/firebase/maintenanceService';
 import '../styles/maintenance.css'; // Changed to unique CSS file
 
@@ -18,13 +19,14 @@ const Maintenance = () => {
   const [activeTab, setActiveTab] = useState('requests');
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [stats, setStats] = useState({ 
-    pending: 0, 
-    inProgress: 0, 
-    completed: 0, 
-    onHold: 0, 
-    cancelled: 0, 
-    total: 0 
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [stats, setStats] = useState({
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    onHold: 0,
+    cancelled: 0,
+    total: 0
   });
   const [filter, setFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -32,12 +34,12 @@ const Maintenance = () => {
 
   useEffect(() => {
     loadRequests();
-    
+
     const unsubscribe = maintenanceService.admin.subscribe((updatedRequests) => {
       setRequests(updatedRequests);
       calculateStats(updatedRequests);
     });
-    
+
     return () => unsubscribe();
   }, []);
 
@@ -63,7 +65,7 @@ const Maintenance = () => {
     const onHold = requests.filter(r => r.status === 'on-hold').length;
     const cancelled = requests.filter(r => r.status === 'cancelled').length;
     const total = requests.length;
-    
+
     setStats({ pending, inProgress, completed, onHold, cancelled, total });
   };
 
@@ -149,21 +151,32 @@ const Maintenance = () => {
           <h1 className="mnt-title">Maintenance</h1>
           <p className="mnt-subtitle">Manage maintenance requests from tenants</p>
         </div>
-        
-        {/* Tabs */}
-        <div className="mnt-tabs">
+
+        {/* Tabs and Actions */}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div className="mnt-tabs">
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`mnt-tab-button ${activeTab === 'requests' ? 'active' : ''}`}
+            >
+              <Wrench style={{ width: '16px', height: '16px' }} />
+              Requests {stats.total > 0 && <span style={{ fontSize: '12px' }}>({stats.total})</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`mnt-tab-button ${activeTab === 'categories' ? 'active' : ''}`}
+            >
+              Categories
+            </button>
+          </div>
+
           <button
-            onClick={() => setActiveTab('requests')}
-            className={`mnt-tab-button ${activeTab === 'requests' ? 'active' : ''}`}
+            onClick={() => setShowCreateModal(true)}
+            className="mnt-action-button mnt-action-start" // Reusing styling
+            style={{ height: '40px', padding: '0 1rem' }}
           >
-            <Wrench style={{ width: '16px', height: '16px' }} />
-            Requests {stats.total > 0 && <span style={{ fontSize: '12px' }}>({stats.total})</span>}
-          </button>
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`mnt-tab-button ${activeTab === 'categories' ? 'active' : ''}`}
-          >
-            Categories
+            <Plus style={{ width: '16px', height: '16px', marginRight: '8px' }} />
+            New Request
           </button>
         </div>
       </div>
@@ -283,7 +296,7 @@ const Maintenance = () => {
                   </button>
                 )}
               </div>
-              
+
               <div>
                 <button
                   onClick={loadRequests}
@@ -309,8 +322,8 @@ const Maintenance = () => {
                 <AlertCircle className="mnt-empty-icon" style={{ width: '48px', height: '48px' }} />
                 <p className="mnt-empty-title">No maintenance requests found</p>
                 <p className="mnt-empty-text">
-                  {filter === 'all' 
-                    ? 'When tenants submit requests, they will appear here' 
+                  {filter === 'all'
+                    ? 'When tenants submit requests, they will appear here'
                     : `No ${filter} maintenance requests`}
                 </p>
               </div>
@@ -339,7 +352,7 @@ const Maintenance = () => {
                               {request.status === 'cancelled' && <AlertCircle style={{ width: '16px', height: '16px', color: '#dc2626' }} />}
                             </div>
                             <div className="mnt-request-info">
-                              <h4>{request.category}</h4>
+                              <h4>{request.title || request.category || 'Uncategorized'}</h4>
                               <div className="mnt-request-tenant">{request.tenantName || 'Unknown Tenant'}</div>
                               {request.description && (
                                 <div className="mnt-request-desc">{request.description}</div>
@@ -350,7 +363,7 @@ const Maintenance = () => {
                         <td>
                           <div className="mnt-property-info">
                             <h4>{request.propertyName || 'Unknown Property'}</h4>
-                            <div className="mnt-unit-number">Unit {request.unitNumber || '—'}</div>
+                            <div className="mnt-unit-number">{request.unitName || (request.unitNumber ? `Unit ${request.unitNumber}` : '—')}</div>
                           </div>
                         </td>
                         <td>
@@ -370,7 +383,7 @@ const Maintenance = () => {
                               <Eye style={{ width: '16px', height: '16px' }} />
                               View
                             </button>
-                            
+
                             {/* Delete button for completed/cancelled requests */}
                             {canDeleteRequest(request) && (
                               <button
@@ -381,7 +394,7 @@ const Maintenance = () => {
                                 <Trash2 style={{ width: '16px', height: '16px' }} />
                               </button>
                             )}
-                            
+
                             {request.status === 'pending' && (
                               <button
                                 onClick={() => handleStatusUpdate(request.id, 'in-progress')}
@@ -390,7 +403,7 @@ const Maintenance = () => {
                                 Start Work
                               </button>
                             )}
-                            
+
                             {request.status === 'in-progress' && (
                               <button
                                 onClick={() => handleStatusUpdate(request.id, 'completed')}
@@ -420,6 +433,17 @@ const Maintenance = () => {
           onClose={() => setSelectedRequest(null)}
           onStatusUpdate={handleStatusUpdate}
           onDeleteRequest={handleDeleteRequest}
+        />
+      )}
+
+      {/* Create Request Modal */}
+      {showCreateModal && (
+        <CreateMaintenanceRequestModal
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            loadRequests(); // Refresh list
+            setShowCreateModal(false);
+          }}
         />
       )}
     </div>

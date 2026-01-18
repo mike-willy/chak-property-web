@@ -1,17 +1,17 @@
 // firebase/maintenanceService.js
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  getDocs,
   getDoc,
-  query, 
-  where, 
+  query,
+  where,
   orderBy,
   onSnapshot,
-  serverTimestamp 
+  serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from './firebase'; // Import auth too
@@ -21,7 +21,7 @@ export const getUserRole = async () => {
   try {
     const user = auth.currentUser;
     if (!user) return null;
-    
+
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     return userDoc.data()?.role || null;
   } catch (error) {
@@ -35,7 +35,7 @@ export const getMaintenanceCategories = async () => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
+
     const querySnapshot = await getDocs(collection(db, 'maintenance_categories'));
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
@@ -49,7 +49,7 @@ export const addMaintenanceCategory = async (categoryData) => {
     // Check if user is admin
     const role = await getUserRole();
     if (role !== 'admin') throw new Error('Only admin can add categories');
-    
+
     const docRef = await addDoc(collection(db, 'maintenance_categories'), {
       ...categoryData,
       createdAt: serverTimestamp()
@@ -65,7 +65,7 @@ export const deleteMaintenanceCategory = async (categoryId) => {
   try {
     const role = await getUserRole();
     if (role !== 'admin') throw new Error('Only admin can delete categories');
-    
+
     await deleteDoc(doc(db, 'maintenance_categories', categoryId));
     return true;
   } catch (error) {
@@ -79,25 +79,32 @@ export const submitMaintenanceRequest = async (requestData) => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
-    // Check if user is tenant
+
+    // Check if user is tenant, admin or landlord
     const role = await getUserRole();
-    if (role !== 'tenant') throw new Error('Only tenants can submit maintenance requests');
-    
+    if (role !== 'tenant' && role !== 'admin' && role !== 'landlord') {
+      throw new Error('Unauthorized to submit maintenance requests');
+    }
+
     // Generate request ID
     const requestId = `MNT-${Date.now()}`;
-    
+
+    // Determine tenantId: if passed in requestData (from admin selecting a unit), use it.
+    // Otherwise use current user's UID (if tenant).
+    const tenantId = requestData.tenantId || user.uid;
+
     const request = {
       ...requestData,
       id: requestId,
-      tenantId: user.uid, // Always use current user's ID
+      tenantId: tenantId,
       status: 'pending',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       adminNotes: '',
       completedAt: null,
       onHoldAt: null,
-      cancelledAt: null
+      cancelledAt: null,
+      submittedByRole: role // Track who submitted it
     };
 
     const docRef = await addDoc(collection(db, 'maintenance'), request);
@@ -113,11 +120,11 @@ export const getAllMaintenanceRequests = async () => {
   try {
     const role = await getUserRole();
     if (role !== 'admin') throw new Error('Only admin can view all requests');
-    
+
     const q = query(collection(db, 'maintenance'), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ 
-      id: doc.id, 
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate(),
       updatedAt: doc.data().updatedAt?.toDate(),
@@ -136,7 +143,7 @@ export const getTenantMaintenanceRequests = async () => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
+
     const q = query(
       collection(db, 'maintenance'),
       where('tenantId', '==', user.uid),
@@ -155,7 +162,7 @@ export const getLandlordMaintenanceRequests = async () => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
+
     // First get landlord's properties
     const propertiesQuery = query(
       collection(db, 'properties'),
@@ -163,9 +170,9 @@ export const getLandlordMaintenanceRequests = async () => {
     );
     const propertiesSnapshot = await getDocs(propertiesQuery);
     const propertyIds = propertiesSnapshot.docs.map(doc => doc.id);
-    
+
     if (propertyIds.length === 0) return [];
-    
+
     // Get maintenance requests for these properties
     const q = query(
       collection(db, 'maintenance'),
@@ -185,17 +192,17 @@ export const updateMaintenanceRequest = async (requestId, updates) => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
+
     const role = await getUserRole();
     const requestRef = doc(db, 'maintenance', requestId);
     const requestDoc = await getDoc(requestRef);
     const requestData = requestDoc.data();
-    
+
     // Check permissions
     if (role !== 'admin' && requestData.tenantId !== user.uid) {
       throw new Error('You do not have permission to update this request');
     }
-    
+
     // Prepare update data
     const updateData = {
       ...updates,
@@ -221,7 +228,7 @@ export const updateMaintenanceRequest = async (requestId, updates) => {
     }
 
     await updateDoc(requestRef, updateData);
-    
+
     // Get updated document
     const updatedDoc = await getDoc(requestRef);
     return { id: updatedDoc.id, ...updatedDoc.data() };
@@ -236,35 +243,35 @@ export const deleteMaintenanceRequest = async (requestId) => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
+
     const role = await getUserRole();
     if (role !== 'admin') throw new Error('Only admin can delete requests');
-    
+
     // Check if request exists and can be deleted
     const requestRef = doc(db, 'maintenance', requestId);
     const requestDoc = await getDoc(requestRef);
     const requestData = requestDoc.data();
-    
+
     if (!requestData) {
       throw new Error('Maintenance request not found');
     }
-    
+
     // Only allow deletion of completed or cancelled requests
     if (requestData.status !== 'completed' && requestData.status !== 'cancelled') {
       throw new Error('Only completed or cancelled requests can be deleted');
     }
-    
+
     // Check if request was completed/cancelled more than 24 hours ago
     const lastUpdate = requestData.completedAt || requestData.cancelledAt || requestData.updatedAt;
     if (lastUpdate) {
       const lastUpdateDate = lastUpdate.toDate ? lastUpdate.toDate() : new Date(lastUpdate);
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
+
       if (lastUpdateDate > twentyFourHoursAgo) {
         throw new Error('Requests can only be deleted 24 hours after completion/cancellation');
       }
     }
-    
+
     await deleteDoc(requestRef);
     return true;
   } catch (error) {
@@ -286,8 +293,8 @@ export const subscribeToAllRequests = (callback) => {
 // For Tenant App (their requests only)
 export const subscribeToTenantRequests = (callback) => {
   const user = auth.currentUser;
-  if (!user) return () => {};
-  
+  if (!user) return () => { };
+
   const q = query(
     collection(db, 'maintenance'),
     where('tenantId', '==', user.uid),
@@ -302,12 +309,12 @@ export const subscribeToTenantRequests = (callback) => {
 // For Landlord App (their properties' requests)
 export const subscribeToLandlordRequests = (callback) => {
   const user = auth.currentUser;
-  if (!user) return () => {};
-  
+  if (!user) return () => { };
+
   // This is simplified - in practice you might need to handle this differently
   // since Firestore doesn't support querying across collections easily
   const q = query(collection(db, 'maintenance'), orderBy('createdAt', 'desc'));
-  
+
   return onSnapshot(q, async (snapshot) => {
     // First get landlord's properties
     const propertiesQuery = query(
@@ -316,13 +323,13 @@ export const subscribeToLandlordRequests = (callback) => {
     );
     const propertiesSnapshot = await getDocs(propertiesQuery);
     const propertyIds = propertiesSnapshot.docs.map(doc => doc.id);
-    
+
     // Filter requests for landlord's properties
     const allRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const landlordRequests = allRequests.filter(request => 
+    const landlordRequests = allRequests.filter(request =>
       propertyIds.includes(request.propertyId)
     );
-    
+
     callback(landlordRequests);
   });
 };
@@ -331,7 +338,7 @@ export const subscribeToLandlordRequests = (callback) => {
 export const getMaintenanceStats = async () => {
   try {
     const role = await getUserRole();
-    
+
     let querySnapshot;
     if (role === 'admin') {
       // Admin sees all
@@ -347,7 +354,7 @@ export const getMaintenanceStats = async () => {
     } else {
       return { pending: 0, inProgress: 0, completed: 0, onHold: 0, cancelled: 0, total: 0 };
     }
-    
+
     const requests = querySnapshot.docs.map(doc => doc.data());
     return calculateStats(requests);
   } catch (error) {
@@ -363,7 +370,7 @@ const calculateStats = (requests) => {
   const onHold = requests.filter(r => r.status === 'on-hold').length;
   const cancelled = requests.filter(r => r.status === 'cancelled').length;
   const total = requests.length;
-  
+
   return { pending, inProgress, completed, onHold, cancelled, total };
 };
 
@@ -373,22 +380,22 @@ export const getMaintenanceRequestById = async (requestId) => {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
-    
+
     const requestRef = doc(db, 'maintenance', requestId);
     const requestDoc = await getDoc(requestRef);
-    
+
     if (!requestDoc.exists()) {
       throw new Error('Maintenance request not found');
     }
-    
+
     const role = await getUserRole();
     const requestData = requestDoc.data();
-    
+
     // Check permissions
     if (role !== 'admin' && requestData.tenantId !== user.uid) {
       throw new Error('You do not have permission to view this request');
     }
-    
+
     return { id: requestDoc.id, ...requestData };
   } catch (error) {
     console.error('Error getting request by ID:', error);
@@ -401,13 +408,13 @@ export const addAdminNotes = async (requestId, notes) => {
   try {
     const role = await getUserRole();
     if (role !== 'admin') throw new Error('Only admin can add notes');
-    
+
     const requestRef = doc(db, 'maintenance', requestId);
     await updateDoc(requestRef, {
       adminNotes: notes,
       updatedAt: serverTimestamp()
     });
-    
+
     return true;
   } catch (error) {
     console.error('Error adding admin notes:', error);
@@ -426,13 +433,13 @@ export const maintenanceService = {
     addAdminNotes: addAdminNotes, // Added
     getStats: getMaintenanceStats,
     subscribe: subscribeToAllRequests,
-    
+
     // Categories management
     getCategories: getMaintenanceCategories,
     addCategory: addMaintenanceCategory,
     deleteCategory: deleteMaintenanceCategory,
   },
-  
+
   // For Tenant Mobile App
   tenant: {
     submitRequest: submitMaintenanceRequest,
@@ -442,14 +449,14 @@ export const maintenanceService = {
     subscribe: subscribeToTenantRequests,
     getCategories: getMaintenanceCategories
   },
-  
+
   // For Landlord Mobile App
   landlord: {
     getMyPropertiesRequests: getLandlordMaintenanceRequests,
     subscribe: subscribeToLandlordRequests,
     getCategories: getMaintenanceCategories
   },
-  
+
   // Common functions
   common: {
     getCategories: getMaintenanceCategories
