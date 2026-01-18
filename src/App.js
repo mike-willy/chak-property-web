@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRoute from "./routes/AdminRoute";
+import MpesaTest from './components/MpesaTest';
 
 // Admin pages
 import Dashboard from "./pages/Dashboard";
@@ -53,6 +54,8 @@ function App() {
           </AdminPage>
         }
       />
+
+<Route path="/test-mpesa" element={<MpesaTest />} />
 
       <Route
         path="/properties/add"
