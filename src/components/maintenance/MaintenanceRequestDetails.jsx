@@ -1,20 +1,37 @@
 // components/maintenance/MaintenanceRequestDetails.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Home, User, Calendar, MessageSquare, CheckCircle, 
   AlertCircle, Lock, Edit2, Save, Phone, Mail,
-  Trash2, RotateCcw, Pause, Ban, History, Clock
+  Trash2, RotateCcw, Pause, Ban, History, Clock, Tag,
+  EyeOff, Archive
 } from 'lucide-react';
 import { maintenanceService } from '../../pages/firebase/maintenanceService';
 import '../../styles/maintenance-details.css'; 
 
-const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteRequest }) => {
+const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteRequest, userRole }) => {
   const [adminNotes, setAdminNotes] = useState(request.adminNotes || '');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [showEditNotes, setShowEditNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(request.adminNotes || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState(userRole || 'admin');
+
+  useEffect(() => {
+    if (!userRole) {
+      const fetchUserRole = async () => {
+        try {
+          const role = await maintenanceService.admin.getUserRole?.() || 'admin';
+          setCurrentUserRole(role);
+        } catch (error) {
+          console.error('Error fetching user role:', error);
+          setCurrentUserRole('admin');
+        }
+      };
+      fetchUserRole();
+    }
+  }, [userRole]);
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -84,9 +101,6 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
   };
 
   const handleStatusUpdateWithConfirmation = async (newStatus) => {
-    let message = '';
-    let confirmMessage = '';
-    
     const statusMessages = {
       'pending': {
         confirm: 'Put this request back to pending?',
@@ -125,73 +139,136 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
   };
 
   const handleDeleteRequest = async () => {
-    if (!window.confirm('Are you sure you want to delete this maintenance request? This action cannot be undone.')) {
-      setShowDeleteConfirm(false);
-      return;
-    }
-
     setIsDeleting(true);
     try {
-      await onDeleteRequest(request.id);
-      alert('Maintenance request deleted successfully!');
-      onClose();
+      let deleteResult;
+      if (currentUserRole === 'admin') {
+        deleteResult = await maintenanceService.admin.deleteRequest(request.id);
+      } else if (currentUserRole === 'landlord') {
+        deleteResult = await maintenanceService.landlord.deletePropertyRequest(request.id);
+      } else if (currentUserRole === 'tenant') {
+        deleteResult = await maintenanceService.tenant.deleteMyRequest(request.id);
+      } else {
+        throw new Error('Invalid user role');
+      }
+
+      if (deleteResult) {
+        if (onDeleteRequest) {
+          await onDeleteRequest(request.id);
+        }
+        onClose();
+      }
+      
     } catch (error) {
-      console.error('Error deleting request:', error);
-      alert('Failed to delete request: ' + error.message);
+      console.error('Error deleting/hiding request:', error);
+      alert('Failed to delete/hide request: ' + error.message);
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
   };
 
-  // Get available status options based on current status
   const getAvailableStatusOptions = () => {
     const options = [];
     
-    // Always available options
-    options.push({ value: 'on-hold', label: 'Put On Hold', icon: Pause, class: 'mnt-detail-action-hold' });
-    options.push({ value: 'cancelled', label: 'Cancel Request', icon: Ban, class: 'mnt-detail-action-cancel' });
+    if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
+      options.push({ value: 'on-hold', label: 'Put On Hold', icon: Pause, class: 'mnt-detail-action-hold' });
+      options.push({ value: 'cancelled', label: 'Cancel Request', icon: Ban, class: 'mnt-detail-action-cancel' });
+    }
     
-    // Status-specific options
     switch (request.status) {
       case 'pending':
-        options.unshift({ value: 'in-progress', label: 'Start Work', icon: Clock, class: 'mnt-detail-action-start' });
+        if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
+          options.unshift({ value: 'in-progress', label: 'Start Work', icon: Clock, class: 'mnt-detail-action-start' });
+        }
         break;
       case 'in-progress':
-        options.unshift(
-          { value: 'pending', label: 'Back to Pending', icon: RotateCcw, class: 'mnt-detail-action-reopen' },
-          { value: 'completed', label: 'Mark Completed', icon: CheckCircle, class: 'mnt-detail-action-complete' }
-        );
+        if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
+          options.unshift(
+            { value: 'pending', label: 'Back to Pending', icon: RotateCcw, class: 'mnt-detail-action-reopen' },
+            { value: 'completed', label: 'Mark Completed', icon: CheckCircle, class: 'mnt-detail-action-complete' }
+          );
+        }
         break;
       case 'on-hold':
-        options.unshift(
-          { value: 'pending', label: 'Back to Pending', icon: RotateCcw, class: 'mnt-detail-action-reopen' },
-          { value: 'in-progress', label: 'Resume Work', icon: Clock, class: 'mnt-detail-action-start' }
-        );
+        if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
+          options.unshift(
+            { value: 'pending', label: 'Back to Pending', icon: RotateCcw, class: 'mnt-detail-action-reopen' },
+            { value: 'in-progress', label: 'Resume Work', icon: Clock, class: 'mnt-detail-action-start' }
+          );
+        }
         break;
       case 'completed':
-        options.unshift(
-          { value: 'pending', label: 'Reopen Request', icon: RotateCcw, class: 'mnt-detail-action-reopen' },
-          { value: 'in-progress', label: 'Back to In Progress', icon: Clock, class: 'mnt-detail-action-start' }
-        );
+        if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
+          options.unshift(
+            { value: 'pending', label: 'Reopen Request', icon: RotateCcw, class: 'mnt-detail-action-reopen' },
+            { value: 'in-progress', label: 'Back to In Progress', icon: Clock, class: 'mnt-detail-action-start' }
+          );
+        }
         break;
       case 'cancelled':
-        options.unshift(
-          { value: 'pending', label: 'Reopen Request', icon: RotateCcw, class: 'mnt-detail-action-reopen' }
-        );
+        if (currentUserRole === 'admin' || currentUserRole === 'landlord') {
+          options.unshift(
+            { value: 'pending', label: 'Reopen Request', icon: RotateCcw, class: 'mnt-detail-action-reopen' }
+          );
+        }
         break;
     }
     
     return options;
   };
 
-  // Tenant Info Box - Read Only
+  const getDeleteActionText = () => {
+    switch (currentUserRole) {
+      case 'admin':
+        return {
+          title: 'Archive Maintenance Request',
+          actionText: 'Archive',
+          actionVerb: 'archiving',
+          description: 'This will remove the request from your admin view only.'
+        };
+      case 'landlord':
+        return {
+          title: 'Hide Maintenance Request',
+          actionText: 'Hide',
+          actionVerb: 'hiding',
+          description: 'This will hide the request from your landlord view only.'
+        };
+      case 'tenant':
+        return {
+          title: 'Hide Maintenance Request',
+          actionText: 'Hide',
+          actionVerb: 'hiding',
+          description: 'This will hide the request from your tenant view only.'
+        };
+      default:
+        return {
+          title: 'Delete Maintenance Request',
+          actionText: 'Delete',
+          actionVerb: 'deleting',
+          description: 'This will remove the request from your view.'
+        };
+    }
+  };
+
+  const isRequestHidden = () => {
+    switch (currentUserRole) {
+      case 'admin':
+        return request.adminDeleted === true;
+      case 'landlord':
+        return request.landlordHidden === true;
+      case 'tenant':
+        return request.tenantHidden === true;
+      default:
+        return false;
+    }
+  };
+
   const TenantInfoBox = ({ label, value, icon: Icon, subValue }) => (
     <div className="mnt-detail-info-box">
       <div className="mnt-detail-info-box-header">
-        <Icon className="mnt-detail-info-box-icon" style={{ width: '16px', height: '16px' }} />
+        <Icon className="mnt-detail-info-box-icon" />
         <span className="mnt-detail-info-box-label">{label}</span>
-        <Lock className="mnt-detail-readonly-icon" style={{ width: '12px', height: '12px' }} 
-              title="Tenant submitted - Read only" />
+        <Lock className="mnt-detail-readonly-icon" title="Tenant submitted - Read only" />
       </div>
       <div className="mnt-detail-info-box-value">{value || '—'}</div>
       {subValue && <div className="mnt-detail-info-box-subvalue">{subValue}</div>}
@@ -199,32 +276,45 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
   );
 
   const statusOptions = getAvailableStatusOptions();
+  const deleteAction = getDeleteActionText();
+  const isHidden = isRequestHidden();
 
   return (
     <div className="mnt-detail-overlay">
       <div className="mnt-detail-container">
-        {/* Header */}
         <div className="mnt-detail-header">
           <div className="mnt-detail-header-top">
             <div>
               <h2 className="mnt-detail-title">Maintenance Request Details</h2>
               <p className="mnt-detail-id">ID: {request.id}</p>
+              {isHidden && (
+                <div className="mnt-detail-hidden-badge">
+                  <EyeOff size={12} />
+                  <span>Hidden from your view</span>
+                </div>
+              )}
             </div>
             <div className="mnt-detail-header-actions">
-              <button 
-                onClick={() => setShowDeleteConfirm(true)}
-                className="mnt-detail-delete-btn"
-                title="Delete Request"
-                disabled={request.status !== 'completed' && request.status !== 'cancelled'}
-              >
-                <Trash2 style={{ width: '16px', height: '16px' }} />
-              </button>
+              {(currentUserRole === 'admin' || currentUserRole === 'landlord' || currentUserRole === 'tenant') && (
+                <button 
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="mnt-detail-delete-btn"
+                  title={`${deleteAction.actionText} Request`}
+                  disabled={isHidden}
+                >
+                  {currentUserRole === 'admin' ? (
+                    <Archive size={16} />
+                  ) : (
+                    <EyeOff size={16} />
+                  )}
+                </button>
+              )}
               <button 
                 onClick={onClose} 
                 className="mnt-detail-close-btn"
                 aria-label="Close"
               >
-                <X style={{ width: '20px', height: '20px' }} />
+                <X size={20} />
               </button>
             </div>
           </div>
@@ -236,10 +326,14 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
             <span className={getPriorityClass(request.priority)}>
               {request.priority ? request.priority.toUpperCase() : 'MEDIUM'}
             </span>
+            {currentUserRole && (
+              <span className="mnt-detail-role-badge">
+                Viewing as: {currentUserRole}
+              </span>
+            )}
           </div>
           <h3 className="mnt-detail-category">{request.category}</h3>
           
-          {/* Status Timeline */}
           <div className="mnt-detail-status-timeline">
             <div className={`mnt-detail-timeline-step ${['pending', 'in-progress', 'on-hold', 'completed'].includes(request.status) ? 'active' : ''}`}>
               <div className="mnt-detail-timeline-dot">1</div>
@@ -257,14 +351,13 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
         </div>
 
         <div className="mnt-detail-content">
-          {/* Basic Info Grid - READ ONLY */}
           <div className="mnt-detail-section">
             <h4 className="mnt-detail-section-title">
-              <User style={{ width: '16px', height: '16px' }} />
+              <User size={16} />
               Tenant Information (Read Only)
             </h4>
             <div className="mnt-detail-readonly-notice">
-              <Lock style={{ width: '14px', height: '14px' }} />
+              <Lock size={14} />
               This information was submitted by the tenant and cannot be modified
             </div>
             <div className="mnt-detail-info-grid-readonly">
@@ -299,28 +392,34 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
             </div>
           </div>
 
-          {/* Request Details - READ ONLY */}
           <div className="mnt-detail-section">
             <h4 className="mnt-detail-section-title">
-              <MessageSquare style={{ width: '16px', height: '16px' }} />
+              <MessageSquare size={16} />
               Request Details (Read Only)
             </h4>
             <div className="mnt-detail-description-box readonly">
+              <div className="mnt-detail-category-display">
+                <Tag size={14} />
+                <strong>Category:</strong> {request.category || 'Uncategorized'}
+              </div>
+              
+              <div className="mnt-detail-description-header">
+                <strong>Description:</strong>
+              </div>
               <p className="mnt-detail-description-text">
                 {request.description || 'No description provided'}
               </p>
             </div>
           </div>
 
-          {/* Date Information */}
           <div className="mnt-detail-section">
             <h4 className="mnt-detail-section-title">
-              <Calendar style={{ width: '16px', height: '16px' }} />
+              <Calendar size={16} />
               Timeline
             </h4>
             <div className="mnt-detail-info-grid">
               <div className="mnt-detail-info-item">
-                <Calendar className="mnt-detail-info-icon" style={{ width: '20px', height: '20px' }} />
+                <Calendar className="mnt-detail-info-icon" size={20} />
                 <div className="mnt-detail-info-content">
                   <h4>Submitted</h4>
                   <p className="mnt-detail-info-text">{formatDate(request.createdAt)}</p>
@@ -328,7 +427,7 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
               </div>
               
               <div className="mnt-detail-info-item">
-                <Calendar className="mnt-detail-info-icon" style={{ width: '20px', height: '20px' }} />
+                <Calendar className="mnt-detail-info-icon" size={20} />
                 <div className="mnt-detail-info-content">
                   <h4>Last Updated</h4>
                   <p className="mnt-detail-info-text">{formatDate(request.updatedAt)}</p>
@@ -339,7 +438,8 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                 <div className="mnt-detail-info-item">
                   <CheckCircle 
                     className="mnt-detail-info-icon" 
-                    style={{ width: '20px', height: '20px', color: '#10b981' }} 
+                    size={20}
+                    style={{ color: '#10b981' }} 
                   />
                   <div className="mnt-detail-info-content">
                     <h4>Completed On</h4>
@@ -348,9 +448,8 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
                 </div>
               )}
               
-              {/* Status History Button */}
               <div className="mnt-detail-info-item">
-                <History className="mnt-detail-info-icon" style={{ width: '20px', height: '20px', color: '#8b5cf6' }} />
+                <History className="mnt-detail-info-icon" size={20} style={{ color: '#8b5cf6' }} />
                 <div className="mnt-detail-info-content">
                   <h4>Status History</h4>
                   <button 
@@ -364,7 +463,6 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
             </div>
           </div>
 
-          {/* Images - READ ONLY */}
           {request.images && request.images.length > 0 && (
             <div className="mnt-detail-section">
               <h4 className="mnt-detail-section-title">
@@ -384,129 +482,174 @@ const MaintenanceRequestDetails = ({ request, onClose, onStatusUpdate, onDeleteR
             </div>
           )}
 
-          {/* Admin Notes - EDITABLE */}
-          <div className="mnt-detail-section">
-            <div className="mnt-detail-section-header">
-              <h4 className="mnt-detail-section-title">
-                <AlertCircle style={{ width: '16px', height: '16px' }} />
-                Admin Notes
-              </h4>
-              {!showEditNotes && adminNotes ? (
-                <button 
-                  onClick={handleStartEditNotes}
-                  className="mnt-detail-edit-notes-btn"
-                >
-                  <Edit2 style={{ width: '14px', height: '14px' }} />
-                  Edit Notes
-                </button>
-              ) : null}
-            </div>
-            
-            {showEditNotes ? (
-              <div className="mnt-detail-notes-edit-container">
-                <textarea
-                  value={tempNotes}
-                  onChange={(e) => setTempNotes(e.target.value)}
-                  placeholder="Add notes about this maintenance request..."
-                  className="mnt-detail-notes-textarea"
-                  autoFocus
-                />
-                <div className="mnt-detail-notes-actions">
-                  <button
-                    onClick={handleSaveNotes}
-                    disabled={isSavingNotes || !tempNotes.trim() || tempNotes === adminNotes}
-                    className="mnt-detail-save-notes-btn"
+          {currentUserRole === 'admin' && (
+            <div className="mnt-detail-section">
+              <div className="mnt-detail-section-header">
+                <h4 className="mnt-detail-section-title">
+                  <AlertCircle size={16} />
+                  Admin Notes (Private)
+                </h4>
+                {!showEditNotes && (
+                  <button 
+                    onClick={handleStartEditNotes}
+                    className="mnt-detail-edit-notes-btn"
                   >
-                    <Save style={{ width: '14px', height: '14px' }} />
-                    {isSavingNotes ? 'Saving...' : 'Save Notes'}
+                    <Edit2 size={14} />
+                    {adminNotes ? 'Edit Notes' : 'Add Notes'}
                   </button>
-                  <button
-                    onClick={handleCancelEditNotes}
-                    className="mnt-detail-cancel-notes-btn"
-                    disabled={isSavingNotes}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mnt-detail-notes-display">
-                {adminNotes ? (
-                  <p className="mnt-detail-notes-text">{adminNotes}</p>
-                ) : (
-                  <p className="mnt-detail-notes-placeholder">No admin notes yet.</p>
                 )}
               </div>
-            )}
-            
-            <p className="mnt-detail-notes-help">
-              These notes are visible to admin only. Tenant cannot see these notes.
-            </p>
-          </div>
-
-          {/* Status Actions - ENHANCED */}
-          <div className="mnt-detail-status-actions">
-            <h4 className="mnt-detail-actions-title">
-              Update Status
-              <span className="mnt-detail-current-status">Current: {request.status.replace('-', ' ')}</span>
-            </h4>
-            
-            <div className="mnt-detail-actions-grid">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleStatusUpdateWithConfirmation(option.value)}
-                  className={`mnt-detail-action-btn ${option.class}`}
-                >
-                  {option.icon && <option.icon style={{ width: '14px', height: '14px' }} />}
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            
-            <div className="mnt-detail-status-help">
-              <AlertCircle style={{ width: '14px', height: '14px' }} />
-              Status changes are visible to the tenant in real-time
-            </div>
-          </div>
-
-          {/* Delete Confirmation Modal */}
-          {showDeleteConfirm && (
-            <div className="mnt-detail-delete-modal">
-              <div className="mnt-detail-delete-content">
-                <h3 className="mnt-detail-delete-title">
-                  <Trash2 style={{ width: '24px', height: '24px', color: '#dc2626' }} />
-                  Delete Maintenance Request
-                </h3>
-                <p className="mnt-detail-delete-text">
-                  Are you sure you want to delete this maintenance request?<br />
-                  <strong>This action cannot be undone.</strong>
-                </p>
-                <div className="mnt-detail-delete-warning">
-                  <AlertCircle style={{ width: '16px', height: '16px' }} />
-                  Deleting will remove this request permanently from the system.
+              
+              {showEditNotes ? (
+                <div className="mnt-detail-notes-edit-container">
+                  <textarea
+                    value={tempNotes}
+                    onChange={(e) => setTempNotes(e.target.value)}
+                    placeholder="Add private notes about this maintenance request (only visible to admin)..."
+                    className="mnt-detail-notes-textarea"
+                    autoFocus
+                  />
+                  <div className="mnt-detail-notes-actions">
+                    <button
+                      onClick={handleSaveNotes}
+                      disabled={isSavingNotes}
+                      className="mnt-detail-save-notes-btn"
+                    >
+                      <Save size={14} />
+                      {isSavingNotes ? 'Saving...' : 'Save Notes'}
+                    </button>
+                    <button
+                      onClick={handleCancelEditNotes}
+                      className="mnt-detail-cancel-notes-btn"
+                      disabled={isSavingNotes}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-                <div className="mnt-detail-delete-actions">
-                  <button
-                    onClick={handleDeleteRequest}
-                    disabled={isDeleting}
-                    className="mnt-detail-delete-confirm-btn"
-                  >
-                    {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    disabled={isDeleting}
-                    className="mnt-detail-delete-cancel-btn"
-                  >
-                    Cancel
-                  </button>
+              ) : (
+                <div className="mnt-detail-notes-display">
+                  {adminNotes ? (
+                    <p className="mnt-detail-notes-text">{adminNotes}</p>
+                  ) : (
+                    <p className="mnt-detail-notes-placeholder">
+                      No admin notes yet. Click "Add Notes" to add private notes (tenant cannot see these).
+                    </p>
+                  )}
                 </div>
+              )}
+              
+              <p className="mnt-detail-notes-help">
+                <Lock size={14} />
+                These notes are visible to admin only. Tenant cannot see these notes.
+              </p>
+            </div>
+          )}
+
+          {(currentUserRole === 'admin' || currentUserRole === 'landlord') && statusOptions.length > 0 && (
+            <div className="mnt-detail-status-actions">
+              <h4 className="mnt-detail-actions-title">
+                Update Status
+                <span className="mnt-detail-current-status">Current: {request.status.replace('-', ' ')}</span>
+              </h4>
+              
+              <div className="mnt-detail-actions-grid">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleStatusUpdateWithConfirmation(option.value)}
+                    className={`mnt-detail-action-btn ${option.class}`}
+                  >
+                    {option.icon && <option.icon size={14} />}
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              
+              <div className="mnt-detail-status-help">
+                <AlertCircle size={14} />
+                Status changes are visible to the tenant in real-time
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="mnt-detail-delete-modal">
+          <div className="mnt-detail-delete-content">
+            <h3 className="mnt-detail-delete-title">
+              {currentUserRole === 'admin' ? (
+                <Archive size={24} style={{ color: '#f97316' }} />
+              ) : (
+                <EyeOff size={24} style={{ color: '#6b7280' }} />
+              )}
+              {deleteAction.title}
+            </h3>
+            <p className="mnt-detail-delete-text">
+              {deleteAction.description}
+            </p>
+            <div className="mnt-detail-delete-warning">
+              <AlertCircle size={16} />
+              <div>
+                <p><strong>What this does:</strong></p>
+                {currentUserRole === 'admin' && (
+                  <>
+                    <p>✓ Removed from <strong>Admin</strong> view only</p>
+                    <p>✗ Still visible to <strong>Tenant</strong></p>
+                    <p>✗ Still visible to <strong>Landlord</strong></p>
+                    <p className="mnt-detail-delete-note">
+                      Note: This archives the request (soft delete). It can be restored in the Archived section.
+                    </p>
+                  </>
+                )}
+                {currentUserRole === 'landlord' && (
+                  <>
+                    <p>✓ Hidden from <strong>your Landlord</strong> view only</p>
+                    <p>✗ Still visible to <strong>Admin</strong></p>
+                    <p>✗ Still visible to <strong>Tenant</strong></p>
+                    <p className="mnt-detail-delete-note">
+                      Note: You can restore hidden requests from your settings.
+                    </p>
+                  </>
+                )}
+                {currentUserRole === 'tenant' && (
+                  <>
+                    <p>✓ Hidden from <strong>your Tenant</strong> view only</p>
+                    <p>✗ Still visible to <strong>Admin</strong></p>
+                    <p>✗ Still visible to <strong>Landlord</strong></p>
+                    <p className="mnt-detail-delete-note">
+                      Note: You can restore hidden requests from your settings.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="mnt-detail-delete-actions">
+              <button
+                onClick={handleDeleteRequest}
+                disabled={isDeleting || isHidden}
+                className={`mnt-detail-delete-confirm-btn ${currentUserRole === 'admin' ? 'mnt-detail-archive-btn' : 'mnt-detail-hide-btn'}`}
+              >
+                {isDeleting ? `${deleteAction.actionVerb}...` : `Yes, ${deleteAction.actionText}`}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="mnt-detail-delete-cancel-btn"
+              >
+                Cancel
+              </button>
+            </div>
+            {isHidden && (
+              <div className="mnt-detail-already-hidden">
+                <AlertCircle size={14} />
+                <span>This request is already hidden from your view.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
