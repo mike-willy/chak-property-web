@@ -1,11 +1,14 @@
-// src/pages/Properties.jsx - UPDATED WITH FLEXIBLE GRID BY LANDLORD AND FEE INFORMATION
+// src/pages/Properties.jsx - FIXED DELETE FUNCTION
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   collection, 
   getDocs, 
   updateDoc, 
-  doc 
+  doc,
+  deleteDoc,
+  query,
+  where
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import "../styles/Properties.css";
@@ -31,7 +34,9 @@ import {
   FaTint,
   FaBolt,
   FaWifi,
-  FaWrench
+  FaWrench,
+  FaTrash,
+  FaExclamationTriangle
 } from "react-icons/fa";
 
 const Properties = () => {
@@ -42,17 +47,36 @@ const Properties = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [propertyToDelete, setPropertyToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState("");
 
-  // Helper function to get unit counts consistently
+  // Helper function to get unit counts consistently - FIXED
   const getUnitCounts = (property) => {
     const unitDetails = property.unitDetails || {};
+    
+    // Get actual counts from unitDetails, NOT defaulting to totalUnits
     const totalUnits = property.units || unitDetails.totalUnits || 1;
+    const vacantCount = unitDetails.vacantCount || 0;  // CHANGED: Don't default to totalUnits!
+    const leasedCount = unitDetails.leasedCount || 0;
+    const maintenanceCount = unitDetails.maintenanceCount || 0;
+    
+    // Validate counts add up correctly
+    const calculatedTotal = vacantCount + leasedCount + maintenanceCount;
+    
+    // If counts don't match, adjust vacant count
+    let adjustedVacantCount = vacantCount;
+    if (calculatedTotal !== totalUnits) {
+      console.warn(`Count mismatch for ${property.name}: ${calculatedTotal} vs ${totalUnits}. Adjusting...`);
+      adjustedVacantCount = Math.max(0, totalUnits - leasedCount - maintenanceCount);
+    }
     
     return {
-      totalUnits: totalUnits,
-      vacantCount: unitDetails.vacantCount || totalUnits,
-      leasedCount: unitDetails.leasedCount || 0,
-      maintenanceCount: unitDetails.maintenanceCount || 0
+      totalUnits,
+      vacantCount: adjustedVacantCount,
+      leasedCount,
+      maintenanceCount
     };
   };
 
@@ -94,7 +118,6 @@ const Properties = () => {
 
   // Function to sort properties by landlord and date
   const sortPropertiesByLandlordAndDate = (propertiesList) => {
-    // First, group properties by landlord name
     const groupedByLandlord = {};
     
     propertiesList.forEach(property => {
@@ -110,13 +133,12 @@ const Properties = () => {
       groupedByLandlord[landlord].sort((a, b) => {
         const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA; // Newest first
+        return dateB - dateA;
       });
     });
     
     // Get an array of landlords with their newest property date
     const landlordsWithDates = Object.keys(groupedByLandlord).map(landlord => {
-      // Find the newest property date for this landlord
       const newestProperty = groupedByLandlord[landlord].reduce((newest, current) => {
         const currentDate = current.createdAt ? new Date(current.createdAt).getTime() : 0;
         const newestDate = newest.createdAt ? new Date(newest.createdAt).getTime() : 0;
@@ -138,7 +160,7 @@ const Properties = () => {
       if (b.newestDate === a.newestDate) {
         return a.name.localeCompare(b.name);
       }
-      return 0; // Already sorted by date
+      return 0;
     });
     
     return landlordsWithDates;
@@ -163,7 +185,6 @@ const Properties = () => {
       const sorted = sortPropertiesByLandlordAndDate(properties);
       setLandlordGroups(sorted);
       
-      // Also keep a flat array for filtering/searching
       const flatSorted = sorted.flatMap(group => group.properties);
       setSortedProperties(flatSorted);
     } else {
@@ -172,59 +193,163 @@ const Properties = () => {
     }
   }, [properties]);
 
+  // FIXED: Better unit count calculation
+  const calculateUnitCountsFromSubcollection = (unitsSnapshot) => {
+    let vacantCount = 0;
+    let leasedCount = 0;
+    let maintenanceCount = 0;
+    
+    unitsSnapshot.forEach((unitDoc) => {
+      const unitData = unitDoc.data();
+      const status = (unitData.status || 'vacant').toLowerCase();
+      
+      if (status === 'vacant' || status === 'available') {
+        vacantCount++;
+      } else if (status === 'leased' || status === 'occupied' || status === 'rented') {
+        leasedCount++;
+      } else if (status === 'maintenance' || status === 'repair') {
+        maintenanceCount++;
+      }
+    });
+    
+    return { vacantCount, leasedCount, maintenanceCount };
+  };
+
   const fetchProperties = async () => {
     try {
       setLoading(true);
       const querySnapshot = await getDocs(collection(db, "properties"));
       const propertiesData = [];
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      for (const docItem of querySnapshot.docs) {
+        const data = docItem.data();
+        const propertyId = docItem.id;
         
-        // Normalize unit details
-        const totalUnits = data.units || data.unitDetails?.totalUnits || 1;
-        const unitDetails = data.unitDetails || {};
-        
-        // Ensure all properties have consistent unitDetails structure
-        const normalizedUnitDetails = {
-          totalUnits: totalUnits,
-          vacantCount: unitDetails.vacantCount || (totalUnits - (unitDetails.leasedCount || 0) - (unitDetails.maintenanceCount || 0)),
-          leasedCount: unitDetails.leasedCount || 0,
-          maintenanceCount: unitDetails.maintenanceCount || 0,
-          occupancyRate: unitDetails.occupancyRate || 0,
-          units: unitDetails.units || []
-        };
-        
-        const property = {
-          id: doc.id,
-          ...data,
-          // Always store units count at root level for consistency
-          units: totalUnits,
-          // Always have unitDetails with consistent structure
-          unitDetails: normalizedUnitDetails,
-          // Ensure fee-related fields exist
-          applicationFee: data.applicationFee || 0,
-          securityDeposit: data.securityDeposit || 0,
-          petDeposit: data.petDeposit || 0,
-          otherFees: data.otherFees || "",
-          leaseTerm: data.leaseTerm || 12,
-          noticePeriod: data.noticePeriod || 30,
-          latePaymentFee: data.latePaymentFee || 0,
-          gracePeriod: data.gracePeriod || 5,
-          feeDetails: data.feeDetails || {
-            includesWater: false,
-            includesElectricity: false,
-            includesInternet: false,
-            includesMaintenance: false
-          },
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-          // Ensure status has a default value and is lowercase
-          status: (data.status || 'available').toLowerCase()
-        };
-        
-        propertiesData.push(property);
-      });
+        try {
+          // Fetch actual unit counts from subcollection
+          const unitsRef = collection(db, `properties/${propertyId}/units`);
+          const unitsSnapshot = await getDocs(unitsRef);
+          
+          // Calculate actual counts from subcollection
+          const { vacantCount, leasedCount, maintenanceCount } = 
+            calculateUnitCountsFromSubcollection(unitsSnapshot);
+          
+          const totalUnits = unitsSnapshot.size || data.units || 1;
+          
+          // Debug logging to see actual counts
+          console.log(`Property: ${data.name || propertyId}`);
+          console.log(`  Units in subcollection: ${unitsSnapshot.size}`);
+          console.log(`  Vacant: ${vacantCount}, Leased: ${leasedCount}, Maintenance: ${maintenanceCount}`);
+          
+          // Normalize unit details with actual counts
+          const unitDetails = data.unitDetails || {};
+          
+          // Ensure counts are valid
+          const validatedVacantCount = Math.max(0, totalUnits - leasedCount - maintenanceCount);
+          
+          const normalizedUnitDetails = {
+            totalUnits: totalUnits,
+            vacantCount: validatedVacantCount,
+            leasedCount: leasedCount,
+            maintenanceCount: maintenanceCount,
+            occupancyRate: totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0,
+            units: unitDetails.units || []
+          };
+          
+          // Determine overall property status based on unit statuses
+          let overallStatus = data.status || 'available';
+          
+          // If all units are leased, property is leased
+          if (leasedCount > 0 && vacantCount === 0 && maintenanceCount === 0) {
+            overallStatus = 'leased';
+          }
+          // If all units are vacant, property is vacant
+          else if (vacantCount > 0 && leasedCount === 0 && maintenanceCount === 0) {
+            overallStatus = 'vacant';
+          }
+          // If any units need maintenance, property is in maintenance
+          else if (maintenanceCount > 0) {
+            overallStatus = 'maintenance';
+          }
+          
+          const property = {
+            id: propertyId,
+            ...data,
+            // Always store units count at root level for consistency
+            units: totalUnits,
+            // Always have unitDetails with consistent structure
+            unitDetails: normalizedUnitDetails,
+            // Ensure fee-related fields exist
+            applicationFee: data.applicationFee || 0,
+            securityDeposit: data.securityDeposit || 0,
+            petDeposit: data.petDeposit || 0,
+            otherFees: data.otherFees || "",
+            leaseTerm: data.leaseTerm || 12,
+            noticePeriod: data.noticePeriod || 30,
+            latePaymentFee: data.latePaymentFee || 0,
+            gracePeriod: data.gracePeriod || 5,
+            feeDetails: data.feeDetails || {
+              includesWater: false,
+              includesElectricity: false,
+              includesInternet: false,
+              includesMaintenance: false
+            },
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+            // Use calculated overall status
+            status: overallStatus.toLowerCase()
+          };
+          
+          propertiesData.push(property);
+          
+        } catch (error) {
+          console.error(`Error fetching units for property ${propertyId}:`, error);
+          
+          // Fallback to stored data
+          const totalUnits = data.units || data.unitDetails?.totalUnits || 1;
+          const unitDetails = data.unitDetails || {};
+          
+          // FIXED: Don't default vacant count to totalUnits
+          const vacantCount = unitDetails.vacantCount || 0;
+          const leasedCount = unitDetails.leasedCount || 0;
+          const maintenanceCount = unitDetails.maintenanceCount || 0;
+          
+          const normalizedUnitDetails = {
+            totalUnits: totalUnits,
+            vacantCount: vacantCount,
+            leasedCount: leasedCount,
+            maintenanceCount: maintenanceCount,
+            occupancyRate: totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0,
+            units: unitDetails.units || []
+          };
+          
+          const property = {
+            id: propertyId,
+            ...data,
+            units: totalUnits,
+            unitDetails: normalizedUnitDetails,
+            applicationFee: data.applicationFee || 0,
+            securityDeposit: data.securityDeposit || 0,
+            petDeposit: data.petDeposit || 0,
+            otherFees: data.otherFees || "",
+            leaseTerm: data.leaseTerm || 12,
+            noticePeriod: data.noticePeriod || 30,
+            latePaymentFee: data.latePaymentFee || 0,
+            gracePeriod: data.gracePeriod || 5,
+            feeDetails: data.feeDetails || {
+              includesWater: false,
+              includesElectricity: false,
+              includesInternet: false,
+              includesMaintenance: false
+            },
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+            status: (data.status || 'available').toLowerCase()
+          };
+          
+          propertiesData.push(property);
+        }
+      }
 
       setProperties(propertiesData);
       
@@ -256,7 +381,7 @@ const Properties = () => {
       ...group,
       properties: filteredProperties
     };
-  }).filter(group => group.properties.length > 0); // Remove empty groups
+  }).filter(group => group.properties.length > 0);
 
   // Handle status update for entire property
   const handleStatusUpdate = async (propertyId, newStatus) => {
@@ -267,7 +392,6 @@ const Properties = () => {
         updatedAt: new Date()
       });
       
-      // Update local state
       setProperties(prev => prev.map(prop => 
         prop.id === propertyId ? { ...prop, status: newStatus.toLowerCase() } : prop
       ));
@@ -292,6 +416,124 @@ const Properties = () => {
   // Handle add new property
   const handleAddProperty = () => {
     navigate("/properties/add");
+  };
+
+  // Handle delete property confirmation
+  const handleDeleteProperty = (property) => {
+    setPropertyToDelete(property);
+    setShowDeleteModal(true);
+  };
+
+  // Handle confirm delete property - FIXED VERSION
+  const handleConfirmDelete = async () => {
+    if (!propertyToDelete) return;
+    
+    try {
+      setDeleting(true);
+      setDeleteProgress("Starting deletion process...");
+      
+      const propertyId = propertyToDelete.id;
+      const propertyName = propertyToDelete.name || "Unnamed Property";
+      
+      // Method: Get ALL documents and filter locally (bypasses security rule issues)
+      setDeleteProgress(`Finding all related data for ${propertyName}...`);
+      
+      // Get ALL documents from each collection
+      const [tenantsSnapshot, usersSnapshot, unitsSnapshot] = await Promise.all([
+        getDocs(collection(db, "tenants")),
+        getDocs(collection(db, "users")),
+        getDocs(collection(db, `properties/${propertyId}/units`))
+      ]);
+      
+      // Collect all deletions
+      const deletions = [];
+      let tenantsDeleted = 0;
+      let usersDeleted = 0;
+      let unitsDeleted = 0;
+      
+      // Delete tenants that belong to this property
+      tenantsSnapshot.forEach((tenantDoc) => {
+        const tenantData = tenantDoc.data();
+        if (tenantData.propertyId === propertyId) {
+          deletions.push(deleteDoc(doc(db, "tenants", tenantDoc.id)));
+          tenantsDeleted++;
+        }
+      });
+      
+      // Delete users that belong to this property
+      usersSnapshot.forEach((userDoc) => {
+        const userData = userDoc.data();
+        if (userData.propertyId === propertyId) {
+          deletions.push(deleteDoc(doc(db, "users", userDoc.id)));
+          usersDeleted++;
+        }
+      });
+      
+      // Also check by unitId (in case tenant/user has unitId but not propertyId)
+      const unitIds = [];
+      unitsSnapshot.forEach((unitDoc) => {
+        unitIds.push(unitDoc.id);
+      });
+      
+      // Check tenants by unitId
+      tenantsSnapshot.forEach((tenantDoc) => {
+        const tenantData = tenantDoc.data();
+        if (tenantData.unitId && unitIds.includes(tenantData.unitId) && !deletions.some(d => d.id === tenantDoc.id)) {
+          deletions.push(deleteDoc(doc(db, "tenants", tenantDoc.id)));
+          tenantsDeleted++;
+        }
+      });
+      
+      // Check users by unitId
+      usersSnapshot.forEach((userDoc) => {
+        const userData = userDoc.data();
+        if (userData.unitId && unitIds.includes(userData.unitId) && !deletions.some(d => d.id === userDoc.id)) {
+          deletions.push(deleteDoc(doc(db, "users", userDoc.id)));
+          usersDeleted++;
+        }
+      });
+      
+      // Delete all units from this property
+      unitsSnapshot.forEach((unitDoc) => {
+        deletions.push(deleteDoc(doc(db, `properties/${propertyId}/units`, unitDoc.id)));
+        unitsDeleted++;
+      });
+      
+      // Delete the property itself
+      deletions.push(deleteDoc(doc(db, "properties", propertyId)));
+      
+      // Execute all deletions
+      if (deletions.length > 0) {
+        setDeleteProgress(`Deleting ${deletions.length} items (${tenantsDeleted} tenants, ${usersDeleted} users, ${unitsDeleted} units)...`);
+        await Promise.all(deletions);
+        console.log(`Deleted ${deletions.length} items: ${tenantsDeleted} tenants, ${usersDeleted} users, ${unitsDeleted} units, 1 property`);
+      }
+      
+      // Update local state
+      setProperties(prev => prev.filter(prop => prop.id !== propertyId));
+      setSortedProperties(prev => prev.filter(prop => prop.id !== propertyId));
+      
+      // Close modal and show success
+      setShowDeleteModal(false);
+      setPropertyToDelete(null);
+      setDeleting(false);
+      setDeleteProgress("");
+      
+      alert(`✅ Property "${propertyName}" and all associated data have been deleted successfully.\n\nDeleted: ${tenantsDeleted} tenants, ${usersDeleted} users, ${unitsDeleted} units`);
+      
+    } catch (error) {
+      console.error("Error deleting property:", error);
+      alert(`Failed to delete property: ${error.message}`);
+      setDeleting(false);
+      setDeleteProgress("");
+    }
+  };
+
+  // Handle cancel delete
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setPropertyToDelete(null);
+    setDeleteProgress("");
   };
 
   // Clear search
@@ -322,7 +564,6 @@ const Properties = () => {
   const getLandlordColor = (landlordName) => {
     if (!landlordName || landlordName === "Unknown") return "#6b7280";
     
-    // Generate a consistent color based on landlord name
     const colors = [
       "#4361ee", "#3a0ca3", "#7209b7", "#f72585", 
       "#4cc9f0", "#4895ef", "#560bad", "#b5179e",
@@ -343,6 +584,103 @@ const Properties = () => {
 
   return (
     <div className="properties-container">
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && propertyToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content delete-modal">
+            <div className="modal-header">
+              <FaExclamationTriangle className="modal-warning-icon" />
+              <h3>Delete Property</h3>
+              <button 
+                className="close-modal" 
+                onClick={handleCancelDelete}
+                disabled={deleting}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="delete-warning">
+                <p>
+                  <strong>Warning:</strong> This action cannot be undone!
+                </p>
+                <p>You are about to delete:</p>
+                
+                <div className="property-to-delete-info">
+                  <h4>{propertyToDelete.name || "Unnamed Property"}</h4>
+                  <div className="delete-stats">
+                    <div className="delete-stat">
+                      <span className="stat-label">Units:</span>
+                      <span className="stat-value">
+                        {propertyToDelete.unitDetails?.totalUnits || propertyToDelete.units || 0}
+                      </span>
+                    </div>
+                    <div className="delete-stat">
+                      <span className="stat-label">Tenants:</span>
+                      <span className="stat-value leased-count">
+                        {propertyToDelete.unitDetails?.leasedCount || 0}
+                      </span>
+                    </div>
+                    <div className="delete-stat">
+                      <span className="stat-label">Monthly Revenue:</span>
+                      <span className="stat-value">
+                        {formatCurrency(propertyToDelete.monthlyRevenue || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="delete-consequences">
+                  <p><strong>This will permanently delete:</strong></p>
+                  <ul>
+                    <li>The property record</li>
+                    <li>All units in this property</li>
+                    <li>All tenant records associated with this property</li>
+                    <li>All user records associated with this property</li>
+                    <li>All payment history for these tenants</li>
+                    <li>Any application records for this property</li>
+                  </ul>
+                </div>
+                
+                {deleting && (
+                  <div className="delete-progress">
+                    <div className="progress-spinner"></div>
+                    <p>{deleteProgress}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button 
+                className="modal-btn cancel-btn"
+                onClick={handleCancelDelete}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button 
+                className="modal-btn delete-confirm-btn"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <span className="spinner-small"></span>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <FaTrash /> Delete Permanently
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="properties-header">
         <div>
@@ -508,7 +846,7 @@ const Properties = () => {
                             )}
                           </div>
                           
-                          {/* Fee Information Section - NEW */}
+                          {/* Fee Information Section */}
                           <div className="properties-card-info properties-fees-info">
                             <div className="properties-info-row">
                               <span className="properties-label">
@@ -548,7 +886,7 @@ const Properties = () => {
                             )}
                           </div>
 
-                          {/* What's Included Section - NEW */}
+                          {/* What's Included Section */}
                           {property.feeDetails && (
                             <div className="properties-card-info properties-included-info">
                               <div className="properties-label properties-included-label">What's Included:</div>
@@ -585,7 +923,7 @@ const Properties = () => {
                             </div>
                           )}
 
-                          {/* Late Payment Info - NEW */}
+                          {/* Late Payment Info */}
                           {property.latePaymentFee > 0 && (
                             <div className="properties-card-info properties-late-payment-info">
                               <div className="properties-info-row">
@@ -734,6 +1072,13 @@ const Properties = () => {
                                 onClick={() => handleEditProperty(property.id)}
                               >
                                 <FaEdit /> Edit
+                              </button>
+                              <button 
+                                className="properties-action-btn properties-delete-btn"
+                                onClick={() => handleDeleteProperty(property)}
+                                title="Delete Property"
+                              >
+                                <FaTrash />
                               </button>
                             </div>
                           </div>

@@ -1,4 +1,4 @@
-// src/components/StatsGrid.jsx
+// src/components/StatsGrid.jsx - UPDATED FOR BOTH UNIT MAINTENANCE & REQUESTS
 import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../pages/firebase/firebase";
@@ -19,7 +19,7 @@ const StatsGrid = () => {
     totalProperties: 0,
     occupancyRate: 0,
     monthlyRevenue: 0,
-    activeMaintenance: 0,
+    activeMaintenance: 0, // This counts BOTH unit maintenance + active requests
     totalUnits: 0,
     occupiedUnits: 0
   });
@@ -28,40 +28,114 @@ const StatsGrid = () => {
   useEffect(() => {
     fetchStats();
     
-    // Refresh stats every 30 seconds
     const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Function to fetch BOTH types of maintenance
+  const fetchTotalActiveMaintenance = async () => {
+    try {
+      let totalActiveMaintenance = 0;
+      
+      // PART 1: Count units with maintenance status
+      const propertiesSnapshot = await getDocs(collection(db, "properties"));
+      
+      for (const propertyDoc of propertiesSnapshot.docs) {
+        const propertyId = propertyDoc.id;
+        
+        try {
+          const unitsRef = collection(db, `properties/${propertyId}/units`);
+          const unitsSnapshot = await getDocs(unitsRef);
+          
+          unitsSnapshot.forEach((unitDoc) => {
+            const unitData = unitDoc.data();
+            const status = (unitData.status || '').toLowerCase();
+            
+            // Count units marked as maintenance by admin
+            if (status === "maintenance" || 
+                status === "repair" || 
+                status === "under_repair") {
+              totalActiveMaintenance++;
+            }
+          });
+        } catch (error) {
+          // No units found for this property
+        }
+      }
+      
+      // PART 2: Count active maintenance requests from tenants
+      try {
+        const maintenanceRequestsRef = collection(db, "maintenanceRequests");
+        const requestsSnapshot = await getDocs(maintenanceRequestsRef);
+        
+        requestsSnapshot.forEach((doc) => {
+          const request = doc.data();
+          const status = request.status?.toLowerCase();
+          
+          // Count ACTIVE maintenance requests (pending, in-progress, on-hold)
+          // DO NOT count completed/cancelled requests
+          if (status === 'pending' || 
+              status === 'in-progress' || 
+              status === 'on-hold') {
+            totalActiveMaintenance++;
+          }
+        });
+        
+        console.log(`Active maintenance: ${totalActiveMaintenance} (units + requests)`);
+        
+      } catch (error) {
+        console.log("No maintenance requests collection found");
+      }
+      
+      return totalActiveMaintenance;
+      
+    } catch (error) {
+      console.error("Error fetching maintenance data:", error);
+      return 0;
+    }
+  };
 
   const fetchStats = async () => {
     try {
       setLoading(true);
       
-      // Fetch properties from Firestore
-      const querySnapshot = await getDocs(collection(db, "properties"));
+      // Fetch properties
+      const propertiesSnapshot = await getDocs(collection(db, "properties"));
       const properties = [];
       
       let totalUnits = 0;
       let occupiedUnits = 0;
       let monthlyRevenue = 0;
-      let activeMaintenance = 0;
+      
+      // Fetch TOTAL active maintenance (units + requests)
+      const totalActiveMaintenance = await fetchTotalActiveMaintenance();
 
-      querySnapshot.forEach((doc) => {
+      propertiesSnapshot.forEach((doc) => {
         const property = doc.data();
         properties.push(property);
         
         // Calculate stats
         totalUnits += property.units || 0;
-        occupiedUnits += property.occupiedUnits || (property.status === "leased" ? property.units || 0 : 0);
-        monthlyRevenue += property.monthlyRevenue || (property.rentAmount || 0) * (property.units || 0);
         
-        // Count properties under maintenance
-        if (property.status === "maintenance") {
-          activeMaintenance += 1;
+        // Occupancy calculation
+        if (property.leasedCount !== undefined) {
+          occupiedUnits += property.leasedCount;
+        } else if (property.unitDetails?.leasedCount !== undefined) {
+          occupiedUnits += property.unitDetails.leasedCount;
+        } else if (property.occupiedUnits !== undefined) {
+          occupiedUnits += property.occupiedUnits;
+        } else if (property.occupied !== undefined) {
+          occupiedUnits += property.occupied;
+        } else if (property.leasedUnits !== undefined) {
+          occupiedUnits += property.leasedUnits;
+        } else {
+          occupiedUnits += property.status === "leased" ? property.units || 0 : 0;
         }
+        
+        // Monthly revenue
+        monthlyRevenue += property.monthlyRevenue || (property.rentAmount || 0) * (property.units || 0);
       });
 
-      // Calculate occupancy rate
       const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
       setStats({
@@ -70,7 +144,7 @@ const StatsGrid = () => {
         occupiedUnits,
         occupancyRate,
         monthlyRevenue,
-        activeMaintenance
+        activeMaintenance: totalActiveMaintenance // This is the combined count
       });
       
     } catch (error) {
@@ -138,7 +212,7 @@ const StatsGrid = () => {
         value={stats.activeMaintenance.toString()}
         icon={<FaTools />}
         color="orange"
-        description="Properties needing attention"
+        description="Units + Requests needing attention"
         alert={stats.activeMaintenance > 0}
       />
       

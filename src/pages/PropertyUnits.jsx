@@ -1,7 +1,8 @@
-// src/pages/PropertyUnits.jsx
+
+// src/pages/PropertyUnits.jsx - FIXED VERSION
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import "../styles/PropertyUnits.css";
@@ -22,7 +23,8 @@ import {
   FaExpand,
   FaUserPlus,
   FaChartLine,
-  FaBuilding
+  FaBuilding,
+  FaExclamationTriangle
 } from "react-icons/fa";
 
 const PropertyUnits = () => {
@@ -48,6 +50,73 @@ const PropertyUnits = () => {
     deposit: ""
   });
 
+  // Standardize status values - SAME AS IN Units.jsx
+  const standardizeStatus = (status) => {
+    if (!status) return "vacant";
+    const statusLower = status.toLowerCase();
+    
+    if (statusLower === "occupied" || statusLower === "rented" || statusLower === "active") {
+      return "leased";
+    }
+    if (statusLower === "available" || statusLower === "free") {
+      return "vacant";
+    }
+    if (statusLower === "repair" || statusLower === "under_repair") {
+      return "maintenance";
+    }
+    
+    return statusLower;
+  };
+
+  // Calculate unit counts - FIXED VERSION
+  const calculateUnitCounts = (unitsData) => {
+    let vacantCount = 0;
+    let leasedCount = 0;
+    let maintenanceCount = 0;
+    let unknownCount = 0;
+    
+    unitsData.forEach(unit => {
+      const status = (unit.status || '').toString().toLowerCase().trim();
+      const standardizedStatus = standardizeStatus(status);
+      
+      // Check if unit is leased based on status OR tenant info
+      if (standardizedStatus === 'leased') {
+        leasedCount++;
+      } 
+      else if (standardizedStatus === 'vacant') {
+        vacantCount++;
+      }
+      else if (standardizedStatus === 'maintenance') {
+        maintenanceCount++;
+      }
+      else if (!status) {
+        // If no status but has tenant info, it's leased
+        if (unit.tenantName || unit.tenantId || unit.leaseStart || unit.tenantPhone) {
+          leasedCount++;
+        } else {
+          vacantCount++;
+        }
+      }
+      else {
+        // Unknown status
+        unknownCount++;
+        console.warn(`Unit ${unit.unitId || unit.id} has unknown status: "${status}"`);
+        // Try to infer from tenant info
+        if (unit.tenantName || unit.tenantId || unit.leaseStart) {
+          leasedCount++;
+        } else {
+          vacantCount++;
+        }
+      }
+    });
+    
+    if (unknownCount > 0) {
+      console.log(`Found ${unknownCount} units with missing/unknown status`);
+    }
+    
+    return { vacantCount, leasedCount, maintenanceCount };
+  };
+
   // Fetch property and units
   useEffect(() => {
     fetchPropertyAndUnits();
@@ -56,35 +125,79 @@ const PropertyUnits = () => {
   const fetchPropertyAndUnits = async () => {
     try {
       setLoading(true);
+      console.log(`Fetching property ${id}...`);
+      
       const propertyRef = doc(db, "properties", id);
       const propertySnap = await getDoc(propertyRef);
       
       if (propertySnap.exists()) {
         const propertyData = propertySnap.data();
+        console.log(`Found property: ${propertyData.name || 'Unnamed'} | Units in property doc: ${propertyData.units || 0}`);
         
-        // Ensure unitDetails exists with defaults
-        const unitDetails = propertyData.unitDetails || {
-          totalUnits: propertyData.units || 1,
-          vacantCount: propertyData.units || 1,
-          leasedCount: 0,
-          maintenanceCount: 0,
-          occupancyRate: 0,
-          units: []
-        };
+        // Fetch units from subcollection
+        const unitsRef = collection(db, `properties/${id}/units`);
+        const unitsSnapshot = await getDocs(unitsRef);
+        const unitsData = [];
         
-        // If units array doesn't exist, create it
-        if (!unitDetails.units || unitDetails.units.length === 0) {
-          unitDetails.units = generateDefaultUnits(propertyData);
+        // DEBUG: Log all units and their statuses
+        console.log(`Units in subcollection: ${unitsSnapshot.size}`);
+        unitsSnapshot.forEach((unitDoc) => {
+          const unit = {
+            id: unitDoc.id,
+            ...unitDoc.data()
+          };
+          unitsData.push(unit);
+          console.log(`Unit ${unitDoc.id}: status="${unit.status}", tenantName="${unit.tenantName || 'none'}"`);
+        });
+        
+        // If no units in subcollection, create default units
+        if (unitsData.length === 0) {
+          console.log(`No units found in subcollection. Creating default units...`);
+          const defaultUnits = generateDefaultUnits(propertyData);
+          // Save default units to subcollection
+          for (const unit of defaultUnits) {
+            await addDoc(unitsRef, {
+              ...unit,
+              propertyId: id
+            });
+          }
+          setUnits(defaultUnits);
+          console.log(`Created ${defaultUnits.length} default units`);
+        } else {
+          setUnits(unitsData);
         }
+        
+        // Calculate actual counts from units - USING FIXED FUNCTION
+        const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(unitsData);
+        const totalUnits = unitsData.length || propertyData.units || 1;
+        const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
+        
+        console.log(`Counts for ${propertyData.name}: Vacant=${vacantCount}, Leased=${leasedCount}, Maintenance=${maintenanceCount}, Total=${totalUnits}`);
+        
+        // Calculate monthly revenue from leased units
+        const monthlyRevenue = unitsData
+          .filter(u => {
+            const status = standardizeStatus(u.status);
+            return status === 'leased' || (u.tenantName && !status);
+          })
+          .reduce((total, u) => total + (u.rentAmount || 0), 0);
         
         setProperty({
           id: propertySnap.id,
           ...propertyData,
-          unitDetails: unitDetails
+          unitDetails: {
+            totalUnits,
+            vacantCount,
+            leasedCount,
+            maintenanceCount,
+            occupancyRate,
+            units: unitsData
+          },
+          monthlyRevenue: monthlyRevenue,
+          totalTenants: leasedCount
         });
-        
-        setUnits(unitDetails.units);
       } else {
+        console.error(`Property ${id} not found in Firestore`);
         alert("Property not found");
         navigate("/properties");
       }
@@ -135,43 +248,55 @@ const PropertyUnits = () => {
   // Update unit status
   const handleStatusUpdate = async (unitIndex, newStatus) => {
     try {
-      const updatedUnits = [...units];
-      const unit = updatedUnits[unitIndex];
+      const unit = units[unitIndex];
+      const standardizedStatus = standardizeStatus(newStatus);
       
-      // Clear tenant info if changing from leased
-      if (unit.status === "leased" && newStatus !== "leased") {
-        unit.tenantId = null;
-        unit.tenantName = "";
-        unit.tenantPhone = "";
-        unit.tenantEmail = "";
-        unit.leaseStart = null;
-        unit.leaseEnd = null;
+      console.log(`Updating unit ${unit.unitNumber} status from "${unit.status}" to "${newStatus}" (standardized: "${standardizedStatus}")`);
+      
+      // Clear tenant info if changing from leased to non-leased
+      const updates = {
+        status: standardizedStatus,
+        updatedAt: new Date().toISOString()
+      };
+      
+      if (unit.status === "leased" && standardizedStatus !== "leased") {
+        updates.tenantId = null;
+        updates.tenantName = "";
+        updates.tenantPhone = "";
+        updates.tenantEmail = "";
+        updates.leaseStart = null;
+        updates.leaseEnd = null;
       }
       
-      // Update status
-      unit.status = newStatus;
-      unit.updatedAt = new Date().toISOString();
+      // Update unit document in subcollection
+      const unitRef = doc(db, `properties/${id}/units`, unit.id);
+      await updateDoc(unitRef, updates);
       
-      // Recalculate counts
-      const vacantCount = updatedUnits.filter(u => u.status === "vacant").length;
-      const leasedCount = updatedUnits.filter(u => u.status === "leased").length;
-      const maintenanceCount = updatedUnits.filter(u => u.status === "maintenance").length;
+      // Update local state
+      const updatedUnits = [...units];
+      updatedUnits[unitIndex] = { ...unit, ...updates, status: standardizedStatus };
+      
+      // Recalculate counts using FIXED function
+      const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
       const totalUnits = updatedUnits.length;
-      const occupancyRate = totalUnits > 0 ? (leasedCount / totalUnits) * 100 : 0;
+      const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
       
       // Calculate monthly revenue from leased units
       const monthlyRevenue = updatedUnits
-        .filter(u => u.status === "leased")
+        .filter(u => {
+          const status = standardizeStatus(u.status);
+          return status === 'leased' || (u.tenantName && !status);
+        })
         .reduce((total, u) => total + (u.rentAmount || 0), 0);
       
-      // Update Firestore
+      // Update property document with new counts
       const propertyRef = doc(db, "properties", id);
       await updateDoc(propertyRef, {
-        "unitDetails.units": updatedUnits,
         "unitDetails.vacantCount": vacantCount,
         "unitDetails.leasedCount": leasedCount,
         "unitDetails.maintenanceCount": maintenanceCount,
         "unitDetails.occupancyRate": occupancyRate,
+        "unitDetails.totalUnits": totalUnits,
         monthlyRevenue: monthlyRevenue,
         totalTenants: leasedCount,
         updatedAt: new Date()
@@ -183,17 +308,17 @@ const PropertyUnits = () => {
         ...prev,
         unitDetails: {
           ...prev.unitDetails,
-          units: updatedUnits,
           vacantCount,
           leasedCount,
           maintenanceCount,
-          occupancyRate
+          occupancyRate,
+          totalUnits
         },
         monthlyRevenue,
         totalTenants: leasedCount
       }));
       
-      alert(`Unit ${unit.unitNumber} status updated to ${newStatus}`);
+      alert(`Unit ${unit.unitNumber} status updated to ${standardizedStatus}`);
     } catch (error) {
       console.error("Error updating unit status:", error);
       alert("Failed to update unit status");
@@ -219,7 +344,7 @@ const PropertyUnits = () => {
     setShowAssignForm(true);
   };
 
-  // Handle tenant form submit
+  // Handle tenant form submit - FIXED: Creates tenant ONLY in tenants collection
   const handleTenantSubmit = async (e) => {
     e.preventDefault();
     
@@ -229,80 +354,99 @@ const PropertyUnits = () => {
     }
     
     try {
-      const updatedUnits = [...units];
-      const unit = updatedUnits[selectedUnitIndex];
+      const unit = units[selectedUnitIndex];
+      let tenantDocId = null;
       
-      // Update unit with tenant info
-      unit.status = "leased";
-      unit.tenantName = tenantForm.name;
-      unit.tenantPhone = tenantForm.phone;
-      unit.tenantEmail = tenantForm.email;
-      unit.leaseStart = tenantForm.leaseStart;
-      unit.leaseEnd = tenantForm.leaseEnd;
-      unit.rentAmount = Number(tenantForm.rentAmount) || unit.rentAmount;
-      unit.deposit = Number(tenantForm.deposit) || 0;
-      unit.updatedAt = new Date().toISOString();
+      // Update unit document in subcollection
+      const unitRef = doc(db, `properties/${id}/units`, unit.id);
+      const unitUpdates = {
+        status: "leased",
+        tenantName: tenantForm.name,
+        tenantPhone: tenantForm.phone,
+        tenantEmail: tenantForm.email,
+        leaseStart: tenantForm.leaseStart,
+        leaseEnd: tenantForm.leaseEnd,
+        rentAmount: Number(tenantForm.rentAmount) || unit.rentAmount,
+        deposit: Number(tenantForm.deposit) || 0,
+        updatedAt: new Date().toISOString()
+      };
       
-      // Recalculate counts
-      const vacantCount = updatedUnits.filter(u => u.status === "vacant").length;
-      const leasedCount = updatedUnits.filter(u => u.status === "leased").length;
-      const maintenanceCount = updatedUnits.filter(u => u.status === "maintenance").length;
-      const totalUnits = updatedUnits.length;
-      const occupancyRate = totalUnits > 0 ? (leasedCount / totalUnits) * 100 : 0;
+      await updateDoc(unitRef, unitUpdates);
       
-      // Calculate monthly revenue
-      const monthlyRevenue = updatedUnits
-        .filter(u => u.status === "leased")
-        .reduce((total, u) => total + (u.rentAmount || 0), 0);
-      
-      // Update Firestore
-      const propertyRef = doc(db, "properties", id);
-      await updateDoc(propertyRef, {
-        "unitDetails.units": updatedUnits,
-        "unitDetails.vacantCount": vacantCount,
-        "unitDetails.leasedCount": leasedCount,
-        "unitDetails.maintenanceCount": maintenanceCount,
-        "unitDetails.occupancyRate": occupancyRate,
-        monthlyRevenue: monthlyRevenue,
-        totalTenants: leasedCount,
-        updatedAt: new Date()
-      });
-      
-      // Also create tenant record in users collection
+      // Create tenant record in TENANTS collection only
       try {
         const tenantData = {
-          name: tenantForm.name,
+          fullName: tenantForm.name,
           phone: tenantForm.phone,
           email: tenantForm.email || "",
           role: "tenant",
           propertyId: id,
           propertyName: property?.name,
-          unitId: unit.unitId,
+          unitId: unit.unitId || unit.id,
           unitNumber: unit.unitNumber,
-          rentAmount: unit.rentAmount,
-          leaseStart: tenantForm.leaseStart,
-          leaseEnd: tenantForm.leaseEnd,
+          monthlyRent: Number(tenantForm.rentAmount) || unit.rentAmount,
+          leaseStart: tenantForm.leaseStart || new Date().toISOString(),
+          leaseEnd: tenantForm.leaseEnd || "",
           status: "active",
+          moveInDate: new Date().toISOString(),
+          securityDeposit: Number(tenantForm.deposit) || 0,
+          balance: 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
         
-        // Add tenant to users collection
-        const usersRef = collection(db, "users");
-        const tenantRef = await addDoc(usersRef, tenantData);
+        // Add tenant to TENANTS collection (not users collection)
+        const tenantsRef = collection(db, "tenants");
+        const tenantDocRef = await addDoc(tenantsRef, tenantData);
+        tenantDocId = tenantDocRef.id;
         
-        // Update unit with tenant ID
-        unit.tenantId = tenantRef.id;
-        
-        // Update property again with tenant ID
-        await updateDoc(propertyRef, {
-          "unitDetails.units": updatedUnits
+        // Update unit with tenant ID from tenants collection
+        await updateDoc(unitRef, { 
+          tenantId: tenantDocId,
+          ...unitUpdates
         });
         
-        console.log("✅ Tenant created with ID:", tenantRef.id);
+        console.log("✅ Tenant created in tenants collection with ID:", tenantDocId);
+        
       } catch (tenantError) {
-        console.log("⚠️ Could not create tenant record, continuing...", tenantError);
+        console.error("Error creating tenant record:", tenantError);
+        // Continue even if tenant creation fails
       }
+      
+      // Update local state
+      const updatedUnits = [...units];
+      updatedUnits[selectedUnitIndex] = { 
+        ...unit, 
+        ...unitUpdates, 
+        status: "leased",
+        tenantId: tenantDocId || unit.id + "-tenant"
+      };
+      
+      // Recalculate counts using FIXED function
+      const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
+      const totalUnits = updatedUnits.length;
+      const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
+      
+      // Calculate monthly revenue
+      const monthlyRevenue = updatedUnits
+        .filter(u => {
+          const status = standardizeStatus(u.status);
+          return status === 'leased' || (u.tenantName && !status);
+        })
+        .reduce((total, u) => total + (u.rentAmount || 0), 0);
+      
+      // Update property document with new counts
+      const propertyRef = doc(db, "properties", id);
+      await updateDoc(propertyRef, {
+        "unitDetails.vacantCount": vacantCount,
+        "unitDetails.leasedCount": leasedCount,
+        "unitDetails.maintenanceCount": maintenanceCount,
+        "unitDetails.occupancyRate": occupancyRate,
+        "unitDetails.totalUnits": totalUnits,
+        monthlyRevenue: monthlyRevenue,
+        totalTenants: leasedCount,
+        updatedAt: new Date()
+      });
       
       // Update local state
       setUnits(updatedUnits);
@@ -310,11 +454,11 @@ const PropertyUnits = () => {
         ...prev,
         unitDetails: {
           ...prev.unitDetails,
-          units: updatedUnits,
           vacantCount,
           leasedCount,
           maintenanceCount,
-          occupancyRate
+          occupancyRate,
+          totalUnits
         },
         monthlyRevenue,
         totalTenants: leasedCount
@@ -333,6 +477,7 @@ const PropertyUnits = () => {
       });
       
       alert(`✅ Tenant ${tenantForm.name} assigned to Unit ${unit.unitNumber}`);
+      
     } catch (error) {
       console.error("Error assigning tenant:", error);
       alert("Failed to assign tenant");
@@ -346,15 +491,17 @@ const PropertyUnits = () => {
     alert("Edit feature coming soon! For now, use the status dropdown.");
   };
 
-  // Filter units based on status
+  // Filter units based on status - USING STANDARDIZED STATUS
   const filteredUnits = units.filter(unit => {
+    const unitStatus = standardizeStatus(unit.status);
     if (filter === "all") return true;
-    return unit.status === filter;
+    return unitStatus === filter;
   });
 
-  // Get status icon
+  // Get status icon - USING STANDARDIZED STATUS
   const getStatusIcon = (status) => {
-    switch(status) {
+    const standardizedStatus = standardizeStatus(status);
+    switch(standardizedStatus) {
       case "vacant": return <FaDoorClosed />;
       case "leased": return <FaCheckCircle />;
       case "maintenance": return <FaTools />;
@@ -362,9 +509,10 @@ const PropertyUnits = () => {
     }
   };
 
-  // Get status color class
+  // Get status color class - USING STANDARDIZED STATUS
   const getStatusClass = (status) => {
-    switch(status) {
+    const standardizedStatus = standardizeStatus(status);
+    switch(standardizedStatus) {
       case "vacant": return "vacant";
       case "leased": return "leased";
       case "maintenance": return "maintenance";
@@ -423,13 +571,22 @@ const PropertyUnits = () => {
           <p className="property-address">
             <FaBuilding /> {property.address}, {property.city}
           </p>
+          {property.unitDetails && (
+            <div className="header-debug-info">
+              <small>
+                <FaExclamationTriangle /> Counts: {property.unitDetails.vacantCount} vacant, 
+                {property.unitDetails.leasedCount} leased, 
+                {property.unitDetails.maintenanceCount} maintenance
+              </small>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Stats Summary */}
       <div className="units-summary">
         <div className="summary-card total">
-          <h3>{property.units || 1}</h3>
+          <h3>{property.unitDetails?.totalUnits || property.units || 1}</h3>
           <p>Total Units</p>
         </div>
         <div className="summary-card vacant">
@@ -452,6 +609,30 @@ const PropertyUnits = () => {
           <h3>{property.unitDetails?.occupancyRate?.toFixed(1) || 0}%</h3>
           <p>Occupancy Rate</p>
         </div>
+      </div>
+
+      {/* Status Standardization Notice */}
+      <div className="status-standardization-notice">
+        <FaExclamationTriangle className="notice-icon" />
+        <div className="notice-content">
+          <strong>Status Standardization Active:</strong> 
+          <span className="status-mappings">
+            "occupied", "rented", "active" → <span className="status-tag leased">LEASED</span>
+          </span>
+          <span className="status-mappings">
+            "available", "free" → <span className="status-tag vacant">VACANT</span>
+          </span>
+          <span className="status-mappings">
+            "repair", "under_repair" → <span className="status-tag maintenance">MAINTENANCE</span>
+          </span>
+        </div>
+        <button 
+          className="refresh-btn"
+          onClick={fetchPropertyAndUnits}
+          title="Refresh data"
+        >
+          ↻ Refresh
+        </button>
       </div>
 
       {/* Filter Controls */}
@@ -602,129 +783,159 @@ const PropertyUnits = () => {
             <p>Try changing your filter</p>
           </div>
         ) : (
-          filteredUnits.map((unit, index) => (
-            <div key={index} className={`unit-card ${getStatusClass(unit.status)}`}>
-              <div className="unit-header">
-                <div className="unit-title-section">
-                  <h3 className="unit-title">{unit.unitName}</h3>
-                  <span className="unit-id">{unit.unitId}</span>
-                </div>
-                <span className={`unit-status-badge ${getStatusClass(unit.status)}`}>
-                  {getStatusIcon(unit.status)}
-                  <span>{unit.status.toUpperCase()}</span>
-                </span>
-              </div>
-              
-              <div className="unit-details">
-                <div className="detail-row">
-                  <span className="detail-label">Unit Number:</span>
-                  <span className="detail-value">{unit.unitNumber}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Rent Amount:</span>
-                  <span className="detail-value rent">
-                    <FaDollarSign /> {formatCurrency(unit.rentAmount)}/month
-                  </span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Size:</span>
-                  <span className="detail-value">{unit.size || "N/A"}</span>
-                </div>
-                {unit.amenities && unit.amenities.length > 0 && (
-                  <div className="detail-row">
-                    <span className="detail-label">Amenities:</span>
-                    <span className="detail-value amenities">
-                      {unit.amenities.slice(0, 2).join(', ')}
-                      {unit.amenities.length > 2 ? '...' : ''}
+          filteredUnits.map((unit, index) => {
+            const standardizedStatus = standardizeStatus(unit.status);
+            const originalStatus = unit.status;
+            const isStatusStandardized = originalStatus && standardizedStatus !== originalStatus.toLowerCase();
+            
+            return (
+              <div key={index} className={`unit-card ${getStatusClass(unit.status)}`}>
+                <div className="unit-header">
+                  <div className="unit-title-section">
+                    <h3 className="unit-title">{unit.unitName}</h3>
+                    <span className="unit-id">{unit.unitId}</span>
+                  </div>
+                  <div className="unit-status-container">
+                    <span className={`unit-status-badge ${getStatusClass(unit.status)}`}>
+                      {getStatusIcon(unit.status)}
+                      <span>{standardizedStatus.toUpperCase()}</span>
                     </span>
+                    {isStatusStandardized && (
+                      <div className="original-status-note" title={`Original status: "${originalStatus}"`}>
+                        <FaExclamationTriangle /> Standardized
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Tenant Info (if leased) */}
-              {unit.status === "leased" && unit.tenantName && (
-                <div className="tenant-info">
-                  <h4><FaUser /> Tenant Details</h4>
-                  <div className="detail-row">
-                    <span className="detail-label">Name:</span>
-                    <span className="detail-value tenant-name">{unit.tenantName}</span>
-                  </div>
-                  {unit.tenantPhone && (
-                    <div className="detail-row">
-                      <span className="detail-label">Phone:</span>
-                      <span className="detail-value">
-                        <FaPhone /> {unit.tenantPhone}
-                      </span>
-                    </div>
-                  )}
-                  {unit.leaseStart && (
-                    <div className="detail-row">
-                      <span className="detail-label">Lease Period:</span>
-                      <span className="detail-value">
-                        <FaCalendar /> {formatDate(unit.leaseStart)} to {formatDate(unit.leaseEnd)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Unit Notes */}
-              {unit.notes && (
-                <div className="unit-notes">
-                  <span className="notes-label">Notes:</span>
-                  <p className="notes-content">{unit.notes}</p>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="unit-actions">
-                <div className="status-control">
-                  <span className="action-label">Change Status:</span>
-                  <select
-                    value={unit.status}
-                    onChange={(e) => handleStatusUpdate(index, e.target.value)}
-                    className="status-select"
-                  >
-                    <option value="vacant">Vacant</option>
-                    <option value="leased">Leased</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
                 </div>
                 
-                <div className="action-buttons">
-                  {unit.status === "vacant" && (
-                    <button 
-                      className="action-btn assign-btn"
-                      onClick={() => handleAssignTenant(index)}
-                    >
-                      <FaUserPlus /> Assign Tenant
-                    </button>
+                <div className="unit-details">
+                  <div className="detail-row">
+                    <span className="detail-label">Unit Number:</span>
+                    <span className="detail-value">{unit.unitNumber}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Rent Amount:</span>
+                    <span className="detail-value rent">
+                      <FaDollarSign /> {formatCurrency(unit.rentAmount)}/month
+                    </span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Size:</span>
+                    <span className="detail-value">{unit.size || "N/A"}</span>
+                  </div>
+                  {unit.amenities && unit.amenities.length > 0 && (
+                    <div className="detail-row">
+                      <span className="detail-label">Amenities:</span>
+                      <span className="detail-value amenities">
+                        {unit.amenities.slice(0, 2).join(', ')}
+                        {unit.amenities.length > 2 ? '...' : ''}
+                      </span>
+                    </div>
                   )}
+                </div>
+
+                {/* Tenant Info (if leased) */}
+                {standardizedStatus === "leased" && (unit.tenantName || unit.tenantId || unit.leaseStart) && (
+                  <div className="tenant-info">
+                    <h4><FaUser /> Tenant Details</h4>
+                    {unit.tenantName && (
+                      <div className="detail-row">
+                        <span className="detail-label">Name:</span>
+                        <span className="detail-value tenant-name">{unit.tenantName}</span>
+                      </div>
+                    )}
+                    {unit.tenantPhone && (
+                      <div className="detail-row">
+                        <span className="detail-label">Phone:</span>
+                        <span className="detail-value">
+                          <FaPhone /> {unit.tenantPhone}
+                        </span>
+                      </div>
+                    )}
+                    {unit.tenantEmail && (
+                      <div className="detail-row">
+                        <span className="detail-label">Email:</span>
+                        <span className="detail-value">{unit.tenantEmail}</span>
+                      </div>
+                    )}
+                    {unit.leaseStart && (
+                      <div className="detail-row">
+                        <span className="detail-label">Lease Period:</span>
+                        <span className="detail-value">
+                          <FaCalendar /> {formatDate(unit.leaseStart)} to {formatDate(unit.leaseEnd)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Unit Notes */}
+                {unit.notes && (
+                  <div className="unit-notes">
+                    <span className="notes-label">Notes:</span>
+                    <p className="notes-content">{unit.notes}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="unit-actions">
+                  <div className="status-control">
+                    <span className="action-label">Change Status:</span>
+                    <select
+                      value={standardizedStatus}
+                      onChange={(e) => handleStatusUpdate(index, e.target.value)}
+                      className="status-select"
+                    >
+                      <option value="vacant">Vacant</option>
+                      <option value="leased">Leased</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
                   
-                  <button 
-                    className="action-btn edit-btn"
-                    onClick={() => handleEditUnit(index)}
-                  >
-                    <FaEdit /> Edit
-                  </button>
-                  
-                  <button 
-                    className="action-btn view-btn"
-                    onClick={() => alert(`View unit ${unit.unitNumber} details`)}
-                  >
-                    <FaExpand /> Details
-                  </button>
+                  <div className="action-buttons">
+                    {standardizedStatus === "vacant" && (
+                      <button 
+                        className="action-btn assign-btn"
+                        onClick={() => handleAssignTenant(index)}
+                      >
+                        <FaUserPlus /> Assign Tenant
+                      </button>
+                    )}
+                    
+                    <button 
+                      className="action-btn edit-btn"
+                      onClick={() => handleEditUnit(index)}
+                    >
+                      <FaEdit /> Edit
+                    </button>
+                    
+                    <button 
+                      className="action-btn view-btn"
+                      onClick={() => alert(`View unit ${unit.unitNumber} details`)}
+                    >
+                      <FaExpand /> Details
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Status Debug Info */}
+                {isStatusStandardized && (
+                  <div className="unit-debug-info">
+                    <small>
+                      <FaExclamationTriangle /> Original status: <strong>"{originalStatus}"</strong> → Standardized to: <strong>"{standardizedStatus}"</strong>
+                    </small>
+                  </div>
+                )}
+                
+                {/* Last Updated */}
+                <div className="unit-footer">
+                  <span className="updated-text">
+                    Updated: {formatDate(unit.updatedAt)}
+                  </span>
                 </div>
               </div>
-              
-              {/* Last Updated */}
-              <div className="unit-footer">
-                <span className="updated-text">
-                  Updated: {formatDate(unit.updatedAt)}
-                </span>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
       

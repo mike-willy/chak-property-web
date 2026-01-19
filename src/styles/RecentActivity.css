@@ -1,25 +1,49 @@
-.recent-activity-container {
+/* styles/RecentActivity.css */
+.recent-activity {
   background: white;
   border-radius: 16px;
   padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  height:100%; /* Changed from min-content to 100% */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  height: 100%;
   display: flex;
   flex-direction: column;
+  border: 1px solid #f1f5f9;
 }
 
-.recent-activity-header {
+.activity-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }
 
-.recent-activity-header h3 {
+.activity-header h3 {
   font-size: 18px;
   font-weight: 600;
   color: #1e293b;
   margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refresh-btn {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn:hover {
+  background: #f8fafc;
 }
 
 .view-all-btn {
@@ -31,20 +55,20 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .view-all-btn:hover {
   background: #f8fafc;
-  border-color: #cbd5e1;
 }
 
 .activity-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  flex: 1; /* Added to fill remaining space */
-  overflow-y: auto; /* Scroll if content is too long */
+  flex: 1;
 }
 
 .activity-item {
@@ -60,7 +84,7 @@
   padding-bottom: 0;
 }
 
-.activity-icon-container {
+.activity-icon {
   width: 36px;
   height: 36px;
   border-radius: 8px;
@@ -94,4 +118,43 @@
 .activity-time {
   font-size: 12px;
   color: #94a3b8;
+}
+
+/* Loading state */
+.activity-item.loading .activity-icon {
+  background: #f1f5f9;
+}
+
+.activity-item.loading .activity-title {
+  width: 120px;
+  height: 14px;
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.activity-item.loading .activity-time {
+  width: 60px;
+  height: 12px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.empty-state small {
+  font-size: 12px;
 }

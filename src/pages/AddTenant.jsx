@@ -1,4 +1,4 @@
-// src/pages/AddTenant.jsx - FIXED WITH TWO-ROW LAYOUT
+// src/pages/AddTenant.jsx - FIXED VERSION
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
 import { 
@@ -11,7 +11,8 @@ import {
   collection as firestoreCollection,
   getDocs,
   query,
-  where
+  where,
+  increment
 } from "firebase/firestore";
 import { useNavigate, useLocation } from "react-router-dom";
 import { 
@@ -58,7 +59,7 @@ const AddTenant = () => {
   const [error, setError] = useState(null);
   const [unitRef, setUnitRef] = useState(null);
   
-  // Rejection state - SIMPLIFIED
+  // Rejection state
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejecting, setIsRejecting] = useState(false);
 
@@ -108,7 +109,7 @@ const AddTenant = () => {
   // Tenant data state
   const [tenantData, setTenantData] = useState(initialTenantData);
 
-  // Calculate total move-in cost (CORRECT VERSION)
+  // Calculate total move-in cost
   const calculateTotalMoveInCost = useCallback(() => {
     const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
     const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
@@ -149,19 +150,55 @@ const AddTenant = () => {
     }, 100);
   }, [initialTenantData, navigate]);
 
-  // Handle cancel with confirmation
+  // Handle cancel
   const handleCancel = () => {
     if (window.confirm("Are you sure you want to cancel? Any unsaved changes will be lost.")) {
       navigate("/applications", { replace: true });
     }
   };
 
-  // Find unit document
+  // FIND UNIT DOCUMENT - FIXED VERSION
   const findUnitDocument = useCallback(async (unitId, propertyId) => {
-    if (!unitId) return null;
+    if (!unitId || !propertyId) return null;
     
     try {
-      // Try 1: Check in separate units collection
+      // FIRST: Check in property subcollection (properties/{propertyId}/units)
+      try {
+        const unitDocRef = doc(db, "properties", propertyId, "units", unitId);
+        const unitDoc = await getDoc(unitDocRef);
+        
+        if (unitDoc.exists()) {
+          return {
+            ref: unitDocRef,
+            data: unitDoc.data(),
+            collectionType: "property_subcollection"
+          };
+        }
+      } catch (error) {
+        console.log("Unit not found in subcollection:", error.message);
+      }
+      
+      // SECOND: Search for unit by unitNumber in property subcollection
+      if (tenantData.unitNumber) {
+        try {
+          const unitsRef = collection(db, `properties/${propertyId}/units`);
+          const unitsQuery = query(unitsRef, where("unitNumber", "==", tenantData.unitNumber));
+          const querySnapshot = await getDocs(unitsQuery);
+          
+          if (!querySnapshot.empty) {
+            const unitDoc = querySnapshot.docs[0];
+            return {
+              ref: doc(db, "properties", propertyId, "units", unitDoc.id),
+              data: unitDoc.data(),
+              collectionType: "property_subcollection_by_unitNumber"
+            };
+          }
+        } catch (error) {
+          console.log("Error searching unit by unitNumber:", error.message);
+        }
+      }
+      
+      // THIRD: Check separate units collection (legacy fallback)
       try {
         const unitDocRef = doc(db, "units", unitId);
         const unitDoc = await getDoc(unitDocRef);
@@ -170,52 +207,11 @@ const AddTenant = () => {
           return {
             ref: unitDocRef,
             data: unitDoc.data(),
-            collectionType: "units"
+            collectionType: "units_legacy"
           };
         }
       } catch (error) {
         console.log("Unit not found in separate collection:", error.message);
-      }
-      
-      // Try 2: Check in property subcollection
-      if (propertyId) {
-        try {
-          const unitDocRef = doc(db, "properties", propertyId, "units", unitId);
-          const unitDoc = await getDoc(unitDocRef);
-          
-          if (unitDoc.exists()) {
-            return {
-              ref: unitDocRef,
-              data: unitDoc.data(),
-              collectionType: "property_subcollection"
-            };
-          }
-        } catch (error) {
-          console.log("Unit not found in property subcollection:", error.message);
-        }
-      }
-      
-      // Try 3: Search for unit by unitNumber
-      if (propertyId && tenantData.unitNumber) {
-        try {
-          const unitsQuery = query(
-            firestoreCollection(db, "units"),
-            where("propertyId", "==", propertyId),
-            where("unitNumber", "==", tenantData.unitNumber)
-          );
-          
-          const querySnapshot = await getDocs(unitsQuery);
-          if (!querySnapshot.empty) {
-            const unitDoc = querySnapshot.docs[0];
-            return {
-              ref: doc(db, "units", unitDoc.id),
-              data: unitDoc.data(),
-              collectionType: "units_by_unitNumber"
-            };
-          }
-        } catch (error) {
-          console.log("Error searching unit by unitNumber:", error.message);
-        }
       }
       
       return null;
@@ -336,6 +332,46 @@ const AddTenant = () => {
     }
   }, []);
 
+  // Update property unit counts
+  const updatePropertyUnitCounts = async (propertyId) => {
+    try {
+      // Fetch all units for this property to recalculate counts
+      const unitsRef = collection(db, `properties/${propertyId}/units`);
+      const unitsSnapshot = await getDocs(unitsRef);
+      
+      let vacantCount = 0;
+      let leasedCount = 0;
+      let maintenanceCount = 0;
+      
+      unitsSnapshot.forEach((doc) => {
+        const unit = doc.data();
+        const status = unit.status?.toLowerCase() || "vacant";
+        
+        if (status === "vacant") vacantCount++;
+        else if (status === "leased") leasedCount++;
+        else if (status === "maintenance") maintenanceCount++;
+      });
+      
+      const totalUnits = unitsSnapshot.size;
+      const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
+      
+      const propertyRef = doc(db, "properties", propertyId);
+      await updateDoc(propertyRef, {
+        "unitDetails.vacantCount": vacantCount,
+        "unitDetails.leasedCount": leasedCount,
+        "unitDetails.maintenanceCount": maintenanceCount,
+        "unitDetails.occupancyRate": occupancyRate,
+        "unitDetails.totalUnits": totalUnits,
+        updatedAt: new Date()
+      });
+      
+      console.log("Updated property counts:", { vacantCount, leasedCount, maintenanceCount, occupancyRate });
+      
+    } catch (error) {
+      console.error("Error updating property counts:", error);
+    }
+  };
+
   useEffect(() => {
     const savedAppId = localStorage.getItem('currentApplication');
     const appIdToUse = applicationId || savedAppId;
@@ -413,7 +449,7 @@ const AddTenant = () => {
     }).format(amount || 0);
   };
 
-  // Format date from Firestore Timestamp or string
+  // Format date
   const formatDate = (dateInput) => {
     if (!dateInput) return "Not specified";
     
@@ -507,7 +543,7 @@ const AddTenant = () => {
     }
   };
 
-  // Handle approve tenant
+  // Handle approve tenant - FIXED VERSION
   const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -519,12 +555,13 @@ const AddTenant = () => {
         return;
       }
 
+      // Check if unit is already leased
       if (unitRef) {
         const unitDoc = await getDoc(unitRef);
         if (unitDoc.exists()) {
           const unitData = unitDoc.data();
-          if (unitData.status === "occupied") {
-            alert("This unit is already occupied. Please select another unit.");
+          if (unitData.status === "leased") {
+            alert("This unit is already leased to another tenant. Please select another unit.");
             setLoading(false);
             return;
           }
@@ -615,21 +652,35 @@ const AddTenant = () => {
 
       const tenantRef = await addDoc(collection(db, "tenants"), tenantRecord);
 
+      // UPDATE UNIT STATUS - FIXED
       if (unitRef) {
         try {
           await updateDoc(unitRef, {
-            status: "occupied",
+            status: "leased", // CHANGED FROM "occupied" TO "leased"
             tenantId: tenantRef.id,
             tenantName: tenantData.fullName,
+            tenantEmail: tenantData.email,
+            tenantPhone: tenantData.phone,
+            leaseStart: leaseStartDate,
+            leaseEnd: leaseEndDate,
             occupiedAt: Timestamp.now(),
             rentAmount: parseFloat(tenantData.monthlyRent) || 0,
-            lastRentIncrease: Timestamp.now()
+            lastRentIncrease: Timestamp.now(),
+            updatedAt: Timestamp.now()
           });
+          
+          // Update property unit counts
+          await updatePropertyUnitCounts(tenantData.propertyId);
+          
         } catch (updateError) {
-          console.warn("Could not update unit status:", updateError.message);
+          console.error("Error updating unit status:", updateError);
+          alert("Tenant created but unit status update failed. Please update manually.");
         }
+      } else {
+        console.warn("Unit reference not found, unit status not updated");
       }
 
+      // Update application status
       if (tenantData.applicationId) {
         await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
           status: "approved",
@@ -949,11 +1000,9 @@ const AddTenant = () => {
             </div>
           </div>
 
-          {/* FORM ACTIONS - UPDATED FOR TWO-ROW LAYOUT */}
+          {/* FORM ACTIONS */}
           <div className="tenant-form-actions">
-            {/* First line: Buttons only */}
             <div className="tenant-form-buttons-row">
-              {/* Cancel button on left side */}
               <button 
                 type="button" 
                 className="tenant-form-btn-cancel" 
@@ -963,7 +1012,6 @@ const AddTenant = () => {
                 <FaTimes /> Cancel
               </button>
               
-              {/* Approve and Reject buttons on right side */}
               <div className="tenant-form-button-group">
                 <button 
                   type="button" 
@@ -1005,7 +1053,6 @@ const AddTenant = () => {
               </div>
             </div>
             
-            {/* Second line: Info box only - This goes BELOW the buttons */}
             <div className="tenant-form-info-row">
               <div className="tenant-form-info-box">
                 <FaInfoCircle />
@@ -1029,7 +1076,7 @@ const AddTenant = () => {
             <div className="tenant-form-warning">
               <FaExclamationTriangle /> 
               <strong>Warning:</strong> Unit document ({tenantData.unitId}) not found in database. 
-              The tenant will be created but the unit status will not be updated to "occupied".
+              The tenant will be created but the unit status will not be updated to "leased".
               Please manually update the unit status after approval.
             </div>
           )}
