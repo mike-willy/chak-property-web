@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useContext } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   FaTachometerAlt,
   FaHome,
@@ -11,15 +11,22 @@ import {
   FaCamera,
   FaClipboardList,
   FaEnvelope,
-  FaBars,
-  FaTimes,
+  FaBuilding,
+  FaChartBar,
+  FaChartLine,
+  FaChartPie,
+  FaChevronDown,
+  FaChevronRight,
+  FaFileInvoiceDollar,
+  FaPercentage,
+  FaUserClock,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { auth, db, storage } from "../pages/firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { useSidebar } from "./DashboardLayout"; // Import the context
+import { useSidebar } from "./DashboardLayout";
 import "../styles/sidebar.css";
 
 const Sidebar = () => {
@@ -29,11 +36,12 @@ const Sidebar = () => {
   const [uploading, setUploading] = useState(false);
   const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
   const [pendingMaintenanceCount, setPendingMaintenanceCount] = useState(0);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { isSidebarExpanded, toggleSidebar } = useSidebar(); // Get from context
+  const { isSidebarExpanded, toggleSidebar } = useSidebar();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -54,6 +62,13 @@ const Sidebar = () => {
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  // Auto-expand analytics if on analytics page
+  useEffect(() => {
+    if (location.pathname.startsWith('/analytics')) {
+      setAnalyticsOpen(true);
+    }
+  }, [location.pathname]);
 
   const fetchUserData = async (userId) => {
     try {
@@ -142,9 +157,15 @@ const Sidebar = () => {
     return getUserName().charAt(0).toUpperCase();
   };
 
+  const toggleAnalytics = () => {
+    setAnalyticsOpen(!analyticsOpen);
+  };
+
+  // Main menu items
   const menuItems = [
     { icon: <FaTachometerAlt />, label: "Dashboard", path: "/dashboard" },
     { icon: <FaHome />, label: "Properties", path: "/properties" },
+    { icon: <FaBuilding />, label: "Units", path: "/units" },
     { icon: <FaUsers />, label: "Tenants", path: "/tenants" },
     { 
       icon: <FaClipboardList />, 
@@ -163,23 +184,42 @@ const Sidebar = () => {
     { icon: <FaMoneyBillWave />, label: "Finance", path: "/finance" },
   ];
 
+  // Analytics sub-items
+  const analyticsSubItems = [
+    { 
+      icon: <FaChartLine />, 
+      label: "Rent Collection", 
+      path: "/analytics/rent",
+      description: "Track rent payment trends and collection rates"
+    },
+    { 
+      icon: <FaPercentage />, 
+      label: "Vacancy Rates", 
+      path: "/analytics/vacancy",
+      description: "Monitor occupancy and vacancy trends"
+    },
+    { 
+      icon: <FaUserClock />, 
+      label: "Tenant Behavior", 
+      path: "/analytics/tenants",
+      description: "Analyze tenant payment patterns and behavior"
+    },
+    
+  ];
+
   const systemItems = [
     { icon: <FaCog />, label: "Settings", path: "/settings" },
     { icon: <FaLifeRing />, label: "Support", path: "/support" },
   ];
 
   const isActive = (path) => {
-    return (
-      location.pathname === path ||
-      location.pathname.startsWith(path + "/")
-    );
+    return location.pathname === path || location.pathname.startsWith(path + "/");
   };
+
+  const isAnalyticsActive = analyticsSubItems.some(item => isActive(item.path));
 
   return (
     <div className={`sidebar ${isSidebarExpanded ? "" : "collapsed"}`}>
-      {/* TOGGLE BUTTON */}
-  
-
       {/* PROFILE */}
       <div className="sidebar-profile">
         {loading ? (
@@ -260,6 +300,66 @@ const Sidebar = () => {
               </div>
             </li>
           ))}
+
+          {/* ANALYTICS SECTION WITH DROPDOWN */}
+          <li 
+            className={`sidebar-item analytics-parent ${isAnalyticsActive ? 'active-parent' : ''}`}
+            onClick={toggleAnalytics}
+          >
+            <div className="sidebar-item-content">
+              <FaChartBar /> 
+              {isSidebarExpanded && (
+                <>
+                  <span>Analytics & Reports</span>
+                  <span className="chevron-icon">
+                    {analyticsOpen ? <FaChevronDown /> : <FaChevronRight />}
+                  </span>
+                </>
+              )}
+            </div>
+          </li>
+
+          {/* ANALYTICS SUB-ITEMS */}
+          {analyticsOpen && isSidebarExpanded && (
+            <ul className="sidebar-submenu">
+              {analyticsSubItems.map((item, index) => (
+                <li
+                  key={index}
+                  className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
+                  onClick={() => navigate(item.path)}
+                  title={item.description}
+                >
+                  <div className="sidebar-subitem-content">
+                    {item.icon}
+                    <div className="subitem-text">
+                      <span className="subitem-label">{item.label}</span>
+                      {isSidebarExpanded && (
+                        <span className="subitem-description">{item.description}</span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* If sidebar is collapsed, show analytics sub-items as hover tooltips or separate */}
+          {!isSidebarExpanded && analyticsOpen && (
+            <div className="collapsed-submenu">
+              {analyticsSubItems.map((item, index) => (
+                <li
+                  key={index}
+                  className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
+                  onClick={() => navigate(item.path)}
+                  title={`${item.label}: ${item.description}`}
+                >
+                  <div className="sidebar-subitem-content">
+                    {item.icon}
+                  </div>
+                </li>
+              ))}
+            </div>
+          )}
         </ul>
 
         {/* SYSTEM */}

@@ -553,3 +553,126 @@
     padding: 8px 0 60px 0 !important;
   }
 }
+
+/* Add these styles to your existing sidebar.css */
+
+/* Analytics parent item */
+.analytics-parent {
+  position: relative;
+}
+
+.analytics-parent .chevron-icon {
+  margin-left: auto;
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
+}
+
+.analytics-parent.active-parent {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid #3b82f6;
+}
+
+/* Submenu styles */
+.sidebar-submenu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-left: 3px solid #e5e7eb;
+  margin-left: 1.5rem;
+}
+
+.sidebar-subitem {
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #4b5563;
+}
+
+.sidebar-subitem:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+  color: #3b82f6;
+}
+
+.sidebar-subitem.active {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border-left: 2px solid #3b82f6;
+}
+
+.sidebar-subitem-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.subitem-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.subitem-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.subitem-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.1rem;
+  line-height: 1.2;
+}
+
+/* Collapsed sidebar submenu */
+.collapsed-submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  background: white;
+  min-width: 200px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  z-index: 1000;
+  display: none;
+}
+
+.sidebar-item.analytics-parent:hover + .collapsed-submenu,
+.collapsed-submenu:hover {
+  display: block;
+}
+
+/* Adjust collapsed sidebar styles */
+.sidebar.collapsed .sidebar-item-content span:not(.sidebar-badge) {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-item {
+  position: relative;
+}
+
+.sidebar.collapsed .sidebar-item:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  z-index: 1000;
+  font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sidebar-submenu {
+    margin-left: 1rem;
+  }
+  
+  .sidebar-subitem {
+    padding: 0.5rem 0.75rem;
+  }
+}

@@ -1,8 +1,7 @@
-
-// src/pages/PropertyUnits.jsx - FIXED VERSION
+// src/pages/PropertyUnits.jsx - LOCKED LEASED STATUS VERSION
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, updateDoc, deleteDoc } from "firebase/firestore";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import "../styles/PropertyUnits.css";
@@ -24,7 +23,10 @@ import {
   FaUserPlus,
   FaChartLine,
   FaBuilding,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaWrench,
+  FaLock,
+  FaUserMinus
 } from "react-icons/fa";
 
 const PropertyUnits = () => {
@@ -34,9 +36,11 @@ const PropertyUnits = () => {
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [units, setUnits] = useState([]);
-  const [filter, setFilter] = useState("all"); // all, vacant, leased, maintenance
+  const [filter, setFilter] = useState("all");
   const [editingUnit, setEditingUnit] = useState(null);
   const [showAssignForm, setShowAssignForm] = useState(false);
+  const [showDeleteTenantModal, setShowDeleteTenantModal] = useState(false);
+  const [unitToDeleteTenant, setUnitToDeleteTenant] = useState(null);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState(null);
   
   // Tenant assignment form
@@ -50,69 +54,76 @@ const PropertyUnits = () => {
     deposit: ""
   });
 
-  // Standardize status values - SAME AS IN Units.jsx
-  const standardizeStatus = (status) => {
-    if (!status) return "vacant";
-    const statusLower = status.toLowerCase();
+  // Get unit statuses - DUAL STATUS VERSION
+  const getUnitStatuses = (unitData) => {
+    // Default values
+    let occupancyStatus = "vacant";
+    let maintenanceStatus = "normal";
+    let displayStatus = "vacant";
     
-    if (statusLower === "occupied" || statusLower === "rented" || statusLower === "active") {
-      return "leased";
-    }
-    if (statusLower === "available" || statusLower === "free") {
-      return "vacant";
-    }
-    if (statusLower === "repair" || statusLower === "under_repair") {
-      return "maintenance";
+    // If unit has new dual-status fields, use them
+    if (unitData.occupancyStatus && unitData.maintenanceStatus) {
+      occupancyStatus = unitData.occupancyStatus;
+      maintenanceStatus = unitData.maintenanceStatus;
+      
+      // Calculate display status for backward compatibility
+      if (maintenanceStatus === "under_maintenance") {
+        displayStatus = "maintenance";
+      } else {
+        displayStatus = occupancyStatus;
+      }
+    } 
+    // Legacy: single status field (for backward compatibility during transition)
+    else if (unitData.status) {
+      const statusLower = unitData.status.toLowerCase();
+      
+      // Map legacy status to new dual status
+      if (statusLower === "maintenance" || statusLower === "repair" || statusLower === "under_repair") {
+        if (unitData.tenantName || unitData.tenantId) {
+          occupancyStatus = "leased";
+          maintenanceStatus = "under_maintenance";
+        } else {
+          occupancyStatus = "vacant";
+          maintenanceStatus = "under_maintenance";
+        }
+        displayStatus = "maintenance";
+      } 
+      else if (statusLower === "leased" || statusLower === "occupied" || statusLower === "rented") {
+        occupancyStatus = "leased";
+        maintenanceStatus = "normal";
+        displayStatus = "leased";
+      }
+      else {
+        occupancyStatus = "vacant";
+        maintenanceStatus = "normal";
+        displayStatus = "vacant";
+      }
     }
     
-    return statusLower;
+    return { occupancyStatus, maintenanceStatus, displayStatus };
   };
 
-  // Calculate unit counts - FIXED VERSION
+  // Calculate unit counts - DUAL STATUS VERSION
   const calculateUnitCounts = (unitsData) => {
     let vacantCount = 0;
     let leasedCount = 0;
     let maintenanceCount = 0;
-    let unknownCount = 0;
     
     unitsData.forEach(unit => {
-      const status = (unit.status || '').toString().toLowerCase().trim();
-      const standardizedStatus = standardizeStatus(status);
+      const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unit);
       
-      // Check if unit is leased based on status OR tenant info
-      if (standardizedStatus === 'leased') {
+      // Count occupancy
+      if (occupancyStatus === 'leased') {
         leasedCount++;
-      } 
-      else if (standardizedStatus === 'vacant') {
+      } else {
         vacantCount++;
       }
-      else if (standardizedStatus === 'maintenance') {
+      
+      // Count maintenance
+      if (maintenanceStatus === 'under_maintenance') {
         maintenanceCount++;
       }
-      else if (!status) {
-        // If no status but has tenant info, it's leased
-        if (unit.tenantName || unit.tenantId || unit.leaseStart || unit.tenantPhone) {
-          leasedCount++;
-        } else {
-          vacantCount++;
-        }
-      }
-      else {
-        // Unknown status
-        unknownCount++;
-        console.warn(`Unit ${unit.unitId || unit.id} has unknown status: "${status}"`);
-        // Try to infer from tenant info
-        if (unit.tenantName || unit.tenantId || unit.leaseStart) {
-          leasedCount++;
-        } else {
-          vacantCount++;
-        }
-      }
     });
-    
-    if (unknownCount > 0) {
-      console.log(`Found ${unknownCount} units with missing/unknown status`);
-    }
     
     return { vacantCount, leasedCount, maintenanceCount };
   };
@@ -132,53 +143,50 @@ const PropertyUnits = () => {
       
       if (propertySnap.exists()) {
         const propertyData = propertySnap.data();
-        console.log(`Found property: ${propertyData.name || 'Unnamed'} | Units in property doc: ${propertyData.units || 0}`);
         
         // Fetch units from subcollection
         const unitsRef = collection(db, `properties/${id}/units`);
         const unitsSnapshot = await getDocs(unitsRef);
         const unitsData = [];
         
-        // DEBUG: Log all units and their statuses
-        console.log(`Units in subcollection: ${unitsSnapshot.size}`);
         unitsSnapshot.forEach((unitDoc) => {
           const unit = {
             id: unitDoc.id,
             ...unitDoc.data()
           };
           unitsData.push(unit);
-          console.log(`Unit ${unitDoc.id}: status="${unit.status}", tenantName="${unit.tenantName || 'none'}"`);
         });
         
         // If no units in subcollection, create default units
         if (unitsData.length === 0) {
-          console.log(`No units found in subcollection. Creating default units...`);
           const defaultUnits = generateDefaultUnits(propertyData);
-          // Save default units to subcollection
           for (const unit of defaultUnits) {
             await addDoc(unitsRef, {
               ...unit,
-              propertyId: id
+              propertyId: id,
+              occupancyStatus: "vacant", // NEW FIELD
+              maintenanceStatus: "normal" // NEW FIELD
             });
           }
-          setUnits(defaultUnits);
-          console.log(`Created ${defaultUnits.length} default units`);
+          setUnits(defaultUnits.map(u => ({
+            ...u,
+            occupancyStatus: "vacant",
+            maintenanceStatus: "normal"
+          })));
         } else {
           setUnits(unitsData);
         }
         
-        // Calculate actual counts from units - USING FIXED FUNCTION
+        // Calculate actual counts from units
         const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(unitsData);
         const totalUnits = unitsData.length || propertyData.units || 1;
         const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
         
-        console.log(`Counts for ${propertyData.name}: Vacant=${vacantCount}, Leased=${leasedCount}, Maintenance=${maintenanceCount}, Total=${totalUnits}`);
-        
         // Calculate monthly revenue from leased units
         const monthlyRevenue = unitsData
           .filter(u => {
-            const status = standardizeStatus(u.status);
-            return status === 'leased' || (u.tenantName && !status);
+            const { occupancyStatus } = getUnitStatuses(u);
+            return occupancyStatus === 'leased';
           })
           .reduce((total, u) => total + (u.rentAmount || 0), 0);
         
@@ -224,7 +232,11 @@ const PropertyUnits = () => {
         unitId: `${propertyPrefix}-${unitNumber}`,
         unitNumber: unitNumber,
         unitName: `${propertyData.name || 'Property'} - Unit ${unitNumber}`,
+        // LEGACY FIELD (for backward compatibility)
         status: "vacant",
+        // NEW FIELDS
+        occupancyStatus: "vacant",
+        maintenanceStatus: "normal",
         rentAmount: propertyData.rentAmount || 0,
         size: propertyData.size || "",
         amenities: propertyData.amenities || [],
@@ -245,27 +257,54 @@ const PropertyUnits = () => {
     return units;
   };
 
-  // Update unit status
-  const handleStatusUpdate = async (unitIndex, newStatus) => {
+  // Update unit status - LOCKED LEASED STATUS VERSION
+  const handleStatusUpdate = async (unitIndex, newStatusType, newValue) => {
     try {
       const unit = units[unitIndex];
-      const standardizedStatus = standardizeStatus(newStatus);
+      const { occupancyStatus } = getUnitStatuses(unit);
       
-      console.log(`Updating unit ${unit.unitNumber} status from "${unit.status}" to "${newStatus}" (standardized: "${standardizedStatus}")`);
+      // PREVENT changing occupancy from leased to vacant
+      if (newStatusType === "occupancy" && occupancyStatus === "leased" && newValue === "vacant") {
+        alert("Cannot change occupancy from 'Leased' to 'Vacant'. You must delete the tenant first.");
+        return;
+      }
       
-      // Clear tenant info if changing from leased to non-leased
+      console.log(`Updating unit ${unit.unitNumber} - ${newStatusType}: ${newValue}`);
+      
+      // Determine updates based on what's being changed
       const updates = {
-        status: standardizedStatus,
         updatedAt: new Date().toISOString()
       };
       
-      if (unit.status === "leased" && standardizedStatus !== "leased") {
-        updates.tenantId = null;
-        updates.tenantName = "";
-        updates.tenantPhone = "";
-        updates.tenantEmail = "";
-        updates.leaseStart = null;
-        updates.leaseEnd = null;
+      if (newStatusType === "occupancy") {
+        updates.occupancyStatus = newValue;
+        
+        // Clear tenant info if changing from leased to vacant (this shouldn't happen due to check above, but keep as safety)
+        if (unit.occupancyStatus === "leased" && newValue === "vacant") {
+          updates.tenantId = null;
+          updates.tenantName = "";
+          updates.tenantPhone = "";
+          updates.tenantEmail = "";
+          updates.leaseStart = null;
+          updates.leaseEnd = null;
+        }
+        
+        // Keep legacy status for backward compatibility
+        if (unit.maintenanceStatus === "under_maintenance") {
+          updates.status = "maintenance";
+        } else {
+          updates.status = newValue;
+        }
+      } 
+      else if (newStatusType === "maintenance") {
+        updates.maintenanceStatus = newValue;
+        
+        // Keep legacy status for backward compatibility
+        if (newValue === "under_maintenance") {
+          updates.status = "maintenance";
+        } else {
+          updates.status = occupancyStatus;
+        }
       }
       
       // Update unit document in subcollection
@@ -274,9 +313,14 @@ const PropertyUnits = () => {
       
       // Update local state
       const updatedUnits = [...units];
-      updatedUnits[unitIndex] = { ...unit, ...updates, status: standardizedStatus };
+      updatedUnits[unitIndex] = { 
+        ...unit, 
+        ...updates,
+        ...(newStatusType === "occupancy" && { occupancyStatus: newValue }),
+        ...(newStatusType === "maintenance" && { maintenanceStatus: newValue })
+      };
       
-      // Recalculate counts using FIXED function
+      // Recalculate counts
       const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
       const totalUnits = updatedUnits.length;
       const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
@@ -284,8 +328,8 @@ const PropertyUnits = () => {
       // Calculate monthly revenue from leased units
       const monthlyRevenue = updatedUnits
         .filter(u => {
-          const status = standardizeStatus(u.status);
-          return status === 'leased' || (u.tenantName && !status);
+          const { occupancyStatus } = getUnitStatuses(u);
+          return occupancyStatus === 'leased';
         })
         .reduce((total, u) => total + (u.rentAmount || 0), 0);
       
@@ -318,16 +362,126 @@ const PropertyUnits = () => {
         totalTenants: leasedCount
       }));
       
-      alert(`Unit ${unit.unitNumber} status updated to ${standardizedStatus}`);
+      alert(`Unit ${unit.unitNumber} updated successfully`);
     } catch (error) {
       console.error("Error updating unit status:", error);
       alert("Failed to update unit status");
     }
   };
 
-  // Handle assign tenant
+  // Handle delete tenant - NEW FUNCTION
+  const handleDeleteTenant = async () => {
+    if (!unitToDeleteTenant) return;
+    
+    try {
+      const { unitIndex, unit } = unitToDeleteTenant;
+      
+      // Update unit document in subcollection
+      const unitRef = doc(db, `properties/${id}/units`, unit.id);
+      await updateDoc(unitRef, {
+        occupancyStatus: "vacant",
+        maintenanceStatus: unit.maintenanceStatus || "normal",
+        status: unit.maintenanceStatus === "under_maintenance" ? "maintenance" : "vacant",
+        tenantId: null,
+        tenantName: "",
+        tenantPhone: "",
+        tenantEmail: "",
+        leaseStart: null,
+        leaseEnd: null,
+        updatedAt: new Date().toISOString()
+      });
+      
+      // Also delete tenant from tenants collection if exists
+      if (unit.tenantId) {
+        try {
+          const tenantRef = doc(db, "tenants", unit.tenantId);
+          await deleteDoc(tenantRef);
+          console.log("Tenant deleted from tenants collection");
+        } catch (tenantError) {
+          console.error("Error deleting tenant record:", tenantError);
+          // Continue even if tenant deletion fails
+        }
+      }
+      
+      // Update local state
+      const updatedUnits = [...units];
+      updatedUnits[unitIndex] = { 
+        ...unit, 
+        occupancyStatus: "vacant",
+        tenantId: null,
+        tenantName: "",
+        tenantPhone: "",
+        tenantEmail: "",
+        leaseStart: null,
+        leaseEnd: null,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Recalculate counts
+      const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
+      const totalUnits = updatedUnits.length;
+      const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
+      
+      // Calculate monthly revenue
+      const monthlyRevenue = updatedUnits
+        .filter(u => {
+          const { occupancyStatus } = getUnitStatuses(u);
+          return occupancyStatus === 'leased';
+        })
+        .reduce((total, u) => total + (u.rentAmount || 0), 0);
+      
+      // Update property document with new counts
+      const propertyRef = doc(db, "properties", id);
+      await updateDoc(propertyRef, {
+        "unitDetails.vacantCount": vacantCount,
+        "unitDetails.leasedCount": leasedCount,
+        "unitDetails.maintenanceCount": maintenanceCount,
+        "unitDetails.occupancyRate": occupancyRate,
+        "unitDetails.totalUnits": totalUnits,
+        monthlyRevenue: monthlyRevenue,
+        totalTenants: leasedCount,
+        updatedAt: new Date()
+      });
+      
+      // Update local state
+      setUnits(updatedUnits);
+      setProperty(prev => ({
+        ...prev,
+        unitDetails: {
+          ...prev.unitDetails,
+          vacantCount,
+          leasedCount,
+          maintenanceCount,
+          occupancyRate,
+          totalUnits
+        },
+        monthlyRevenue,
+        totalTenants: leasedCount
+      }));
+      
+      // Close modal and reset
+      setShowDeleteTenantModal(false);
+      setUnitToDeleteTenant(null);
+      
+      alert(`Tenant deleted and unit ${unit.unitNumber} is now vacant`);
+      
+    } catch (error) {
+      console.error("Error deleting tenant:", error);
+      alert("Failed to delete tenant");
+    }
+  };
+
+  // Handle assign tenant - DUAL STATUS VERSION
   const handleAssignTenant = (unitIndex) => {
     const unit = units[unitIndex];
+    const { occupancyStatus } = getUnitStatuses(unit);
+    
+    // Check if unit is vacant
+    if (occupancyStatus !== "vacant") {
+      alert("Cannot assign tenant to a non-vacant unit");
+      return;
+    }
+    
     setSelectedUnitIndex(unitIndex);
     
     // Pre-fill form with unit rent amount
@@ -344,7 +498,7 @@ const PropertyUnits = () => {
     setShowAssignForm(true);
   };
 
-  // Handle tenant form submit - FIXED: Creates tenant ONLY in tenants collection
+  // Handle tenant form submit - DUAL STATUS VERSION
   const handleTenantSubmit = async (e) => {
     e.preventDefault();
     
@@ -360,7 +514,9 @@ const PropertyUnits = () => {
       // Update unit document in subcollection
       const unitRef = doc(db, `properties/${id}/units`, unit.id);
       const unitUpdates = {
-        status: "leased",
+        occupancyStatus: "leased", // Set to leased (LOCKED)
+        maintenanceStatus: unit.maintenanceStatus || "normal", // Keep current maintenance status
+        status: "leased", // Legacy field
         tenantName: tenantForm.name,
         tenantPhone: tenantForm.phone,
         tenantEmail: tenantForm.email,
@@ -395,7 +551,6 @@ const PropertyUnits = () => {
           updatedAt: new Date().toISOString()
         };
         
-        // Add tenant to TENANTS collection (not users collection)
         const tenantsRef = collection(db, "tenants");
         const tenantDocRef = await addDoc(tenantsRef, tenantData);
         tenantDocId = tenantDocRef.id;
@@ -406,11 +561,8 @@ const PropertyUnits = () => {
           ...unitUpdates
         });
         
-        console.log("✅ Tenant created in tenants collection with ID:", tenantDocId);
-        
       } catch (tenantError) {
         console.error("Error creating tenant record:", tenantError);
-        // Continue even if tenant creation fails
       }
       
       // Update local state
@@ -418,11 +570,10 @@ const PropertyUnits = () => {
       updatedUnits[selectedUnitIndex] = { 
         ...unit, 
         ...unitUpdates, 
-        status: "leased",
         tenantId: tenantDocId || unit.id + "-tenant"
       };
       
-      // Recalculate counts using FIXED function
+      // Recalculate counts
       const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
       const totalUnits = updatedUnits.length;
       const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
@@ -430,8 +581,8 @@ const PropertyUnits = () => {
       // Calculate monthly revenue
       const monthlyRevenue = updatedUnits
         .filter(u => {
-          const status = standardizeStatus(u.status);
-          return status === 'leased' || (u.tenantName && !status);
+          const { occupancyStatus } = getUnitStatuses(u);
+          return occupancyStatus === 'leased';
         })
         .reduce((total, u) => total + (u.rentAmount || 0), 0);
       
@@ -487,36 +638,66 @@ const PropertyUnits = () => {
   // Handle edit unit
   const handleEditUnit = (unitIndex) => {
     setEditingUnit(unitIndex);
-    // You can implement a modal or inline editing here
     alert("Edit feature coming soon! For now, use the status dropdown.");
   };
 
-  // Filter units based on status - USING STANDARDIZED STATUS
+  // Handle request to delete tenant
+  const handleRequestDeleteTenant = (unitIndex) => {
+    const unit = units[unitIndex];
+    const { occupancyStatus } = getUnitStatuses(unit);
+    
+    if (occupancyStatus !== "leased") {
+      alert("Unit is not leased. No tenant to delete.");
+      return;
+    }
+    
+    setUnitToDeleteTenant({ unitIndex, unit });
+    setShowDeleteTenantModal(true);
+  };
+
+  // Filter units - DUAL STATUS VERSION
   const filteredUnits = units.filter(unit => {
-    const unitStatus = standardizeStatus(unit.status);
+    const { displayStatus } = getUnitStatuses(unit);
     if (filter === "all") return true;
-    return unitStatus === filter;
+    return displayStatus === filter;
   });
 
-  // Get status icon - USING STANDARDIZED STATUS
-  const getStatusIcon = (status) => {
-    const standardizedStatus = standardizeStatus(status);
-    switch(standardizedStatus) {
-      case "vacant": return <FaDoorClosed />;
-      case "leased": return <FaCheckCircle />;
-      case "maintenance": return <FaTools />;
-      default: return <FaHome />;
+  // Get status icon - DUAL STATUS VERSION
+  const getStatusIcon = (unitData) => {
+    const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unitData);
+    
+    if (maintenanceStatus === "under_maintenance") {
+      return <FaTools />;
+    } else if (occupancyStatus === "leased") {
+      return <FaCheckCircle />;
+    } else {
+      return <FaDoorClosed />;
     }
   };
 
-  // Get status color class - USING STANDARDIZED STATUS
-  const getStatusClass = (status) => {
-    const standardizedStatus = standardizeStatus(status);
-    switch(standardizedStatus) {
+  // Get status class - DUAL STATUS VERSION
+  const getStatusClass = (unitData) => {
+    const { displayStatus } = getUnitStatuses(unitData);
+    switch(displayStatus) {
       case "vacant": return "vacant";
       case "leased": return "leased";
       case "maintenance": return "maintenance";
       default: return "";
+    }
+  };
+
+  // Get display status text - DUAL STATUS VERSION
+  const getDisplayStatusText = (unitData) => {
+    const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unitData);
+    
+    if (maintenanceStatus === "under_maintenance") {
+      if (occupancyStatus === "leased") {
+        return "LEASED & UNDER MAINTENANCE";
+      } else {
+        return "VACANT & UNDER MAINTENANCE";
+      }
+    } else {
+      return occupancyStatus.toUpperCase();
     }
   };
 
@@ -574,7 +755,7 @@ const PropertyUnits = () => {
           {property.unitDetails && (
             <div className="header-debug-info">
               <small>
-                <FaExclamationTriangle /> Counts: {property.unitDetails.vacantCount} vacant, 
+                <FaExclamationTriangle /> DUAL STATUS SYSTEM: {property.unitDetails.vacantCount} vacant, 
                 {property.unitDetails.leasedCount} leased, 
                 {property.unitDetails.maintenanceCount} maintenance
               </small>
@@ -611,19 +792,22 @@ const PropertyUnits = () => {
         </div>
       </div>
 
-      {/* Status Standardization Notice */}
+      {/* Status Legend - DUAL STATUS VERSION */}
       <div className="status-standardization-notice">
         <FaExclamationTriangle className="notice-icon" />
         <div className="notice-content">
-          <strong>Status Standardization Active:</strong> 
+          <strong>DUAL STATUS SYSTEM:</strong> 
           <span className="status-mappings">
-            "occupied", "rented", "active" → <span className="status-tag leased">LEASED</span>
+            <span className="status-tag vacant">VACANT (Normal)</span>
           </span>
           <span className="status-mappings">
-            "available", "free" → <span className="status-tag vacant">VACANT</span>
+            <span className="status-tag leased">LEASED (Locked)</span>
           </span>
           <span className="status-mappings">
-            "repair", "under_repair" → <span className="status-tag maintenance">MAINTENANCE</span>
+            <span className="status-tag maintenance">VACANT (Under Maintenance)</span>
+          </span>
+          <span className="status-mappings">
+            <span className="status-tag maintenance">LEASED (Under Maintenance)</span>
           </span>
         </div>
         <button 
@@ -664,11 +848,11 @@ const PropertyUnits = () => {
           </button>
         </div>
         
-        {/* Mobile App Notice */}
+        {/* Mobile App Notice - DUAL STATUS VERSION */}
         <div className="mobile-app-notice">
           <span className="notice-icon">📱</span>
           <span className="notice-text">
-            <strong>{property.unitDetails?.vacantCount || 0} units</strong> are visible to mobile app users
+            <strong>{property.unitDetails?.vacantCount || 0} units</strong> are visible to mobile app users (ALL vacant units, including those under maintenance)
           </span>
         </div>
       </div>
@@ -774,7 +958,61 @@ const PropertyUnits = () => {
         </div>
       )}
 
-      {/* Units Grid */}
+      {/* Delete Tenant Modal */}
+      {showDeleteTenantModal && unitToDeleteTenant && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Delete Tenant from Unit {unitToDeleteTenant.unit.unitNumber}</h3>
+              <button className="close-modal" onClick={() => {
+                setShowDeleteTenantModal(false);
+                setUnitToDeleteTenant(null);
+              }}>
+                ×
+              </button>
+            </div>
+            <div className="delete-tenant-modal-content">
+              <div className="warning-message">
+                <FaExclamationTriangle className="warning-icon" />
+                <h4>⚠️ Warning: This action cannot be undone</h4>
+                <p>
+                  Deleting the tenant will:
+                </p>
+                <ul>
+                  <li>Remove tenant <strong>{unitToDeleteTenant.unit.tenantName}</strong> from this unit</li>
+                  <li>Change unit occupancy status to <strong>VACANT</strong></li>
+                  <li>Delete tenant record from the system</li>
+                  <li>Update property vacancy counts</li>
+                </ul>
+                <p className="final-warning">
+                  <strong>Note:</strong> This is the ONLY way to change a leased unit back to vacant.
+                </p>
+              </div>
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  className="cancel-btn"
+                  onClick={() => {
+                    setShowDeleteTenantModal(false);
+                    setUnitToDeleteTenant(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="delete-btn"
+                  onClick={handleDeleteTenant}
+                >
+                  <FaUserMinus /> Delete Tenant & Vacate Unit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Units Grid - LOCKED LEASED STATUS VERSION */}
       <div className="units-grid">
         {filteredUnits.length === 0 ? (
           <div className="no-units">
@@ -784,25 +1022,31 @@ const PropertyUnits = () => {
           </div>
         ) : (
           filteredUnits.map((unit, index) => {
-            const standardizedStatus = standardizeStatus(unit.status);
-            const originalStatus = unit.status;
-            const isStatusStandardized = originalStatus && standardizedStatus !== originalStatus.toLowerCase();
+            const { occupancyStatus, maintenanceStatus, displayStatus } = getUnitStatuses(unit);
+            const isUnderMaintenance = maintenanceStatus === "under_maintenance";
+            const isLeased = occupancyStatus === "leased";
+            const isOccupancyLocked = isLeased; // Locked when leased
             
             return (
-              <div key={index} className={`unit-card ${getStatusClass(unit.status)}`}>
+              <div key={index} className={`unit-card ${getStatusClass(unit)}`}>
                 <div className="unit-header">
                   <div className="unit-title-section">
                     <h3 className="unit-title">{unit.unitName}</h3>
                     <span className="unit-id">{unit.unitId}</span>
                   </div>
                   <div className="unit-status-container">
-                    <span className={`unit-status-badge ${getStatusClass(unit.status)}`}>
-                      {getStatusIcon(unit.status)}
-                      <span>{standardizedStatus.toUpperCase()}</span>
+                    <span className={`unit-status-badge ${getStatusClass(unit)}`}>
+                      {getStatusIcon(unit)}
+                      <span>{getDisplayStatusText(unit)}</span>
                     </span>
-                    {isStatusStandardized && (
-                      <div className="original-status-note" title={`Original status: "${originalStatus}"`}>
-                        <FaExclamationTriangle /> Standardized
+                    {isUnderMaintenance && (
+                      <div className="maintenance-indicator" title="Under Maintenance">
+                        <FaWrench /> Maintenance
+                      </div>
+                    )}
+                    {isOccupancyLocked && (
+                      <div className="locked-indicator" title="Occupancy Locked - Delete tenant to change">
+                        <FaLock /> Occupancy Locked
                       </div>
                     )}
                   </div>
@@ -812,6 +1056,14 @@ const PropertyUnits = () => {
                   <div className="detail-row">
                     <span className="detail-label">Unit Number:</span>
                     <span className="detail-value">{unit.unitNumber}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Occupancy:</span>
+                    <span className="detail-value">{occupancyStatus.toUpperCase()}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Maintenance:</span>
+                    <span className="detail-value">{maintenanceStatus === "under_maintenance" ? "Under Maintenance" : "Normal"}</span>
                   </div>
                   <div className="detail-row">
                     <span className="detail-label">Rent Amount:</span>
@@ -835,7 +1087,7 @@ const PropertyUnits = () => {
                 </div>
 
                 {/* Tenant Info (if leased) */}
-                {standardizedStatus === "leased" && (unit.tenantName || unit.tenantId || unit.leaseStart) && (
+                {isLeased && (unit.tenantName || unit.tenantId || unit.leaseStart) && (
                   <div className="tenant-info">
                     <h4><FaUser /> Tenant Details</h4>
                     {unit.tenantName && (
@@ -877,28 +1129,61 @@ const PropertyUnits = () => {
                   </div>
                 )}
 
-                {/* Action Buttons */}
+                {/* Action Buttons - LOCKED LEASED STATUS VERSION */}
                 <div className="unit-actions">
                   <div className="status-control">
                     <span className="action-label">Change Status:</span>
-                    <select
-                      value={standardizedStatus}
-                      onChange={(e) => handleStatusUpdate(index, e.target.value)}
-                      className="status-select"
-                    >
-                      <option value="vacant">Vacant</option>
-                      <option value="leased">Leased</option>
-                      <option value="maintenance">Maintenance</option>
-                    </select>
+                    <div className="dual-status-controls">
+                      <select
+                        value={occupancyStatus}
+                        onChange={(e) => handleStatusUpdate(index, "occupancy", e.target.value)}
+                        className={`status-select ${isOccupancyLocked ? 'locked' : ''}`}
+                        disabled={isOccupancyLocked}
+                        title={isOccupancyLocked ? "Occupancy locked while tenant exists. Delete tenant to change." : ""}
+                      >
+                        <option value="vacant">Vacant</option>
+                        <option value="leased">Leased</option>
+                      </select>
+                      <select
+                        value={maintenanceStatus}
+                        onChange={(e) => handleStatusUpdate(index, "maintenance", e.target.value)}
+                        className="status-select"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="under_maintenance">Under Maintenance</option>
+                      </select>
+                    </div>
+                    {isOccupancyLocked && (
+                      <div className="locked-message">
+                        <small>
+                          <FaLock /> Occupancy locked. <button 
+                            type="button" 
+                            className="delete-tenant-link"
+                            onClick={() => handleRequestDeleteTenant(index)}
+                          >
+                            Delete tenant
+                          </button> to change to vacant.
+                        </small>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="action-buttons">
-                    {standardizedStatus === "vacant" && (
+                    {!isLeased && (
                       <button 
                         className="action-btn assign-btn"
                         onClick={() => handleAssignTenant(index)}
                       >
                         <FaUserPlus /> Assign Tenant
+                      </button>
+                    )}
+                    
+                    {isLeased && (
+                      <button 
+                        className="action-btn delete-tenant-btn"
+                        onClick={() => handleRequestDeleteTenant(index)}
+                      >
+                        <FaUserMinus /> Delete Tenant
                       </button>
                     )}
                     
@@ -917,15 +1202,6 @@ const PropertyUnits = () => {
                     </button>
                   </div>
                 </div>
-                
-                {/* Status Debug Info */}
-                {isStatusStandardized && (
-                  <div className="unit-debug-info">
-                    <small>
-                      <FaExclamationTriangle /> Original status: <strong>"{originalStatus}"</strong> → Standardized to: <strong>"{standardizedStatus}"</strong>
-                    </small>
-                  </div>
-                )}
                 
                 {/* Last Updated */}
                 <div className="unit-footer">

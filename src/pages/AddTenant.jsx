@@ -1,4 +1,4 @@
-// src/pages/AddTenant.jsx - FIXED VERSION
+// src/pages/AddTenant.jsx - ENHANCED VERSION
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
 import { 
@@ -12,7 +12,7 @@ import {
   getDocs,
   query,
   where,
-  increment
+  writeBatch
 } from "firebase/firestore";
 import { useNavigate, useLocation } from "react-router-dom";
 import { 
@@ -31,7 +31,9 @@ import {
   FaExclamationTriangle,
   FaThumbsDown,
   FaArrowRight,
-  FaInfoCircle
+  FaInfoCircle,
+  FaExclamationCircle,
+  FaTrash
 } from "react-icons/fa";
 import "../styles/addTenant.css";
 
@@ -47,7 +49,6 @@ const AddTenant = () => {
     if (location.state?.prefillData?.applicationId) {
       return location.state.prefillData.applicationId;
     }
-    // Check URL params
     const params = new URLSearchParams(location.search);
     return params.get('applicationId') || null;
   });
@@ -59,48 +60,38 @@ const AddTenant = () => {
   const [error, setError] = useState(null);
   const [unitRef, setUnitRef] = useState(null);
   
-  // Rejection state
+  // Enhanced states
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejecting, setIsRejecting] = useState(false);
+  const [showRejectionForm, setShowRejectionForm] = useState(false);
+  const [competingApplications, setCompetingApplications] = useState([]);
+  const [showCompetingWarning, setShowCompetingWarning] = useState(false);
 
   // Initial state for tenant data
   const initialTenantData = {
-    // Tenant Information
     fullName: "",
     email: "",
     phone: "",
     idNumber: "",
     occupation: "",
     employer: "",
-    
-    // Property & Unit
     propertyId: "",
     propertyName: "",
     unitId: "",
     unitNumber: "",
     monthlyRent: "",
-    
-    // Financial Details
     securityDeposit: "",
     applicationFee: "",
     petDeposit: "",
     totalMoveInCost: 0,
-    
-    // Lease Period
     leaseStart: "",
     leaseEnd: "",
     leaseTerm: 12,
     noticePeriod: 30,
-    
-    // Emergency Contact
     emergencyContactName: "",
     emergencyContactPhone: "",
     emergencyContactRelation: "",
-    
-    // Additional Information
     tenantNotes: "",
-    
-    // Application metadata
     applicationId: "",
     appliedDate: "",
     status: ""
@@ -138,9 +129,12 @@ const AddTenant = () => {
     setUnitRef(null);
     setRejectionReason("");
     setIsRejecting(false);
+    setShowRejectionForm(false);
     setError(null);
     setApplicationId(null);
     setLoading(false);
+    setCompetingApplications([]);
+    setShowCompetingWarning(false);
     
     localStorage.removeItem('prefillTenantData');
     localStorage.removeItem('currentApplication');
@@ -157,12 +151,12 @@ const AddTenant = () => {
     }
   };
 
-  // FIND UNIT DOCUMENT - FIXED VERSION
+  // FIND UNIT DOCUMENT
   const findUnitDocument = useCallback(async (unitId, propertyId) => {
     if (!unitId || !propertyId) return null;
     
     try {
-      // FIRST: Check in property subcollection (properties/{propertyId}/units)
+      // Check in property subcollection
       try {
         const unitDocRef = doc(db, "properties", propertyId, "units", unitId);
         const unitDoc = await getDoc(unitDocRef);
@@ -178,7 +172,7 @@ const AddTenant = () => {
         console.log("Unit not found in subcollection:", error.message);
       }
       
-      // SECOND: Search for unit by unitNumber in property subcollection
+      // Search for unit by unitNumber
       if (tenantData.unitNumber) {
         try {
           const unitsRef = collection(db, `properties/${propertyId}/units`);
@@ -198,7 +192,7 @@ const AddTenant = () => {
         }
       }
       
-      // THIRD: Check separate units collection (legacy fallback)
+      // Check separate units collection
       try {
         const unitDocRef = doc(db, "units", unitId);
         const unitDoc = await getDoc(unitDocRef);
@@ -221,6 +215,75 @@ const AddTenant = () => {
       return null;
     }
   }, [tenantData.unitNumber]);
+
+  // Fetch competing applications for the same unit
+  const fetchCompetingApplications = useCallback(async (propertyId, unitId, excludeAppId) => {
+    if (!propertyId || !unitId) return [];
+    
+    try {
+      const appsRef = collection(db, "tenantApplications");
+      const appsQuery = query(
+        appsRef,
+        where("propertyId", "==", propertyId),
+        where("unitId", "==", unitId),
+        where("status", "==", "pending")
+      );
+      
+      const querySnapshot = await getDocs(appsQuery);
+      const competingApps = [];
+      
+      querySnapshot.forEach((docSnap) => {
+        const appData = docSnap.data();
+        if (docSnap.id !== excludeAppId) {
+          competingApps.push({
+            id: docSnap.id,
+            ...appData,
+            appliedDate: appData.appliedDate?.toDate?.() || null
+          });
+        }
+      });
+      
+      return competingApps;
+    } catch (error) {
+      console.error("Error fetching competing applications:", error);
+      return [];
+    }
+  }, []);
+
+  // Auto-reject competing applications
+  const autoRejectCompetingApplications = async (approvedApplicationId, reason = "Another applicant was approved for this unit") => {
+    try {
+      const competingApps = await fetchCompetingApplications(
+        tenantData.propertyId, 
+        tenantData.unitId, 
+        approvedApplicationId
+      );
+      
+      if (competingApps.length === 0) return 0;
+      
+      const batch = writeBatch(db);
+      const now = Timestamp.now();
+      
+      competingApps.forEach(app => {
+        const appRef = doc(db, "tenantApplications", app.id);
+        batch.update(appRef, {
+          status: "rejected",
+          rejectedAt: now,
+          rejectedBy: "system_auto_reject",
+          rejectionReason: reason,
+          reviewedAt: now,
+          autoRejectedDueTo: approvedApplicationId
+        });
+      });
+      
+      await batch.commit();
+      console.log(`Auto-rejected ${competingApps.length} competing applications`);
+      return competingApps.length;
+    } catch (error) {
+      console.error("Error auto-rejecting competing applications:", error);
+      return 0;
+    }
+  };
 
   // Fetch application data from Firestore
   const fetchApplicationData = useCallback(async (appId) => {
@@ -275,6 +338,17 @@ const AddTenant = () => {
         ...tenantInfo
       }));
 
+      // Load competing applications
+      if (tenantInfo.propertyId && tenantInfo.unitId) {
+        const competingApps = await fetchCompetingApplications(
+          tenantInfo.propertyId, 
+          tenantInfo.unitId, 
+          appId
+        );
+        setCompetingApplications(competingApps);
+        setShowCompetingWarning(competingApps.length > 0);
+      }
+
       if (tenantInfo.propertyId) {
         await loadPropertyDetails(tenantInfo.propertyId);
       }
@@ -307,7 +381,7 @@ const AddTenant = () => {
     } finally {
       setLoading(false);
     }
-  }, [findUnitDocument]);
+  }, [findUnitDocument, fetchCompetingApplications]);
 
   // Load property details
   const loadPropertyDetails = useCallback(async (propertyId) => {
@@ -335,7 +409,6 @@ const AddTenant = () => {
   // Update property unit counts
   const updatePropertyUnitCounts = async (propertyId) => {
     try {
-      // Fetch all units for this property to recalculate counts
       const unitsRef = collection(db, `properties/${propertyId}/units`);
       const unitsSnapshot = await getDocs(unitsRef);
       
@@ -362,13 +435,14 @@ const AddTenant = () => {
         "unitDetails.maintenanceCount": maintenanceCount,
         "unitDetails.occupancyRate": occupancyRate,
         "unitDetails.totalUnits": totalUnits,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
       
-      console.log("Updated property counts:", { vacantCount, leasedCount, maintenanceCount, occupancyRate });
+      return { vacantCount, leasedCount, maintenanceCount, occupancyRate, totalUnits };
       
     } catch (error) {
       console.error("Error updating property counts:", error);
+      throw error;
     }
   };
 
@@ -499,21 +573,26 @@ const AddTenant = () => {
     }
   };
 
-  // Reject handler
+  // Reject handler - Custom form version
   const handleRejectClick = () => {
-    const reason = window.prompt("Please provide a reason for rejecting this application:", "");
-    
-    if (reason === null) {
-      return;
-    }
-    
-    if (!reason.trim()) {
+    setShowRejectionForm(true);
+  };
+
+  // Cancel rejection
+  const handleCancelRejection = () => {
+    setShowRejectionForm(false);
+    setRejectionReason("");
+  };
+
+  // Confirm rejection
+  const handleConfirmRejection = async () => {
+    if (!rejectionReason.trim()) {
       alert("Please provide a rejection reason");
       return;
     }
 
-    if (window.confirm("Are you sure you want to reject this application?")) {
-      handleRejectApplication(reason.trim());
+    if (window.confirm(`Are you sure you want to reject ${tenantData.fullName}'s application?`)) {
+      await handleRejectApplication(rejectionReason.trim());
     }
   };
 
@@ -540,10 +619,11 @@ const AddTenant = () => {
       alert("Failed to reject application. Please try again.");
     } finally {
       setIsRejecting(false);
+      setShowRejectionForm(false);
     }
   };
 
-  // Handle approve tenant - FIXED VERSION
+  // Handle approve tenant - ENHANCED VERSION
   const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -565,6 +645,18 @@ const AddTenant = () => {
             setLoading(false);
             return;
           }
+        }
+      }
+
+      // Show warning for competing applications
+      if (competingApplications.length > 0) {
+        const confirmMessage = `WARNING: There are ${competingApplications.length} other pending applications for this unit.\n\n` +
+                              `Approving ${tenantData.fullName} will automatically reject all other applicants for this unit.\n\n` +
+                              `Do you want to continue?`;
+        
+        if (!window.confirm(confirmMessage)) {
+          setLoading(false);
+          return;
         }
       }
 
@@ -647,16 +739,26 @@ const AddTenant = () => {
           submittedAt: applicationData?.submittedAt || Timestamp.now(),
           totalFees: tenantData.totalMoveInCost,
           otherFees: applicationData?.otherFees || ""
-        }
+        },
+        competingApplicationsRejected: competingApplications.length
       };
 
       const tenantRef = await addDoc(collection(db, "tenants"), tenantRecord);
 
-      // UPDATE UNIT STATUS - FIXED
+      // AUTO-REJECT COMPETING APPLICATIONS
+      let autoRejectedCount = 0;
+      if (competingApplications.length > 0) {
+        autoRejectedCount = await autoRejectCompetingApplications(
+          tenantData.applicationId,
+          `Another applicant (${tenantData.fullName}) was approved for this unit`
+        );
+      }
+
+      // UPDATE UNIT STATUS
       if (unitRef) {
         try {
           await updateDoc(unitRef, {
-            status: "leased", // CHANGED FROM "occupied" TO "leased"
+            status: "leased",
             tenantId: tenantRef.id,
             tenantName: tenantData.fullName,
             tenantEmail: tenantData.email,
@@ -670,7 +772,8 @@ const AddTenant = () => {
           });
           
           // Update property unit counts
-          await updatePropertyUnitCounts(tenantData.propertyId);
+          const propertyCounts = await updatePropertyUnitCounts(tenantData.propertyId);
+          console.log("Updated property counts:", propertyCounts);
           
         } catch (updateError) {
           console.error("Error updating unit status:", updateError);
@@ -680,18 +783,30 @@ const AddTenant = () => {
         console.warn("Unit reference not found, unit status not updated");
       }
 
-      // Update application status
+      // Update current application status
       if (tenantData.applicationId) {
         await updateDoc(doc(db, "tenantApplications", tenantData.applicationId), {
           status: "approved",
           processedAt: Timestamp.now(),
           tenantId: tenantRef.id,
           approvedBy: "admin",
-          approvedDate: Timestamp.now()
+          approvedDate: Timestamp.now(),
+          competingApplicationsRejected: autoRejectedCount
         });
       }
 
-      alert("✅ Tenant application approved! Tenant now appears in 'Approved Tenants' page.");
+      // Show success message with details
+      const successMessage = `✅ Tenant application approved!\n\n` +
+                           `• ${tenantData.fullName} added to approved tenants\n` +
+                           (autoRejectedCount > 0 
+                             ? `• Auto-rejected ${autoRejectedCount} other applicant(s) for this unit\n` 
+                             : '') +
+                           (unitRef 
+                             ? `• Unit status updated to "leased"\n` 
+                             : `• WARNING: Unit status NOT updated (unit document not found)\n`) +
+                           `\nTenant now appears in 'Approved Tenants' page.`;
+      
+      alert(successMessage);
       resetForm();
       
     } catch (error) {
@@ -782,6 +897,34 @@ const AddTenant = () => {
       </div>
 
       <div className="tenant-form-content">
+        {/* Competing Applications Warning */}
+        {showCompetingWarning && competingApplications.length > 0 && (
+          <div className="tenant-form-competing-warning">
+            <FaExclamationTriangle className="warning-icon" />
+            <div className="warning-content">
+              <h3>Multiple Applications for This Unit</h3>
+              <p>
+                There are <strong>{competingApplications.length}</strong> other pending application(s) for this unit.
+                Approving this applicant will automatically reject all other applicants for this unit.
+              </p>
+              <div className="competing-applicants-list">
+                {competingApplications.slice(0, 3).map((app, index) => (
+                  <div key={app.id} className="competing-applicant-item">
+                    <span className="applicant-name">{app.fullName}</span>
+                    <span className="applicant-email">{app.email}</span>
+                    <span className="applicant-date">Applied: {formatDate(app.appliedDate)}</span>
+                  </div>
+                ))}
+                {competingApplications.length > 3 && (
+                  <div className="more-applicants">
+                    + {competingApplications.length - 3} more applicant(s)
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="tenant-form-sections">
           
           {/* Section 1: Tenant Information */}
@@ -839,6 +982,33 @@ const AddTenant = () => {
                 )}
               </div>
             </div>
+
+            {/* Unit Status Information */}
+            {unitDetails && (
+              <div className="tenant-form-unit-status-info">
+                <h3 className="tenant-form-unit-status-title">Current Unit Status</h3>
+                <div className="tenant-form-status-grid">
+                  <div className="tenant-form-status-item">
+                    <span className="tenant-form-status-label">Current Status:</span>
+                    <span className={`tenant-form-status-value status-${unitDetails.status?.toLowerCase() || 'vacant'}`}>
+                      {unitDetails.status || "Vacant"}
+                    </span>
+                  </div>
+                  {unitDetails.tenantName && (
+                    <div className="tenant-form-status-item">
+                      <span className="tenant-form-status-label">Current Tenant:</span>
+                      <span className="tenant-form-status-value">{unitDetails.tenantName}</span>
+                    </div>
+                  )}
+                  {unitDetails.rentAmount && (
+                    <div className="tenant-form-status-item">
+                      <span className="tenant-form-status-label">Current Rent:</span>
+                      <span className="tenant-form-status-value">{formatCurrency(unitDetails.rentAmount)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Property Fee Information */}
             {propertyDetails && (
@@ -1002,6 +1172,55 @@ const AddTenant = () => {
 
           {/* FORM ACTIONS */}
           <div className="tenant-form-actions">
+            {/* Rejection Form Modal */}
+            {showRejectionForm && (
+              <div className="tenant-form-rejection-modal-overlay">
+                <div className="tenant-form-rejection-modal">
+                  <h3><FaThumbsDown /> Reject Application</h3>
+                  <div className="rejection-form-group">
+                    <label className="rejection-form-label">
+                      Please provide a reason for rejecting this application:
+                      <span className="required">*</span>
+                    </label>
+                    <textarea
+                      className="rejection-reason-textarea"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Enter rejection reason (e.g., insufficient documentation, credit check failed, etc.)"
+                      rows={4}
+                      autoFocus
+                    />
+                    <small className="rejection-form-helper">
+                      This reason will be visible to the tenant
+                    </small>
+                  </div>
+                  <div className="rejection-form-buttons">
+                    <button
+                      className="rejection-btn-cancel"
+                      onClick={handleCancelRejection}
+                      disabled={isRejecting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="rejection-btn-confirm"
+                      onClick={handleConfirmRejection}
+                      disabled={isRejecting || !rejectionReason.trim()}
+                    >
+                      {isRejecting ? (
+                        <>
+                          <span className="tenant-form-spinner-small"></span>
+                          Rejecting...
+                        </>
+                      ) : (
+                        "Confirm Rejection"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="tenant-form-buttons-row">
               <button 
                 type="button" 
@@ -1019,16 +1238,7 @@ const AddTenant = () => {
                   onClick={handleRejectClick}
                   disabled={loading || isRejecting}
                 >
-                  {isRejecting ? (
-                    <>
-                      <span className="tenant-form-spinner-small"></span>
-                      Rejecting...
-                    </>
-                  ) : (
-                    <>
-                      <FaThumbsDown /> Reject
-                    </>
-                  )}
+                  <FaThumbsDown /> Reject Application
                 </button>
                 
                 <button 
@@ -1046,7 +1256,9 @@ const AddTenant = () => {
                   ) : (
                     <>
                       <FaCheckCircle /> 
-                      {!unitRef ? " Approve (Unit Not Found)" : " Approve & Send to Payment"}
+                      {competingApplications.length > 0 
+                        ? ` Approve & Auto-Reject ${competingApplications.length} Other${competingApplications.length > 1 ? 's' : ''}` 
+                        : !unitRef ? " Approve (Unit Not Found)" : " Approve & Send to Payment"}
                     </>
                   )}
                 </button>
@@ -1059,7 +1271,8 @@ const AddTenant = () => {
                 <div className="tenant-form-info-box-content">
                   <p>
                     <strong>After approval:</strong> Tenant will appear in "Approved Tenants" page. 
-                    They need to pay initial fees first.
+                    {competingApplications.length > 0 && 
+                      ` Approving will automatically reject ${competingApplications.length} other pending application(s) for this unit.`}
                   </p>
                   <button 
                     className="tenant-form-view-approved-link"

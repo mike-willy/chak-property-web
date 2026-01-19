@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { db } from "../pages/firebase/firebase";
 import {
   collection,
@@ -7,8 +7,7 @@ import {
   doc,
   query,
   where,
-  Timestamp,
-  deleteDoc
+  Timestamp
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -20,7 +19,13 @@ import {
   FaTrash,
   FaCalendar,
   FaCheckCircle,
-  FaThumbsDown
+  FaThumbsDown,
+  FaUsers,
+  FaExclamationTriangle,
+  FaBuilding,
+  FaDoorOpen,
+  FaBed,
+  FaBath
 } from "react-icons/fa";
 import "../styles/applications.css";
 
@@ -31,7 +36,7 @@ const Applications = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  // Fetch ALL applications (pending, approved, rejected)
+  // Fetch ALL applications
   useEffect(() => {
     fetchApplications();
   }, []);
@@ -39,11 +44,7 @@ const Applications = () => {
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      // Remove the where clause to get ALL applications
       const q = query(collection(db, "tenantApplications"));
-      // Keep only if you want to filter out deleted ones:
-      // const q = query(collection(db, "tenantApplications"), where("status", "!=", "deleted"));
-
       const snapshot = await getDocs(q);
       const apps = [];
 
@@ -52,18 +53,20 @@ const Applications = () => {
         apps.push({
           id: doc.id,
           ...data,
-          // Convert Firestore timestamp
           appliedDate: data.appliedDate?.toDate(),
-          // Handle other timestamps
           processedAt: data.processedAt?.toDate(),
           rejectedAt: data.rejectedAt?.toDate(),
-          reviewedAt: data.reviewedAt?.toDate()
+          reviewedAt: data.reviewedAt?.toDate(),
+          adminDeleted: data.adminDeleted || false // Add this field
         });
       });
 
+      // Filter out admin deleted applications locally
+      const filteredApps = apps.filter(app => !app.adminDeleted);
+      
       // Sort by date (newest first)
-      apps.sort((a, b) => (b.appliedDate || 0) - (a.appliedDate || 0));
-      setApplications(apps);
+      filteredApps.sort((a, b) => (b.appliedDate || 0) - (a.appliedDate || 0));
+      setApplications(filteredApps);
     } catch (error) {
       console.error("Error fetching applications:", error);
     } finally {
@@ -71,7 +74,35 @@ const Applications = () => {
     }
   };
 
-  // Navigate to AddTenant with prefill data (only for pending)
+  // Calculate duplicate applications for each unit
+  const duplicateApplications = useMemo(() => {
+    const unitMap = {};
+    
+    applications.forEach(app => {
+      if (app.unitId) {
+        const key = `${app.propertyId}-${app.unitId}`;
+        if (!unitMap[key]) {
+          unitMap[key] = [];
+        }
+        unitMap[key].push(app);
+      }
+    });
+    
+    return unitMap;
+  }, [applications]);
+
+  // Check if application has competing applicants
+  const getCompetingApplications = (application) => {
+    if (!application.unitId) return [];
+    const key = `${application.propertyId}-${application.unitId}`;
+    const apps = duplicateApplications[key] || [];
+    return apps.filter(app => 
+      app.status === "pending" && 
+      app.id !== application.id
+    );
+  };
+
+  // Navigate to AddTenant with prefill data
   const viewApplicationDetails = (application) => {
     if (application.status !== "pending") {
       setSelectedApp(application);
@@ -85,35 +116,52 @@ const Applications = () => {
       idNumber: application.idNumber || "",
       propertyId: application.propertyId,
       unitId: application.unitId,
+      propertyName: application.propertyName || "",
+      unitNumber: application.unitNumber || "",
+      unitType: application.unitType || "",
+      bedrooms: application.bedrooms || "",
+      bathrooms: application.bathrooms || "",
       monthlyRent: application.monthlyRent || "",
       securityDeposit: application.securityDeposit || application.monthlyRent || "",
       emergencyContactName: application.emergencyContactName || "",
       emergencyContactPhone: application.emergencyContactPhone || "",
       applicationId: application.id,
       appliedDate: application.appliedDate,
-      userId: application.tenantId
+      tenantId: application.tenantId,
+      unitDetails: {
+        unitType: application.unitType,
+        bedrooms: application.bedrooms,
+        bathrooms: application.bathrooms,
+        size: application.unitSize
+      }
     };
 
     localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
     navigate('/tenants/add', { state: { prefillData } });
   };
 
-  // Delete an application permanently
+  // SOFT DELETE: Remove from admin view only
   const deleteApplication = async (application) => {
-    if (!window.confirm(`Permanently delete ${application.fullName}'s application? This action cannot be undone.`)) return;
+    if (!window.confirm(`Remove ${application.fullName}'s application from your dashboard?\n\nThis will only hide it from admin view. Tenant can still see their application.`)) return;
 
     try {
       setDeletingId(application.id);
       
-      // Hard delete (remove from database)
-      await deleteDoc(doc(db, "tenantApplications", application.id));
+      // Mark as admin deleted (soft delete)
+      await updateDoc(doc(db, "tenantApplications", application.id), {
+        adminDeleted: true,
+        adminDeletedAt: Timestamp.now(),
+        adminDeletedBy: "admin"
+      });
       
+      // Remove from local state
       setApplications(prev => prev.filter(app => app.id !== application.id));
-      alert("Application permanently deleted");
+      
+      alert("Application removed from admin dashboard.");
       
     } catch (error) {
-      console.error("Error deleting application:", error);
-      alert("Failed to delete application");
+      console.error("Error removing application:", error);
+      alert("Failed to remove application. Please try again.");
     } finally {
       setDeletingId(null);
     }
@@ -154,6 +202,24 @@ const Applications = () => {
       return `Rejected: ${formatDate(app.rejectedAt)}`;
     }
     return `Applied: ${formatDate(app.appliedDate)}`;
+  };
+
+  // Get unit details display
+  const getUnitDetails = (app) => {
+    let details = [];
+    
+    if (app.unitType) details.push(app.unitType);
+    if (app.bedrooms) details.push(`${app.bedrooms} bed`);
+    if (app.bathrooms) details.push(`${app.bathrooms} bath`);
+    if (app.unitSize) details.push(`${app.unitSize} sqft`);
+    
+    return details.length > 0 ? details.join(" • ") : "No unit details";
+  };
+
+  // Get competing applicants count
+  const getCompetingCount = (application) => {
+    const competingApps = getCompetingApplications(application);
+    return competingApps.length;
   };
 
   if (loading) {
@@ -197,6 +263,19 @@ const Applications = () => {
         </div>
       </div>
 
+      {/* Duplicate Applications Warning Banner */}
+      {Object.keys(duplicateApplications).some(key => 
+        duplicateApplications[key].filter(app => app.status === "pending").length > 1
+      ) && (
+        <div className="app-duplicate-warning">
+          <FaExclamationTriangle />
+          <span>
+            <strong>Note:</strong> Multiple tenants have applied for the same units. 
+            Approving one will automatically reject others for the same unit.
+          </span>
+        </div>
+      )}
+
       {applications.length === 0 ? (
         <div className="app-no-applications">
           <FaUser className="app-no-apps-icon" />
@@ -205,98 +284,147 @@ const Applications = () => {
         </div>
       ) : (
         <div className="app-horizontal-list">
-          {applications.map((app) => (
-            <div key={app.id} className={`app-horizontal-card ${app.status}`}>
-              <div className="app-horizontal-main">
-                <div className="app-horizontal-avatar">
-                  <FaUser />
-                  {app.status !== "pending" && (
-                    <div className={`app-status-indicator ${app.status}`}>
-                      {app.status === "approved" ? <FaCheckCircle /> : <FaThumbsDown />}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="app-horizontal-info">
-                  <div className="app-horizontal-name-section">
-                    <h3>{app.fullName}</h3>
-                    <span className={`app-horizontal-status ${getStatusClass(app.status)}`}>
-                      {getStatusText(app.status)}
-                    </span>
-                  </div>
-                  
-                  <div className="app-horizontal-contact">
-                    <p><FaEnvelope /> {app.email}</p>
-                    <p><FaPhone /> {app.phone}</p>
-                  </div>
-                  
-                  <div className="app-horizontal-property">
-                    <FaHome /> {app.propertyName || `Property ${app.propertyId}`}, {app.unitName || `Unit ${app.unitId}`}
-                    {app.monthlyRent && <span className="app-rent"> • KSh {parseInt(app.monthlyRent).toLocaleString()}/month</span>}
-                  </div>
-                  
-                  <div className="app-horizontal-meta">
-                    <span className="app-date">
-                      <FaCalendar /> {getProcessedDate(app)}
-                    </span>
-                    {app.rejectionReason && app.status === "rejected" && (
-                      <span className="app-rejection-reason">
-                        Reason: {app.rejectionReason}
-                      </span>
+          {applications.map((app) => {
+            const competingCount = getCompetingCount(app);
+            const hasCompeting = competingCount > 0 && app.status === "pending";
+            
+            return (
+              <div 
+                key={app.id} 
+                className={`app-horizontal-card ${app.status} ${hasCompeting ? 'has-competing' : ''}`}
+              >
+                <div className="app-horizontal-main">
+                  <div className="app-horizontal-avatar">
+                    <FaUser />
+                    {app.status !== "pending" && (
+                      <div className={`app-status-indicator ${app.status}`}>
+                        {app.status === "approved" ? <FaCheckCircle /> : <FaThumbsDown />}
+                      </div>
+                    )}
+                    {hasCompeting && app.status === "pending" && (
+                      <div className="app-competing-indicator">
+                        <FaUsers />
+                        <span className="app-competing-count">{competingCount}</span>
+                      </div>
                     )}
                   </div>
+                  
+                  <div className="app-horizontal-info">
+                    <div className="app-horizontal-name-section">
+                      <h3>{app.fullName}</h3>
+                      <span className={`app-horizontal-status ${getStatusClass(app.status)}`}>
+                        {getStatusText(app.status)}
+                      </span>
+                      {hasCompeting && (
+                        <span className="app-competing-badge">
+                          <FaExclamationTriangle /> {competingCount} other applicant{competingCount > 1 ? 's' : ''} for this unit
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="app-horizontal-contact">
+                      <p><FaEnvelope /> {app.email}</p>
+                      <p><FaPhone /> {app.phone}</p>
+                    </div>
+                    
+                    {/* Enhanced Unit Information */}
+                    <div className="app-horizontal-property-section">
+                      <div className="app-unit-header">
+                        <FaBuilding className="app-unit-icon" />
+                        <span className="app-property-name">{app.propertyName || `Property ${app.propertyId}`}</span>
+                        <FaDoorOpen className="app-unit-icon" />
+                        <span className="app-unit-name">{app.unitNumber || app.unitName || `Unit ${app.unitId}`}</span>
+                        {app.monthlyRent && (
+                          <span className="app-rent">KSh {parseInt(app.monthlyRent).toLocaleString()}/month</span>
+                        )}
+                      </div>
+                      
+                      <div className="app-unit-details">
+                        {getUnitDetails(app)}
+                      </div>
+                      
+                      <div className="app-unit-meta">
+                        {app.unitType && (
+                          <span className="app-unit-type">
+                            <FaHome /> {app.unitType}
+                          </span>
+                        )}
+                        {app.bedrooms && (
+                          <span className="app-unit-bedrooms">
+                            <FaBed /> {app.bedrooms} bed{app.bedrooms > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {app.bathrooms && (
+                          <span className="app-unit-bathrooms">
+                            <FaBath /> {app.bathrooms} bath{app.bathrooms > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="app-horizontal-meta">
+                      <span className="app-date">
+                        <FaCalendar /> {getProcessedDate(app)}
+                      </span>
+                      {app.rejectionReason && app.status === "rejected" && (
+                        <span className="app-rejection-reason">
+                          Reason: {app.rejectionReason}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="app-horizontal-actions">
+                  {app.status === "pending" ? (
+                    <>
+                      <button
+                        className="app-btn-view"
+                        onClick={() => viewApplicationDetails(app)}
+                      >
+                        <FaEye /> {hasCompeting ? "Review & Compare" : "Review"}
+                      </button>
+                      
+                      <button
+                        className="app-btn-delete"
+                        onClick={() => deleteApplication(app)}
+                        disabled={deletingId === app.id}
+                        title="Remove from dashboard"
+                      >
+                        {deletingId === app.id ? (
+                          <span className="app-deleting">Removing...</span>
+                        ) : (
+                          <FaTrash />
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="app-btn-view-details"
+                        onClick={() => setSelectedApp(app)}
+                      >
+                        <FaEye /> View Details
+                      </button>
+                      
+                      <button
+                        className="app-btn-delete"
+                        onClick={() => deleteApplication(app)}
+                        disabled={deletingId === app.id}
+                        title="Remove from dashboard"
+                      >
+                        {deletingId === app.id ? (
+                          <span className="app-deleting">Removing...</span>
+                        ) : (
+                          <FaTrash />
+                        )}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              
-              <div className="app-horizontal-actions">
-                {app.status === "pending" ? (
-                  <>
-                    <button
-                      className="app-btn-view"
-                      onClick={() => viewApplicationDetails(app)}
-                    >
-                      <FaEye /> Review
-                    </button>
-                    
-                    <button
-                      className="app-btn-delete"
-                      onClick={() => deleteApplication(app)}
-                      disabled={deletingId === app.id}
-                      title="Delete application"
-                    >
-                      {deletingId === app.id ? (
-                        <span className="app-deleting">Deleting...</span>
-                      ) : (
-                        <FaTrash />
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      className="app-btn-view-details"
-                      onClick={() => setSelectedApp(app)}
-                    >
-                      <FaEye /> View Details
-                    </button>
-                    
-                    <button
-                      className="app-btn-delete"
-                      onClick={() => deleteApplication(app)}
-                      disabled={deletingId === app.id}
-                      title="Delete application"
-                    >
-                      {deletingId === app.id ? (
-                        <span className="app-deleting">Deleting...</span>
-                      ) : (
-                        <FaTrash />
-                      )}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -320,6 +448,12 @@ const Applications = () => {
                 {selectedApp.idNumber && (
                   <p><strong>ID Number:</strong> {selectedApp.idNumber}</p>
                 )}
+                {selectedApp.occupation && (
+                  <p><strong>Occupation:</strong> {selectedApp.occupation}</p>
+                )}
+                {selectedApp.employer && (
+                  <p><strong>Employer:</strong> {selectedApp.employer}</p>
+                )}
                 {selectedApp.emergencyContactName && (
                   <p><strong>Emergency Contact:</strong> {selectedApp.emergencyContactName}</p>
                 )}
@@ -329,9 +463,21 @@ const Applications = () => {
               </div>
 
               <div className="app-detail-section">
-                <h3>Property Information</h3>
-                <p><strong>Property ID:</strong> {selectedApp.propertyId}</p>
-                <p><strong>Unit ID:</strong> {selectedApp.unitId}</p>
+                <h3>Unit & Property Information</h3>
+                <p><strong>Property:</strong> {selectedApp.propertyName || selectedApp.propertyId}</p>
+                <p><strong>Unit:</strong> {selectedApp.unitNumber || selectedApp.unitName || selectedApp.unitId}</p>
+                {selectedApp.unitType && (
+                  <p><strong>Unit Type:</strong> {selectedApp.unitType}</p>
+                )}
+                {selectedApp.bedrooms && (
+                  <p><strong>Bedrooms:</strong> {selectedApp.bedrooms}</p>
+                )}
+                {selectedApp.bathrooms && (
+                  <p><strong>Bathrooms:</strong> {selectedApp.bathrooms}</p>
+                )}
+                {selectedApp.unitSize && (
+                  <p><strong>Unit Size:</strong> {selectedApp.unitSize} sqft</p>
+                )}
                 {selectedApp.monthlyRent && (
                   <p><strong>Monthly Rent:</strong> KSh {parseInt(selectedApp.monthlyRent).toLocaleString()}</p>
                 )}
@@ -370,12 +516,14 @@ const Applications = () => {
               <button
                 className="app-btn-delete"
                 onClick={() => {
-                  deleteApplication(selectedApp);
-                  setSelectedApp(null);
+                  if (window.confirm(`Remove ${selectedApp.fullName}'s application from your dashboard?\n\nThis only hides it from admin view.`)) {
+                    deleteApplication(selectedApp);
+                    setSelectedApp(null);
+                  }
                 }}
                 style={{ marginRight: '10px' }}
               >
-                <FaTrash /> Delete
+                <FaTrash /> Remove from Dashboard
               </button>
               {selectedApp.status === "pending" && (
                 <button
@@ -388,13 +536,18 @@ const Applications = () => {
                       idNumber: selectedApp.idNumber || "",
                       propertyId: selectedApp.propertyId,
                       unitId: selectedApp.unitId,
+                      propertyName: selectedApp.propertyName || "",
+                      unitNumber: selectedApp.unitNumber || "",
+                      unitType: selectedApp.unitType || "",
+                      bedrooms: selectedApp.bedrooms || "",
+                      bathrooms: selectedApp.bathrooms || "",
                       monthlyRent: selectedApp.monthlyRent || "",
                       securityDeposit: selectedApp.securityDeposit || selectedApp.monthlyRent || "",
                       emergencyContactName: selectedApp.emergencyContactName || "",
                       emergencyContactPhone: selectedApp.emergencyContactPhone || "",
                       applicationId: selectedApp.id,
                       appliedDate: selectedApp.appliedDate,
-                      userId: selectedApp.tenantId
+                      tenantId: selectedApp.tenantId
                     };
                     localStorage.setItem('prefillTenantData', JSON.stringify(prefillData));
                     navigate('/tenants/add', { state: { prefillData } });
