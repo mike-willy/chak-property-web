@@ -1,4 +1,4 @@
-// src/pages/Properties.jsx - FIXED DELETE FUNCTION
+// src/pages/Properties.jsx - FIXED BEDROOM/BATHROOM DISPLAY
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -91,6 +91,42 @@ const Properties = () => {
     const { totalUnits, leasedCount } = getUnitCounts(property);
     if (!totalUnits || totalUnits === 0) return 0;
     return Math.round((leasedCount / totalUnits) * 100);
+  };
+
+  // NEW: Get proper bedroom display text
+  const getBedroomDisplayText = (property) => {
+    const bedrooms = property.bedrooms || 0;
+    
+    // Handle special cases
+    if (property.propertyType === "single" || property.propertyType === "bedsitter") {
+      return "Studio";  // Single room and bedsitter are studio style
+    }
+    
+    // For commercial properties with 0 bedrooms
+    if (property.propertyType === "commercial" && bedrooms === 0) {
+      return "Commercial";
+    }
+    
+    // Normal bedroom count display
+    return `${bedrooms} Bed${bedrooms !== 1 ? 's' : ''}`;
+  };
+
+  // NEW: Get proper bathroom display text
+  const getBathroomDisplayText = (property) => {
+    const bathrooms = property.bathrooms || 0;
+    
+    // Handle commercial properties
+    if (property.propertyType === "commercial") {
+      return bathrooms > 0 ? `${bathrooms} Bath${bathrooms !== 1 ? 's' : ''}` : "Shared";
+    }
+    
+    // For single room and bedsitter (they have 1 bathroom but not separate)
+    if (property.propertyType === "single" || property.propertyType === "bedsitter") {
+      return "1 Bath";
+    }
+    
+    // Normal bathroom count display
+    return `${bathrooms} Bath${bathrooms !== 1 ? 's' : ''}`;
   };
 
   // Get status badge class
@@ -640,7 +676,7 @@ const Properties = () => {
                     <li>All user records associated with this property</li>
                     <li>All payment history for these tenants</li>
                     <li>Any application records for this property</li>
-                  </ul>
+                </ul>
                 </div>
                 
                 {deleting && (
@@ -823,14 +859,15 @@ const Properties = () => {
                             <span>{property.address || "No address"}, {property.city || "Unknown city"}</span>
                           </div>
                           
+                          {/* ✅ FIXED: Bedroom/Bathroom Display */}
                           <div className="properties-specs">
                             <div className="properties-spec">
                               <FaBed />
-                              <span>{property.bedrooms || 1} Bed</span>
+                              <span>{getBedroomDisplayText(property)}</span>
                             </div>
                             <div className="properties-spec">
                               <FaBath />
-                              <span>{property.bathrooms || 1} Bath</span>
+                              <span>{getBathroomDisplayText(property)}</span>
                             </div>
                             <div className="properties-spec">
                               <FaHome />

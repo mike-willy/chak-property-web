@@ -1,4 +1,4 @@
-// src/pages/AddProperty.jsx
+// src/pages/AddProperty.jsx - FIXED VERSION
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -43,16 +43,80 @@ const AddProperty = () => {
   const [fetchingLandlords, setFetchingLandlords] = useState(true);
   const [propertyImages, setPropertyImages] = useState([]);
   
-  // Property types with icons and descriptions
+  // Property types with icons, descriptions, and AUTO bedroom/bathroom mapping
   const propertyTypes = [
-    { value: "single", label: "Single Room", icon: "🏠", description: "Single self-contained room", hasBedrooms: false },
-    { value: "bedsitter", label: "Bedsitter", icon: "🛌", description: "Bed-sitting room with kitchenette", hasBedrooms: false },
-    { value: "one-bedroom", label: "One Bedroom", icon: "1️⃣", description: "One bedroom apartment", hasBedrooms: true },
-    { value: "two-bedroom", label: "Two Bedroom", icon: "2️⃣", description: "Two bedroom apartment", hasBedrooms: true },
-    { value: "three-bedroom", label: "Three Bedroom", icon: "3️⃣", description: "Three bedroom apartment", hasBedrooms: true },
-    { value: "one-two-bedroom", label: "1BR + 2BR", icon: "🏘️", description: "Mix of 1BR and 2BR units", hasBedrooms: true },
-    { value: "apartment", label: "Apartment Complex", icon: "🏢", description: "Multi-unit apartment building", hasBedrooms: false },
-    { value: "commercial", label: "Commercial", icon: "🏪", description: "Commercial property", hasBedrooms: false },
+    { 
+      value: "single", 
+      label: "Single Room", 
+      icon: "🏠", 
+      description: "Single self-contained room", 
+      hasBedrooms: false,
+      autoBedrooms: 0,    // Single room doesn't have separate bedroom count
+      autoBathrooms: 1    // Usually has 1 bathroom
+    },
+    { 
+      value: "bedsitter", 
+      label: "Bedsitter", 
+      icon: "🛌", 
+      description: "Bed-sitting room with kitchenette", 
+      hasBedrooms: false,
+      autoBedrooms: 0,    // Studio style
+      autoBathrooms: 1    // Usually has 1 bathroom
+    },
+    { 
+      value: "one-bedroom", 
+      label: "One Bedroom", 
+      icon: "1️⃣", 
+      description: "One bedroom apartment", 
+      hasBedrooms: true,
+      autoBedrooms: 1,    // 1 bedroom
+      autoBathrooms: 1    // 1 bathroom
+    },
+    { 
+      value: "two-bedroom", 
+      label: "Two Bedroom", 
+      icon: "2️⃣", 
+      description: "Two bedroom apartment", 
+      hasBedrooms: true,
+      autoBedrooms: 2,    // 2 bedrooms
+      autoBathrooms: 2    // 2 bathrooms
+    },
+    { 
+      value: "three-bedroom", 
+      label: "Three Bedroom", 
+      icon: "3️⃣", 
+      description: "Three bedroom apartment", 
+      hasBedrooms: true,
+      autoBedrooms: 3,    // 3 bedrooms
+      autoBathrooms: 3    // 3 bathrooms
+    },
+    { 
+      value: "one-two-bedroom", 
+      label: "1BR + 2BR", 
+      icon: "🏘️", 
+      description: "Mix of 1BR and 2BR units", 
+      hasBedrooms: true,
+      autoBedrooms: 0,    // Mixed - will be set per unit
+      autoBathrooms: 0    // Mixed - will be set per unit
+    },
+    { 
+      value: "apartment", 
+      label: "Apartment Complex", 
+      icon: "🏢", 
+      description: "Multi-unit apartment building", 
+      hasBedrooms: false,
+      autoBedrooms: 1,    // Default 1 bedroom for apartment units
+      autoBathrooms: 1    // Default 1 bathroom for apartment units
+    },
+    { 
+      value: "commercial", 
+      label: "Commercial", 
+      icon: "🏪", 
+      description: "Commercial property", 
+      hasBedrooms: false,
+      autoBedrooms: 0,    // No bedrooms for commercial
+      autoBathrooms: 1    // Usually has bathrooms
+    },
   ];
   
   // Amenities options
@@ -84,8 +148,8 @@ const AddProperty = () => {
     country: "Kenya",
     amenities: [],
     propertyType: "apartment",
-    bedrooms: 1,
-    bathrooms: 1,
+    bedrooms: 1,  // Will be auto-updated when property type changes
+    bathrooms: 1, // Will be auto-updated when property type changes
     size: "",
     images: [],
     pricing: {
@@ -95,15 +159,15 @@ const AddProperty = () => {
       twoBedroom: "",
       threeBedroom: ""
     },
-    // NEW: Application and fee-related fields
+    // FEE FIELDS - Fixed: Using strings to prevent number bugs
     applicationFee: "",
     securityDeposit: "",
     petDeposit: "",
     otherFees: "",
-    leaseTerm: 12, // Default 12 months
-    noticePeriod: 30, // Default 30 days
+    leaseTerm: "12", // Keep as string
+    noticePeriod: "30", // Keep as string
     latePaymentFee: "",
-    gracePeriod: 5, // Default 5 days
+    gracePeriod: "5", // Keep as string
     feeDetails: {
       includesWater: false,
       includesElectricity: false,
@@ -126,43 +190,141 @@ const AddProperty = () => {
     fetchLandlords();
   }, []);
 
+  // Auto-update bedrooms/bathrooms when property type changes
+  useEffect(() => {
+    const currentType = propertyTypes.find(t => t.value === form.propertyType);
+    if (currentType) {
+      // For property types with auto values, update them
+      if (form.propertyType !== "one-two-bedroom" && form.propertyType !== "apartment" && form.propertyType !== "commercial") {
+        setForm(prev => ({
+          ...prev,
+          bedrooms: currentType.autoBedrooms,
+          bathrooms: currentType.autoBathrooms
+        }));
+      }
+      // For apartment, set default values if not already set
+      else if (form.propertyType === "apartment") {
+        if (form.bedrooms === 0) {
+          setForm(prev => ({ ...prev, bedrooms: 1 }));
+        }
+        if (form.bathrooms === 0) {
+          setForm(prev => ({ ...prev, bathrooms: 1 }));
+        }
+      }
+      // For commercial, set default values
+      else if (form.propertyType === "commercial") {
+        setForm(prev => ({
+          ...prev,
+          bedrooms: 0,
+          bathrooms: 1
+        }));
+      }
+    }
+  }, [form.propertyType]);
+
   // Function to generate units based on total units count
-  const generateUnits = (totalUnits, propertyName, rentAmount) => {
+  const generateUnits = (totalUnits, propertyName, rentAmount, propertyType) => {
     const units = [];
     const propertyPrefix = propertyName 
       ? propertyName.replace(/\s+/g, '').substring(0, 3).toUpperCase() 
       : 'APT';
     
-    const baseRent = Number(rentAmount) || 0;
+    // Get base rent based on property type
+    let baseRent = 0;
+    switch(propertyType) {
+      case 'single': baseRent = parseFloat(form.pricing.single) || 0; break;
+      case 'bedsitter': baseRent = parseFloat(form.pricing.bedsitter) || 0; break;
+      case 'one-bedroom': baseRent = parseFloat(form.pricing.oneBedroom) || 0; break;
+      case 'two-bedroom': baseRent = parseFloat(form.pricing.twoBedroom) || 0; break;
+      case 'three-bedroom': baseRent = parseFloat(form.pricing.threeBedroom) || 0; break;
+      default: baseRent = parseFloat(rentAmount) || 0;
+    }
     
-    for (let i = 1; i <= totalUnits; i++) {
-      const unitNumber = i.toString().padStart(3, '0');
-      units.push({
-        unitId: `${propertyPrefix}-${unitNumber}`,
-        unitNumber: unitNumber,
-        unitName: `${propertyName || 'Property'} - Unit ${unitNumber}`,
-        status: "vacant", // Default status
-        rentAmount: baseRent,
-        size: form.size || "",
-        amenities: [...form.amenities],
-        // Tenant info (empty initially)
-        tenantId: null,
-        tenantName: "",
-        tenantPhone: "",
-        tenantEmail: "",
-        // Lease info
-        leaseStart: null,
-        leaseEnd: null,
-        rentPaidUntil: null,
-        // Maintenance info
-        maintenanceRequests: 0,
-        lastMaintenanceDate: null,
-        currentMaintenance: false,
-        // Notes
-        notes: "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+    // SPECIAL HANDLING FOR MIXED PROPERTY TYPE (one-two-bedroom)
+    if (propertyType === "one-two-bedroom") {
+      for (let i = 1; i <= totalUnits; i++) {
+        const unitNumber = i.toString().padStart(3, '0');
+        
+        // Alternate between 1BR and 2BR units
+        const isOneBedroom = i % 2 === 1; // Odd numbers = 1BR, Even = 2BR
+        
+        const unitBedrooms = isOneBedroom ? 1 : 2;
+        const unitBathrooms = isOneBedroom ? 1 : 2;
+        const unitRent = isOneBedroom ? 
+          (parseFloat(form.pricing.oneBedroom) || 0) : 
+          (parseFloat(form.pricing.twoBedroom) || 0);
+        
+        units.push({
+          unitId: `${propertyPrefix}-${unitNumber}`,
+          unitNumber: unitNumber,
+          unitName: `${propertyName || 'Property'} - Unit ${unitNumber} (${unitBedrooms}BR)`,
+          status: "vacant",
+          rentAmount: unitRent,
+          size: form.size || "",
+          amenities: [...form.amenities],
+          // Unit-specific bedroom/bathroom for mixed type
+          bedrooms: unitBedrooms,
+          bathrooms: unitBathrooms,
+          // Tenant info
+          tenantId: null,
+          tenantName: "",
+          tenantPhone: "",
+          tenantEmail: "",
+          // Lease info
+          leaseStart: null,
+          leaseEnd: null,
+          rentPaidUntil: null,
+          // Maintenance info
+          maintenanceRequests: 0,
+          lastMaintenanceDate: null,
+          currentMaintenance: false,
+          // Notes
+          notes: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } 
+    // REGULAR PROPERTY TYPES
+    else {
+      // Get bedroom/bathroom counts for this property type
+      const currentType = propertyTypes.find(t => t.value === propertyType);
+      const unitBedrooms = currentType?.hasBedrooms ? currentType.autoBedrooms : form.bedrooms;
+      const unitBathrooms = currentType?.hasBedrooms ? currentType.autoBathrooms : form.bathrooms;
+      
+      for (let i = 1; i <= totalUnits; i++) {
+        const unitNumber = i.toString().padStart(3, '0');
+        
+        units.push({
+          unitId: `${propertyPrefix}-${unitNumber}`,
+          unitNumber: unitNumber,
+          unitName: `${propertyName || 'Property'} - Unit ${unitNumber}`,
+          status: "vacant",
+          rentAmount: baseRent,
+          size: form.size || "",
+          amenities: [...form.amenities],
+          // Unit-specific bedroom/bathroom
+          bedrooms: unitBedrooms,
+          bathrooms: unitBathrooms,
+          // Tenant info
+          tenantId: null,
+          tenantName: "",
+          tenantPhone: "",
+          tenantEmail: "",
+          // Lease info
+          leaseStart: null,
+          leaseEnd: null,
+          rentPaidUntil: null,
+          // Maintenance info
+          maintenanceRequests: 0,
+          lastMaintenanceDate: null,
+          currentMaintenance: false,
+          // Notes
+          notes: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
     }
     
     return units;
@@ -200,9 +362,9 @@ const AddProperty = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     
-    // If selecting landlord, also get landlord name
+    // Handle all inputs normally - FIXED: No blocking logic
     if (name === "landlordId") {
       const selectedLandlord = landlords.find(l => l.id === value);
       setForm({
@@ -220,9 +382,8 @@ const AddProperty = () => {
         }
       });
     } else if (name === "units") {
-      // Handle units change - generate units automatically
       const totalUnits = parseInt(value) || 1;
-      const generatedUnits = generateUnits(totalUnits, form.name, getPriceForType());
+      const generatedUnits = generateUnits(totalUnits, form.name, getPriceForType(), form.propertyType);
       
       setForm(prev => ({
         ...prev,
@@ -236,7 +397,11 @@ const AddProperty = () => {
           units: generatedUnits
         }
       }));
+    } else if (name === "bedrooms" || name === "bathrooms") {
+      // Allow manual input for bedroom/bathroom
+      setForm(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
     } else {
+      // Handle all other inputs normally
       setForm({ ...form, [name]: value });
     }
   };
@@ -304,19 +469,41 @@ const AddProperty = () => {
 
   // Handle property type selection
   const handlePropertyTypeSelect = (type) => {
-    // When property type changes, regenerate units if name exists
+    const selectedType = propertyTypes.find(t => t.value === type);
+    
+    // Auto-set bedrooms/bathrooms based on property type
+    let newBedrooms = form.bedrooms;
+    let newBathrooms = form.bathrooms;
+    
+    if (type !== "one-two-bedroom" && type !== "apartment" && type !== "commercial") {
+      newBedrooms = selectedType.autoBedrooms;
+      newBathrooms = selectedType.autoBathrooms;
+    } else if (type === "commercial") {
+      newBedrooms = 0;
+      newBathrooms = 1;
+    } else if (type === "apartment") {
+      // Keep existing or default to 1
+      newBedrooms = form.bedrooms || 1;
+      newBathrooms = form.bathrooms || 1;
+    }
+    
+    setForm(prev => ({
+      ...prev,
+      propertyType: type,
+      bedrooms: newBedrooms,
+      bathrooms: newBathrooms
+    }));
+    
+    // Regenerate units with new property type
     if (form.name && form.units > 0) {
-      const generatedUnits = generateUnits(form.units, form.name, getPriceForType());
+      const generatedUnits = generateUnits(form.units, form.name, getPriceForType(), type);
       setForm(prev => ({
         ...prev,
-        propertyType: type,
         unitDetails: {
           ...prev.unitDetails,
           units: generatedUnits
         }
       }));
-    } else {
-      setForm(prev => ({ ...prev, propertyType: type }));
     }
   };
 
@@ -344,20 +531,29 @@ const AddProperty = () => {
 
   // Get price based on property type
   const getPriceForType = () => {
+    let price = 0;
     switch(form.propertyType) {
-      case 'single': return form.pricing.single;
-      case 'bedsitter': return form.pricing.bedsitter;
-      case 'one-bedroom': return form.pricing.oneBedroom;
-      case 'two-bedroom': return form.pricing.twoBedroom;
-      case 'three-bedroom': return form.pricing.threeBedroom;
-      default: return form.rentAmount;
+      case 'single': price = parseFloat(form.pricing.single) || 0; break;
+      case 'bedsitter': price = parseFloat(form.pricing.bedsitter) || 0; break;
+      case 'one-bedroom': price = parseFloat(form.pricing.oneBedroom) || 0; break;
+      case 'two-bedroom': price = parseFloat(form.pricing.twoBedroom) || 0; break;
+      case 'three-bedroom': price = parseFloat(form.pricing.threeBedroom) || 0; break;
+      default: price = parseFloat(form.rentAmount) || 0;
     }
+    return price;
   };
 
   // Check if property type requires pricing input
   const requiresPricingInput = () => {
     const noPricingTypes = ['apartment', 'commercial', 'one-two-bedroom'];
     return !noPricingTypes.includes(form.propertyType);
+  };
+
+  // FIXED: Proper number handling for fees
+  const parseFeeValue = (value) => {
+    if (!value || value === "") return 0;
+    const num = parseFloat(value);
+    return isNaN(num) ? 0 : num;
   };
 
   const handleSubmit = async (e) => {
@@ -378,7 +574,8 @@ const AddProperty = () => {
       }
     } else if (form.propertyType === 'apartment' || form.propertyType === 'commercial') {
       // For apartment complex and commercial, use rentAmount field
-      if (!form.rentAmount || form.rentAmount <= 0) {
+      const rentAmount = parseFloat(form.rentAmount) || 0;
+      if (!rentAmount || rentAmount <= 0) {
         alert("Please enter a valid monthly rent amount");
         return;
       }
@@ -388,23 +585,28 @@ const AddProperty = () => {
     
     try {
       // Generate units if not already generated
-      const priceForUnits = requiresPricingInput() ? getPriceForType() : form.rentAmount;
+      const priceForUnits = requiresPricingInput() ? getPriceForType() : parseFloat(form.rentAmount) || 0;
       const unitsArray = form.unitDetails.units.length > 0 
         ? form.unitDetails.units 
-        : generateUnits(form.units, form.name, priceForUnits);
+        : generateUnits(form.units, form.name, priceForUnits, form.propertyType);
       
-      // 1️⃣ FIRST: Create the main property document WITHOUT units array
+      // Get current property type details
+      const currentPropertyType = propertyTypes.find(t => t.value === form.propertyType);
+      
+      // FIXED: Create property data with proper number conversion
       const propertyData = {
         // Basic info
         name: form.name,
         address: form.address,
         city: form.city,
         country: form.country,
-        rentAmount: Number(priceForUnits),
-        units: Number(form.units),
+        // FIXED: Proper number conversion - no division bug
+        rentAmount: parseFloat(priceForUnits) || 0,
+        units: parseInt(form.units) || 1,
         propertyType: form.propertyType,
-        bedrooms: Number(form.bedrooms),
-        bathrooms: Number(form.bathrooms),
+        // Auto-set bedrooms/bathrooms based on property type
+        bedrooms: currentPropertyType?.hasBedrooms ? currentPropertyType.autoBedrooms : parseInt(form.bedrooms) || 0,
+        bathrooms: currentPropertyType?.hasBedrooms ? currentPropertyType.autoBathrooms : parseInt(form.bathrooms) || 0,
         size: form.size,
         description: form.description,
         amenities: form.amenities,
@@ -414,25 +616,24 @@ const AddProperty = () => {
         landlordId: form.landlordId,
         landlordName: form.landlordName,
         
-        // Application and fee-related fields
-        applicationFee: Number(form.applicationFee) || 0,
-        securityDeposit: Number(form.securityDeposit) || 0,
-        petDeposit: Number(form.petDeposit) || 0,
+        // FIXED: Application and fee-related fields - NO DIVISION BUG
+        applicationFee: parseFeeValue(form.applicationFee),
+        securityDeposit: parseFeeValue(form.securityDeposit),
+        petDeposit: parseFeeValue(form.petDeposit),
         otherFees: form.otherFees || "",
-        leaseTerm: Number(form.leaseTerm),
-        noticePeriod: Number(form.noticePeriod),
-        latePaymentFee: Number(form.latePaymentFee) || 0,
-        gracePeriod: Number(form.gracePeriod),
+        leaseTerm: parseInt(form.leaseTerm) || 12,
+        noticePeriod: parseInt(form.noticePeriod) || 30,
+        latePaymentFee: parseFeeValue(form.latePaymentFee),
+        gracePeriod: parseInt(form.gracePeriod) || 5,
         feeDetails: form.feeDetails,
         
-        // ✅ CHANGED: Store only unit COUNTS, not the array
+        // Store unit counts
         unitDetails: {
-          totalUnits: Number(form.units),
-          vacantCount: Number(form.units), // All units start as vacant
+          totalUnits: parseInt(form.units) || 1,
+          vacantCount: parseInt(form.units) || 1,
           leasedCount: 0,
           maintenanceCount: 0,
           occupancyRate: 0
-          // ❌ REMOVED: units: [] - We'll store units separately
         },
         
         // Status and timestamps
@@ -440,37 +641,33 @@ const AddProperty = () => {
         isActive: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        monthlyRevenue: 0, // Start with 0 revenue
-        totalTenants: 0, // Start with 0 tenants
-        occupancy: 0 // Start with 0% occupancy
+        monthlyRevenue: 0,
+        totalTenants: 0,
+        occupancy: 0
       };
       
-      // Add pricing if exists (only for property types that use pricing object)
-      if (form.pricing && (Object.values(form.pricing).some(val => val !== ""))) {
-        propertyData.pricing = form.pricing;
+      // Add pricing if exists
+      if (form.pricing && (Object.values(form.pricing).some(val => val !== "" && val !== "0"))) {
+        const pricingNumbers = {};
+        Object.keys(form.pricing).forEach(key => {
+          pricingNumbers[key] = parseFloat(form.pricing[key]) || 0;
+        });
+        propertyData.pricing = pricingNumbers;
       }
       
-      // Remove empty arrays/strings
-      Object.keys(propertyData).forEach(key => {
-        if (propertyData[key] === "" || (Array.isArray(propertyData[key]) && propertyData[key].length === 0)) {
-          delete propertyData[key];
-        }
-      });
+      console.log("Saving property data:", propertyData);
+      console.log("Bedrooms:", propertyData.bedrooms, "Bathrooms:", propertyData.bathrooms);
+      console.log("Fees - Application:", propertyData.applicationFee, "Security:", propertyData.securityDeposit);
       
-      // 2️⃣ SECOND: Save the main property document to Firestore
+      // Save the main property document to Firestore
       const propertyRef = await addDoc(collection(db, "properties"), propertyData);
       const propertyId = propertyRef.id;
       
       console.log("✅ Main property created with ID:", propertyId);
       
-      // 3️⃣ THIRD: Create SEPARATE UNIT DOCUMENTS in properties/{propertyId}/units subcollection
-      console.log(`Creating ${unitsArray.length} unit documents...`);
-      
-      // Create all unit documents in parallel
+      // Create unit documents
       const unitCreationPromises = unitsArray.map(async (unitData, index) => {
-        // Prepare complete unit document data
         const unitDocData = {
-          // Basic unit info
           unitId: unitData.unitId,
           unitNumber: unitData.unitNumber,
           unitName: unitData.unitName,
@@ -480,27 +677,27 @@ const AddProperty = () => {
           propertyType: form.propertyType,
           
           // Unit specifications
-          bedrooms: Number(form.bedrooms),
-          bathrooms: Number(form.bathrooms),
+          bedrooms: unitData.bedrooms || propertyData.bedrooms,
+          bathrooms: unitData.bathrooms || propertyData.bathrooms,
           size: form.size || "",
           amenities: [...form.amenities],
           
-          // Pricing
-          rentAmount: Number(unitData.rentAmount),
-          applicationFee: Number(form.applicationFee) || 0,
-          securityDeposit: Number(form.securityDeposit) || 0,
-          petDeposit: Number(form.petDeposit) || 0,
-          leaseTerm: Number(form.leaseTerm),
-          latePaymentFee: Number(form.latePaymentFee) || 0,
-          gracePeriod: Number(form.gracePeriod),
+          // Pricing - FIXED: No division bug
+          rentAmount: parseFloat(unitData.rentAmount) || 0,
+          applicationFee: parseFeeValue(form.applicationFee),
+          securityDeposit: parseFeeValue(form.securityDeposit),
+          petDeposit: parseFeeValue(form.petDeposit),
+          leaseTerm: parseInt(form.leaseTerm) || 12,
+          latePaymentFee: parseFeeValue(form.latePaymentFee),
+          gracePeriod: parseInt(form.gracePeriod) || 5,
           feeDetails: form.feeDetails,
           
           // Status tracking
-          status: "vacant", // All units start as vacant
+          status: "vacant",
           isAvailable: true,
           isActive: true,
           
-          // Tenant info (empty initially)
+          // Tenant info
           tenantId: null,
           tenantName: "",
           tenantPhone: "",
@@ -513,7 +710,7 @@ const AddProperty = () => {
           lastPaymentDate: null,
           leaseDocumentUrl: "",
           
-          // Maintenance info (empty initially)
+          // Maintenance info
           maintenanceRequests: 0,
           lastMaintenanceDate: null,
           currentMaintenance: false,
@@ -537,18 +734,14 @@ const AddProperty = () => {
           ]
         };
         
-        // Create unit document in the subcollection
         await addDoc(collection(db, `properties/${propertyId}/units`), unitDocData);
-        
-        console.log(`Created unit: ${unitData.unitId}`);
         return unitData.unitId;
       });
       
-      // Wait for all units to be created
       await Promise.all(unitCreationPromises);
-      console.log(`✅ Created ${unitsArray.length} unit documents in subcollection`);
+      console.log(`✅ Created ${unitsArray.length} unit documents`);
       
-      // 4️⃣ FOURTH: Update the landlord's document in landlords collection
+      // Update landlord's document
       const landlordRef = doc(db, "landlords", form.landlordId);
       const currentTime = new Date().toISOString();
       
@@ -557,23 +750,36 @@ const AddProperty = () => {
           propertyId: propertyId,
           propertyName: form.name,
           address: form.address,
-          rentAmount: Number(priceForUnits),
-          units: Number(form.units),
-          vacantUnits: Number(form.units),
+          rentAmount: parseFloat(priceForUnits) || 0,
+          units: parseInt(form.units) || 1,
+          vacantUnits: parseInt(form.units) || 1,
           leasedUnits: 0,
           maintenanceUnits: 0,
           status: "active",
           addedAt: currentTime,
-          propertyType: form.propertyType
+          propertyType: form.propertyType,
+          bedrooms: propertyData.bedrooms,
+          bathrooms: propertyData.bathrooms
         }),
         totalProperties: (form.totalProperties || 0) + 1,
         lastUpdated: serverTimestamp()
       });
       
-      console.log("✅ Updated landlord in landlords collection");
+      console.log("✅ Updated landlord");
       
-      // 5️⃣ SUCCESS: Show success message and navigate
-      alert(`✅ Property "${form.name}" added successfully with ${form.units} units!\n\nEach unit is now individually manageable.`);
+      // Success message
+      const successMessage = `✅ Property "${form.name}" added successfully!\n\n` +
+        `📊 Details:\n` +
+        `• Type: ${propertyTypes.find(t => t.value === form.propertyType)?.label}\n` +
+        `• Bedrooms: ${propertyData.bedrooms}\n` +
+        `• Bathrooms: ${propertyData.bathrooms}\n` +
+        `• Units: ${form.units}\n` +
+        `• Rent: KSh ${propertyData.rentAmount.toLocaleString()}/month\n` +
+        `• Security Deposit: KSh ${propertyData.securityDeposit.toLocaleString()}\n` +
+        `• Application Fee: KSh ${propertyData.applicationFee.toLocaleString()}\n\n` +
+        `Each unit is now individually manageable.`;
+      
+      alert(successMessage);
       navigate("/properties");
       
     } catch (error) {
@@ -658,7 +864,7 @@ const AddProperty = () => {
             </div>
           </div>
           
-          {/* PROPERTY TYPE SELECTION */}
+          {/* PROPERTY TYPE SELECTION WITH AUTO INFO */}
           <div className="form-section">
             <h3>Property Type</h3>
             <div className="property-type-grid">
@@ -672,12 +878,43 @@ const AddProperty = () => {
                   <span className="property-icon">{type.icon}</span>
                   <span className="property-label">{type.label}</span>
                   <span className="property-desc">{type.description}</span>
+                  {/* Show auto bedroom/bathroom info */}
+                  {type.autoBedrooms > 0 && (
+                    <span className="property-auto-info">
+                      🛏️ {type.autoBedrooms} BR | 🚿 {type.autoBathrooms} BA
+                    </span>
+                  )}
+                  {(type.value === "single" || type.value === "bedsitter") && (
+                    <span className="property-auto-info">🚿 1 Bathroom</span>
+                  )}
+                  {type.value === "commercial" && (
+                    <span className="property-auto-info">🏪 Commercial Space</span>
+                  )}
                 </button>
               ))}
             </div>
+            
+            {/* Current Selection Info */}
+            {currentPropertyType && (
+              <div className="current-type-info">
+                <p>
+                  <strong>Selected:</strong> {currentPropertyType.label}
+                  {(currentPropertyType.value === "single" || currentPropertyType.value === "bedsitter") && (
+                    <span> • 🚿 1 Bathroom</span>
+                  )}
+                  {currentPropertyType.autoBedrooms > 0 && (
+                    <span> • 🛏️ {currentPropertyType.autoBedrooms} Bedrooms</span>
+                  )}
+                  {currentPropertyType.autoBathrooms > 0 && currentPropertyType.value !== "single" && currentPropertyType.value !== "bedsitter" && (
+                    <span> • 🚿 {currentPropertyType.autoBathrooms} Bathrooms</span>
+                  )}
+                </p>
+                <p className="type-description">{currentPropertyType.description}</p>
+              </div>
+            )}
           </div>
           
-          {/* PRICING SECTION - Dynamic based on property type */}
+          {/* PRICING SECTION */}
           {requiresPricingInput() ? (
             <div className="form-section">
               <h3>Pricing</h3>
@@ -687,7 +924,6 @@ const AddProperty = () => {
                   <p>{currentPropertyType?.description}</p>
                 </div>
                 
-                {/* Display relevant price field based on property type */}
                 <div className="price-input-container">
                   {form.propertyType === 'single' && (
                     <div className="form-group">
@@ -772,37 +1008,74 @@ const AddProperty = () => {
               </div>
             </div>
           ) : (
-            // For apartment complex and commercial properties
             <div className="form-section">
               <h3>Monthly Rent</h3>
               <div className="pricing-section">
                 <div className="selected-type-display">
                   <h4>{currentPropertyType?.label}</h4>
                   <p>{currentPropertyType?.description}</p>
-                  <p className="note">Enter the base monthly rent amount</p>
+                  
+                  {form.propertyType === "one-two-bedroom" && (
+                    <div className="mixed-type-pricing">
+                      <p className="note">🔀 This property type will have a mix of 1BR and 2BR units</p>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="required">1 Bedroom Rent (KSh)</label>
+                          <input
+                            type="number"
+                            name="pricing.oneBedroom"
+                            value={form.pricing.oneBedroom}
+                            onChange={handleChange}
+                            placeholder="e.g., 25,000"
+                            required
+                            disabled={loading}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label className="required">2 Bedroom Rent (KSh)</label>
+                          <input
+                            type="number"
+                            name="pricing.twoBedroom"
+                            value={form.pricing.twoBedroom}
+                            onChange={handleChange}
+                            placeholder="e.g., 40,000"
+                            required
+                            disabled={loading}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {(form.propertyType === "apartment" || form.propertyType === "commercial") && (
+                    <p className="note">Enter the base monthly rent amount</p>
+                  )}
                 </div>
                 
-                <div className="form-group">
-                  <label className="required">Monthly Rent Amount (KSh)</label>
-                  <input
-                    type="number"
-                    name="rentAmount"
-                    value={form.rentAmount}
-                    onChange={handleChange}
-                    placeholder={form.propertyType === 'commercial' ? "e.g., 50,000" : "e.g., 15,000"}
-                    required
-                    disabled={loading}
-                  />
-                  <div className="price-summary">
-                    <p><strong>Total Monthly Potential:</strong> KSh {(form.rentAmount || 0) * form.units}</p>
-                    <p className="note">{form.units} unit(s) × KSh {form.rentAmount || 0}</p>
+                {(form.propertyType === "apartment" || form.propertyType === "commercial") && (
+                  <div className="form-group">
+                    <label className="required">Monthly Rent Amount (KSh)</label>
+                    <input
+                      type="number"
+                      name="rentAmount"
+                      value={form.rentAmount}
+                      onChange={handleChange}
+                      placeholder={form.propertyType === 'commercial' ? "e.g., 50,000" : "e.g., 15,000"}
+                      required
+                      disabled={loading}
+                    />
+                    <div className="price-summary">
+                      <p><strong>Total Monthly Potential:</strong> KSh {(parseFloat(form.rentAmount) || 0) * form.units}</p>
+                      <p className="note">{form.units} unit(s) × KSh {parseFloat(form.rentAmount) || 0}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
           
-          {/* FEES AND DEPOSITS SECTION - NEW */}
+          {/* FEES AND DEPOSITS SECTION - FIXED */}
           <div className="form-section">
             <h3>Fees & Deposits</h3>
             <p className="form-subtitle">Set application fees, deposits, and other charges</p>
@@ -1066,22 +1339,30 @@ const AddProperty = () => {
               </div>
             </div>
             
-            {/* Professional Bedrooms/Bathrooms Section - Only show for property types that have bedrooms */}
-            {currentPropertyType?.hasBedrooms ? (
+            {/* Bedroom/Bathroom Section - Only show for types that allow user input */}
+            {(form.propertyType === "apartment" || form.propertyType === "commercial" || form.propertyType === "one-two-bedroom") && (
               <div className="form-row">
-                <div className="form-group">
-                  <label>Bedrooms</label>
-                  <select
-                    name="bedrooms"
-                    value={form.bedrooms}
-                    onChange={handleChange}
-                    disabled={loading}
-                  >
-                    {[1, 2, 3, 4, 5, 6].map(num => (
-                      <option key={num} value={num}>{num} {num === 1 ? 'Bedroom' : 'Bedrooms'}</option>
-                    ))}
-                  </select>
-                </div>
+                {form.propertyType !== "commercial" && (
+                  <div className="form-group">
+                    <label>Bedrooms</label>
+                    <select
+                      name="bedrooms"
+                      value={form.bedrooms}
+                      onChange={handleChange}
+                      disabled={loading}
+                    >
+                      {form.propertyType === "apartment" && [1, 2, 3, 4].map(num => (
+                        <option key={num} value={num}>{num} {num === 1 ? 'Bedroom' : 'Bedrooms'}</option>
+                      ))}
+                      {form.propertyType === "one-two-bedroom" && (
+                        <>
+                          <option value="1">1 Bedroom</option>
+                          <option value="2">2 Bedrooms</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
                 
                 <div className="form-group">
                   <label>Bathrooms</label>
@@ -1097,63 +1378,42 @@ const AddProperty = () => {
                   </select>
                 </div>
               </div>
-            ) : (
-              // For property types without bedrooms (single, bedsitter, apartment, commercial)
-              <div className="property-specs-section">
-                <h4>Property Specifications</h4>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Property Size (sq ft)</label>
-                    <input
-                      type="number"
-                      name="size"
-                      value={form.size}
-                      onChange={handleChange}
-                      placeholder="Total area in square feet"
-                      disabled={loading}
-                    />
-                    <small className="form-hint">Total property area</small>
+            )}
+            
+            {/* Auto-set info for other types */}
+            {(form.propertyType === "single" || form.propertyType === "bedsitter" || 
+              form.propertyType === "one-bedroom" || form.propertyType === "two-bedroom" || 
+              form.propertyType === "three-bedroom") && (
+              <div className="auto-set-display">
+                <div className="auto-set-info-box">
+                  <p><strong>Auto-set based on property type:</strong></p>
+                  <div className="auto-set-values">
+                    <span className="auto-set-item">
+                      🛏️ {currentPropertyType?.autoBedrooms || 0} Bedroom{currentPropertyType?.autoBedrooms !== 1 ? 's' : ''}
+                    </span>
+                    <span className="auto-set-item">
+                      🚿 {currentPropertyType?.autoBathrooms || 1} Bathroom{currentPropertyType?.autoBathrooms !== 1 ? 's' : ''}
+                    </span>
                   </div>
-                  
-                  {form.propertyType === 'commercial' && (
-                    <div className="form-group">
-                      <label>Commercial Type</label>
-                      <select
-                        name="commercialType"
-                        value={form.commercialType || ""}
-                        onChange={handleChange}
-                        disabled={loading}
-                      >
-                        <option value="">Select type</option>
-                        <option value="office">Office Space</option>
-                        <option value="retail">Retail Shop</option>
-                        <option value="warehouse">Warehouse</option>
-                        <option value="industrial">Industrial</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
             
-            {/* Size input for all property types */}
-            {currentPropertyType?.hasBedrooms && (
-              <div className="form-group">
-                <label>Size (sq ft)</label>
-                <input
-                  type="number"
-                  name="size"
-                  value={form.size}
-                  onChange={handleChange}
-                  placeholder="Total area in square feet"
-                  disabled={loading}
-                />
-                <small className="form-hint">Total property area</small>
-              </div>
-            )}
+            {/* Size input */}
+            <div className="form-group">
+              <label>Size (sq ft)</label>
+              <input
+                type="number"
+                name="size"
+                value={form.size}
+                onChange={handleChange}
+                placeholder="Total area in square feet"
+                disabled={loading}
+              />
+              <small className="form-hint">Total property area</small>
+            </div>
             
-            {/* UNITS INPUT WITH PREVIEW */}
+            {/* UNITS INPUT */}
             <div className="form-group">
               <label className="required">Number of Units</label>
               <div className="units-input-container">

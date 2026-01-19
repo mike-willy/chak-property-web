@@ -1,4 +1,4 @@
-// src/pages/Landlords.jsx - UPDATED WITH UNIQUE CLASSES
+// src/pages/Landlords.jsx - FIXED WITH CORRECT PROPERTY COUNTS
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -24,51 +24,103 @@ const Landlords = () => {
 
   const fetchLandlords = async () => {
     try {
-      console.log("📡 Fetching landlords from 'landlords' collection...");
+      setLoading(true);
+      console.log("📡 Fetching landlords with actual property counts...");
       
-      // CHANGED: Fetch from 'landlords' collection instead of 'users'
+      // 1️⃣ First, get all landlords
       const landlordsQuery = query(
-        collection(db, "landlords"),  // ← CHANGED THIS LINE
+        collection(db, "landlords"),
         orderBy("createdAt", "desc")
       );
 
-      const querySnapshot = await getDocs(landlordsQuery);
+      const landlordsSnapshot = await getDocs(landlordsQuery);
       const landlordsData = [];
       
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      // 2️⃣ Get all properties at once to avoid multiple queries
+      const propertiesQuery = query(collection(db, "properties"));
+      const propertiesSnapshot = await getDocs(propertiesQuery);
+      
+      // Create a map of properties grouped by landlordId
+      const propertiesByLandlord = {};
+      
+      propertiesSnapshot.forEach((doc) => {
+        const propertyData = doc.data();
+        const landlordId = propertyData.landlordId;
         
-        // Get the name - check both 'name' field and combine firstName/lastName
+        if (landlordId) {
+          if (!propertiesByLandlord[landlordId]) {
+            propertiesByLandlord[landlordId] = [];
+          }
+          propertiesByLandlord[landlordId].push({
+            id: doc.id,
+            ...propertyData
+          });
+        }
+      });
+      
+      console.log(`📊 Found ${Object.keys(propertiesByLandlord).length} landlords with properties`);
+      
+      // 3️⃣ Process each landlord with actual property count
+      landlordsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        const landlordId = doc.id;
+        
+        // Get the name
         const fullName = data.name || 
                         `${data.firstName || ""} ${data.lastName || ""}`.trim() || 
                         "No Name";
         
+        // Get ACTUAL properties count from our map
+        const actualProperties = propertiesByLandlord[landlordId] || [];
+        const actualCount = actualProperties.length;
+        
+        // Get old stored count (might be outdated)
+        const oldProperties = data.properties || [];
+        const oldCount = oldProperties.length;
+        
+        // Log discrepancies
+        if (oldCount !== actualCount) {
+          console.log(`⚠️ Count mismatch for ${fullName}: ` +
+                     `Old list: ${oldCount}, Actual in DB: ${actualCount}`);
+        }
+        
         landlordsData.push({
-          id: doc.id,
+          id: landlordId,
           name: fullName,
           firstName: data.firstName || "",
           lastName: data.lastName || "",
           email: data.email || "No Email",
           phone: data.phone || "Not provided",
-          propertiesCount: data.properties?.length || data.totalProperties || 0,
+          // ✅ FIXED: Use ACTUAL property count from properties collection
+          propertiesCount: actualCount,
+          // Keep these for reference
+          oldPropertiesCount: oldCount,
           totalProperties: data.totalProperties || 0,
           activeProperties: data.activeProperties || 0,
           status: data.status || "active",
           createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
           isVerified: data.isVerified || false,
           company: data.company || "",
-          address: data.address || ""
+          address: data.address || "",
+          // Store actual properties for reference
+          actualProperties: actualProperties
         });
       });
       
-      console.log(`✅ Loaded ${landlordsData.length} landlords from 'landlords' collection`);
+      console.log(`✅ Loaded ${landlordsData.length} landlords with CORRECT property counts`);
+      console.log("Sample counts:");
+      landlordsData.slice(0, 5).forEach(landlord => {
+        console.log(`  ${landlord.name}: ${landlord.propertiesCount} properties (was ${landlord.oldPropertiesCount})`);
+      });
+      
       setLandlords(landlordsData);
+      
     } catch (error) {
       console.error("❌ Error fetching landlords:", error);
       
-      // Try fallback to users collection if landlords collection doesn't exist
-      console.log("🔄 Trying fallback to 'users' collection...");
+      // Fallback: Try users collection
       try {
+        console.log("🔄 Trying fallback to 'users' collection...");
         const usersQuery = query(
           collection(db, "users"),
           where("role", "==", "landlord"),
@@ -78,18 +130,39 @@ const Landlords = () => {
         const usersSnapshot = await getDocs(usersQuery);
         const fallbackLandlords = [];
         
+        // For fallback, count properties the same way
+        const propertiesQuery = query(collection(db, "properties"));
+        const propertiesSnapshot = await getDocs(propertiesQuery);
+        const propertiesByLandlord = {};
+        
+        propertiesSnapshot.forEach((doc) => {
+          const propertyData = doc.data();
+          const landlordId = propertyData.landlordId;
+          
+          if (landlordId) {
+            if (!propertiesByLandlord[landlordId]) {
+              propertiesByLandlord[landlordId] = [];
+            }
+            propertiesByLandlord[landlordId].push(doc.id);
+          }
+        });
+        
         usersSnapshot.forEach((doc) => {
           const data = doc.data();
+          const landlordId = doc.id;
+          
           const fullName = data.name || 
                           `${data.firstName || ""} ${data.lastName || ""}`.trim() || 
                           "No Name";
           
+          const actualCount = propertiesByLandlord[landlordId]?.length || 0;
+          
           fallbackLandlords.push({
-            id: doc.id,
+            id: landlordId,
             name: fullName,
             email: data.email || "No Email",
             phone: data.phone || "Not provided",
-            propertiesCount: data.properties?.length || 0,
+            propertiesCount: actualCount,
             status: data.status || "active",
             createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
             isVerified: data.isVerified || false
@@ -97,7 +170,8 @@ const Landlords = () => {
         });
         
         setLandlords(fallbackLandlords);
-        console.log(`✅ Loaded ${fallbackLandlords.length} landlords from 'users' collection (fallback)`);
+        console.log(`✅ Loaded ${fallbackLandlords.length} landlords from fallback`);
+        
       } catch (fallbackError) {
         console.error("Fallback also failed:", fallbackError);
         alert("Failed to load landlords. Please check your Firestore setup.");
@@ -122,6 +196,11 @@ const Landlords = () => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Calculate total properties across all landlords
+  const calculateTotalProperties = () => {
+    return landlords.reduce((sum, landlord) => sum + landlord.propertiesCount, 0);
   };
 
   // Handle view landlord details
@@ -183,7 +262,7 @@ const Landlords = () => {
           </div>
           <div className="landlords-stat-box">
             <span className="landlords-stat-number">
-              {landlords.reduce((sum, landlord) => sum + landlord.propertiesCount, 0)}
+              {calculateTotalProperties()}
             </span>
             <span className="landlords-stat-label">Total Properties</span>
           </div>
@@ -194,7 +273,7 @@ const Landlords = () => {
       {loading ? (
         <div className="landlords-loading-container">
           <div className="landlords-loading-spinner"></div>
-          <p>Loading landlords...</p>
+          <p>Loading landlords with accurate property counts...</p>
         </div>
       ) : (
         /* Landlords Table */
@@ -249,7 +328,14 @@ const Landlords = () => {
                       <td>
                         <div className="landlords-properties-count">
                           <span className="landlords-count-number">{landlord.propertiesCount}</span>
-                          <span className="landlords-count-label">properties</span>
+                          <span className="landlords-count-label">
+                            {landlord.propertiesCount === 1 ? 'property' : 'properties'}
+                            {landlord.oldPropertiesCount !== landlord.propertiesCount && (
+                              <span className="landlords-count-updated" title="Updated from actual database count">
+                                ✓
+                              </span>
+                            )}
+                          </span>
                         </div>
                       </td>
                       <td>
@@ -289,7 +375,13 @@ const Landlords = () => {
               <div className="landlords-table-footer">
                 <div className="landlords-results-count">
                   Showing {filteredLandlords.length} of {landlords.length} landlords
+                  {calculateTotalProperties() > 0 && (
+                    <span className="landlords-total-props">
+                      • {calculateTotalProperties()} total properties across all landlords
+                    </span>
+                  )}
                 </div>
+  
               </div>
             </>
           )}
