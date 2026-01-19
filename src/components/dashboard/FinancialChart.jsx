@@ -10,7 +10,7 @@ import {
   Legend
 } from "recharts";
 import "../../styles/financialChart.css";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "../../pages/firebase/firebase"; // Adjust path as needed
 
 const FinancialChart = () => {
@@ -45,14 +45,28 @@ const FinancialChart = () => {
           startDate.setMonth(now.getMonth() - 6);
       }
 
+      // Convert to Firestore Timestamp
+      const startTimestamp = Timestamp.fromDate(startDate);
+      const endTimestamp = Timestamp.fromDate(now);
+
       // Query completed payments within date range
       const paymentsRef = collection(db, "payments");
+      
+      // TWO OPTIONS - Use Option 2 if Option 1 doesn't work
+      
+      // OPTION 1: Query with proper Timestamp (Recommended)
       const q = query(
         paymentsRef,
         where("status", "==", "completed"),
-        where("completedAt", ">=", startDate),
-        orderBy("completedAt", "asc")
+        where("completedAt", ">=", startTimestamp),
+        where("completedAt", "<=", endTimestamp)
       );
+
+      // OPTION 2: Alternative approach - fetch all completed and filter locally
+      // const q = query(
+      //   paymentsRef,
+      //   where("status", "==", "completed")
+      // );
 
       const snapshot = await getDocs(q);
       const payments = [];
@@ -60,13 +74,32 @@ const FinancialChart = () => {
       
       snapshot.forEach((doc) => {
         const payment = doc.data();
-        payments.push({
-          id: doc.id,
-          ...payment,
-          // Ensure completedAt is a Date object
-          completedAt: payment.completedAt?.toDate()
-        });
-        total += payment.amount || 0;
+        
+        // Convert Firestore Timestamp to Date object
+        let completedAt;
+        if (payment.completedAt && payment.completedAt.toDate) {
+          completedAt = payment.completedAt.toDate();
+        } else if (payment.completedAt) {
+          completedAt = new Date(payment.completedAt);
+        } else if (payment.createdAt && payment.createdAt.toDate) {
+          completedAt = payment.createdAt.toDate();
+        } else if (payment.createdAt) {
+          completedAt = new Date(payment.createdAt);
+        } else {
+          return; // Skip if no date
+        }
+        
+        // Filter by date range (additional safety check)
+        if (completedAt >= startDate && completedAt <= now) {
+          const amount = Number(payment.amount) || 0;
+          payments.push({
+            id: doc.id,
+            ...payment,
+            amount: amount,
+            completedAt: completedAt
+          });
+          total += amount;
+        }
       });
 
       setTotalRevenue(total);
@@ -77,6 +110,13 @@ const FinancialChart = () => {
       
     } catch (error) {
       console.error("Error fetching payment data:", error);
+      
+      // More detailed error logging
+      if (error.code === 'failed-precondition') {
+        console.error("Firebase index error. You need to create a composite index in Firebase Console.");
+        console.error("Index fields: status (asc), completedAt (asc)");
+      }
+      
       // Fallback to empty data if error
       setChartData([]);
     } finally {
@@ -85,34 +125,38 @@ const FinancialChart = () => {
   };
 
   const processChartData = (payments, period) => {
+    if (!payments || payments.length === 0) return [];
+    
     // Group payments by month
     const monthlyData = {};
     
     payments.forEach(payment => {
       if (payment.completedAt) {
-        const monthYear = payment.completedAt.toLocaleString('default', { 
+        const date = new Date(payment.completedAt);
+        const monthYear = date.toLocaleString('en-US', { 
           month: 'short', 
           year: 'numeric' 
         });
         
-        if (!monthlyData[monthYear]) {
-          monthlyData[monthYear] = {
+        const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = {
             month: monthYear,
+            monthKey: monthKey,
             amount: 0,
             count: 0
           };
         }
         
-        monthlyData[monthYear].amount += payment.amount || 0;
-        monthlyData[monthYear].count += 1;
+        monthlyData[monthKey].amount += Number(payment.amount) || 0;
+        monthlyData[monthKey].count += 1;
       }
     });
 
     // Convert to array and sort by date
     let result = Object.values(monthlyData).sort((a, b) => {
-      const dateA = new Date(`1 ${a.month}`);
-      const dateB = new Date(`1 ${b.month}`);
-      return dateA - dateB;
+      return a.monthKey.localeCompare(b.monthKey);
     });
 
     // Limit to number of months based on period
@@ -123,7 +167,8 @@ const FinancialChart = () => {
   };
 
   const formatCurrency = (amount) => {
-    return `KSh ${amount?.toLocaleString() || 0}`;
+    const numAmount = Number(amount) || 0;
+    return `KSh ${numAmount.toLocaleString('en-KE')}`;
   };
 
   const getPeriodLabel = () => {
