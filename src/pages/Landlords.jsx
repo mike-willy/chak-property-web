@@ -1,4 +1,4 @@
-// src/pages/Landlords.jsx - FIXED WITH CORRECT PROPERTY COUNTS
+// src/pages/Landlords.jsx - WITH PASSWORD CONFIRMATION DELETE
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -6,16 +6,42 @@ import {
   getDocs, 
   query,
   where,
-  orderBy 
+  orderBy,
+  deleteDoc,
+  doc,
+  writeBatch
 } from "firebase/firestore";
-import { db } from "../pages/firebase/firebase";
+import { auth, db } from "../pages/firebase/firebase";
+import { 
+  reauthenticateWithCredential, 
+  EmailAuthProvider 
+} from "firebase/auth";
 import "../styles/landlord.css";
+import { FaTrash, FaExclamationTriangle, FaMoneyBillWave, FaHome, FaUsers, FaLock } from "react-icons/fa";
 
 const Landlords = () => {
   const [landlords, setLandlords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
+
+  // Delete modal states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [landlordToDelete, setLandlordToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState("");
+  const [deleteStats, setDeleteStats] = useState({
+    properties: 0,
+    tenants: 0,
+    units: 0,
+    futurePayments: 0,
+    archivedPayments: 0
+  });
+
+  // Password confirmation states
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
 
   // Fetch landlords from Firestore
   useEffect(() => {
@@ -108,77 +134,354 @@ const Landlords = () => {
       });
       
       console.log(`✅ Loaded ${landlordsData.length} landlords with CORRECT property counts`);
-      console.log("Sample counts:");
-      landlordsData.slice(0, 5).forEach(landlord => {
-        console.log(`  ${landlord.name}: ${landlord.propertiesCount} properties (was ${landlord.oldPropertiesCount})`);
-      });
-      
       setLandlords(landlordsData);
       
     } catch (error) {
       console.error("❌ Error fetching landlords:", error);
-      
-      // Fallback: Try users collection
-      try {
-        console.log("🔄 Trying fallback to 'users' collection...");
-        const usersQuery = query(
-          collection(db, "users"),
-          where("role", "==", "landlord"),
-          orderBy("createdAt", "desc")
-        );
-        
-        const usersSnapshot = await getDocs(usersQuery);
-        const fallbackLandlords = [];
-        
-        // For fallback, count properties the same way
-        const propertiesQuery = query(collection(db, "properties"));
-        const propertiesSnapshot = await getDocs(propertiesQuery);
-        const propertiesByLandlord = {};
-        
-        propertiesSnapshot.forEach((doc) => {
-          const propertyData = doc.data();
-          const landlordId = propertyData.landlordId;
-          
-          if (landlordId) {
-            if (!propertiesByLandlord[landlordId]) {
-              propertiesByLandlord[landlordId] = [];
-            }
-            propertiesByLandlord[landlordId].push(doc.id);
-          }
-        });
-        
-        usersSnapshot.forEach((doc) => {
-          const data = doc.data();
-          const landlordId = doc.id;
-          
-          const fullName = data.name || 
-                          `${data.firstName || ""} ${data.lastName || ""}`.trim() || 
-                          "No Name";
-          
-          const actualCount = propertiesByLandlord[landlordId]?.length || 0;
-          
-          fallbackLandlords.push({
-            id: landlordId,
-            name: fullName,
-            email: data.email || "No Email",
-            phone: data.phone || "Not provided",
-            propertiesCount: actualCount,
-            status: data.status || "active",
-            createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-            isVerified: data.isVerified || false
-          });
-        });
-        
-        setLandlords(fallbackLandlords);
-        console.log(`✅ Loaded ${fallbackLandlords.length} landlords from fallback`);
-        
-      } catch (fallbackError) {
-        console.error("Fallback also failed:", fallbackError);
-        alert("Failed to load landlords. Please check your Firestore setup.");
-      }
+      alert("Failed to load landlords. Please check your Firestore setup.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate what will be deleted when removing a landlord
+  const calculateDeletionImpact = async (landlordId) => {
+    const stats = {
+      properties: 0,
+      tenants: 0,
+      units: 0,
+      futurePayments: 0,
+      archivedPayments: 0
+    };
+    
+    try {
+      // Count properties
+      const propertiesQuery = query(
+        collection(db, "properties"),
+        where("landlordId", "==", landlordId)
+      );
+      const propertiesSnapshot = await getDocs(propertiesQuery);
+      stats.properties = propertiesSnapshot.size;
+      
+      // Count tenants and units
+      for (const propertyDoc of propertiesSnapshot.docs) {
+        const propertyId = propertyDoc.id;
+        
+        // Count units in this property
+        const unitsRef = collection(db, `properties/${propertyId}/units`);
+        const unitsSnapshot = await getDocs(unitsRef);
+        stats.units += unitsSnapshot.size;
+        
+        // Count tenants for this property
+        const tenantsQuery = query(
+          collection(db, "tenants"),
+          where("propertyId", "==", propertyId)
+        );
+        const tenantsSnapshot = await getDocs(tenantsQuery);
+        stats.tenants += tenantsSnapshot.size;
+        
+        // Count future payments for these tenants
+        for (const tenantDoc of tenantsSnapshot.docs) {
+          const tenantId = tenantDoc.id;
+          const paymentsQuery = query(
+            collection(db, "payments"),
+            where("tenantId", "==", tenantId),
+            where("status", "in", ["pending", "upcoming", "scheduled"])
+          );
+          const paymentsSnapshot = await getDocs(paymentsQuery);
+          stats.futurePayments += paymentsSnapshot.size;
+        }
+      }
+      
+      // Count completed payments (to be archived)
+      const completedPaymentsQuery = query(
+        collection(db, "payments"),
+        where("landlordId", "==", landlordId),
+        where("status", "==", "completed")
+      );
+      const completedPaymentsSnapshot = await getDocs(completedPaymentsQuery);
+      stats.archivedPayments = completedPaymentsSnapshot.size;
+      
+    } catch (error) {
+      console.error("Error calculating deletion impact:", error);
+    }
+    
+    return stats;
+  };
+
+  // Handle delete landlord confirmation
+  const handleDeleteLandlord = async (landlord) => {
+    setLandlordToDelete(landlord);
+    setPassword("");
+    setPasswordError("");
+    setShowPasswordInput(false);
+    
+    // Calculate what will be deleted
+    setDeleteProgress("Calculating deletion impact...");
+    const stats = await calculateDeletionImpact(landlord.id);
+    setDeleteStats(stats);
+    
+    setShowDeleteModal(true);
+  };
+
+  // Verify admin password using Firebase re-authentication
+  const verifyAdminPassword = async (inputPassword) => {
+    try {
+      // Get the currently logged-in admin from Firebase
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        setPasswordError("No admin session found. Please login again.");
+        // Redirect to admin login after 2 seconds
+        setTimeout(() => navigate("/admin-login"), 2000);
+        return false;
+      }
+      
+      // Get admin's email from Firebase session
+      const adminEmail = currentUser.email;
+      
+      if (!adminEmail) {
+        setPasswordError("Admin email not found in session.");
+        return false;
+      }
+      
+      // Create credential with admin's email and entered password
+      const credential = EmailAuthProvider.credential(adminEmail, inputPassword);
+      
+      // Re-authenticate with Firebase - this verifies the password is correct
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      console.log("✅ Admin re-authenticated successfully");
+      return true;
+      
+    } catch (error) {
+      console.error("❌ Password verification failed:", error);
+      
+      // User-friendly error messages
+      if (error.code === 'auth/wrong-password') {
+        setPasswordError("Incorrect password. Please try again.");
+      } else if (error.code === 'auth/too-many-requests') {
+        setPasswordError("Too many failed attempts. Please try again later.");
+      } else if (error.code === 'auth/user-not-found') {
+        setPasswordError("Admin account not found. Please login again.");
+      } else if (error.code === 'auth/network-request-failed') {
+        setPasswordError("Network error. Please check your connection.");
+      } else {
+        setPasswordError("Authentication failed: " + error.message);
+      }
+      
+      return false;
+    }
+  };
+
+  // Archive payment records (keep for accounting)
+  const archivePaymentRecords = async (landlordId) => {
+    try {
+      // Find all completed payments for this landlord
+      const paymentsQuery = query(
+        collection(db, "payments"),
+        where("landlordId", "==", landlordId),
+        where("status", "==", "completed")
+      );
+      
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+      const batch = writeBatch(db);
+      
+      paymentsSnapshot.forEach((paymentDoc) => {
+        const paymentData = paymentDoc.data();
+        const archivedPaymentRef = doc(collection(db, "archived_payments"));
+        
+        // Create archived version with original data
+        batch.set(archivedPaymentRef, {
+          ...paymentData,
+          originalPaymentId: paymentDoc.id,
+          archivedAt: new Date(),
+          archivedReason: "Landlord deleted from system",
+          originalLandlordId: landlordId,
+          originalLandlordName: landlordToDelete?.name || "Unknown"
+        });
+        
+        // Delete original payment
+        batch.delete(paymentDoc.ref);
+      });
+      
+      await batch.commit();
+      console.log(`✅ Archived ${paymentsSnapshot.size} payment records`);
+      return paymentsSnapshot.size;
+      
+    } catch (error) {
+      console.error("Error archiving payments:", error);
+      return 0;
+    }
+  };
+
+  // Handle confirm delete landlord
+  const handleConfirmDelete = async () => {
+    if (!landlordToDelete) return;
+    
+    // If password not entered yet, show password input
+    if (!showPasswordInput) {
+      setShowPasswordInput(true);
+      return;
+    }
+    
+    // Verify password
+    if (!password.trim()) {
+      setPasswordError("Password is required");
+      return;
+    }
+    
+    const isValidPassword = await verifyAdminPassword(password);
+    if (!isValidPassword) {
+      // Error message is already set in verifyAdminPassword function
+      return;
+    }
+    
+    // Password verified, proceed with deletion
+    try {
+      setDeleting(true);
+      setDeleteProgress("Starting deletion process...");
+      
+      const landlordId = landlordToDelete.id;
+      const landlordName = landlordToDelete.name;
+      
+      // 1️⃣ Archive payment records first (keep for accounting)
+      setDeleteProgress("Archiving payment records for accounting...");
+      const archivedCount = await archivePaymentRecords(landlordId);
+      
+      // 2️⃣ Find all properties of this landlord
+      setDeleteProgress(`Finding properties for ${landlordName}...`);
+      const propertiesQuery = query(
+        collection(db, "properties"),
+        where("landlordId", "==", landlordId)
+      );
+      const propertiesSnapshot = await getDocs(propertiesQuery);
+      
+      const deletions = [];
+      
+      // 3️⃣ For each property, delete related data
+      for (const propertyDoc of propertiesSnapshot.docs) {
+        const propertyId = propertyDoc.id;
+        const propertyName = propertyDoc.data().name || propertyId;
+        
+        setDeleteProgress(`Deleting property: ${propertyName}...`);
+        
+        // Delete all units in this property
+        const unitsRef = collection(db, `properties/${propertyId}/units`);
+        const unitsSnapshot = await getDocs(unitsRef);
+        
+        unitsSnapshot.forEach((unitDoc) => {
+          deletions.push(deleteDoc(doc(db, `properties/${propertyId}/units`, unitDoc.id)));
+        });
+        
+        // Find and delete tenants for this property
+        const tenantsQuery = query(
+          collection(db, "tenants"),
+          where("propertyId", "==", propertyId)
+        );
+        const tenantsSnapshot = await getDocs(tenantsQuery);
+        
+        tenantsSnapshot.forEach((tenantDoc) => {
+          const tenantId = tenantDoc.id;
+          
+          // Delete tenant user account if exists
+          const userQuery = query(
+            collection(db, "users"),
+            where("tenantId", "==", tenantId)
+          );
+          // We'll handle this separately
+          
+          // Delete tenant document
+          deletions.push(deleteDoc(doc(db, "tenants", tenantId)));
+          
+          // Delete future/pending payments for this tenant
+          const futurePaymentsQuery = query(
+            collection(db, "payments"),
+            where("tenantId", "==", tenantId),
+            where("status", "in", ["pending", "upcoming", "scheduled"])
+          );
+          // We'll handle this separately
+        });
+        
+        // Delete the property itself
+        deletions.push(deleteDoc(doc(db, "properties", propertyId)));
+      }
+      
+      // 4️⃣ Delete future payments (pending/upcoming)
+      setDeleteProgress("Deleting future/pending payments...");
+      const futurePaymentsQuery = query(
+        collection(db, "payments"),
+        where("landlordId", "==", landlordId),
+        where("status", "in", ["pending", "upcoming", "scheduled"])
+      );
+      const futurePaymentsSnapshot = await getDocs(futurePaymentsQuery);
+      
+      futurePaymentsSnapshot.forEach((paymentDoc) => {
+        deletions.push(deleteDoc(paymentDoc.ref));
+      });
+      
+      // 5️⃣ Delete landlord from users collection (if exists)
+      setDeleteProgress("Removing landlord access...");
+      const userQuery = query(
+        collection(db, "users"),
+        where("landlordId", "==", landlordId)
+      );
+      const userSnapshot = await getDocs(userQuery);
+      
+      userSnapshot.forEach((userDoc) => {
+        deletions.push(deleteDoc(userDoc.ref));
+      });
+      
+      // 6️⃣ Finally, delete the landlord document
+      deletions.push(deleteDoc(doc(db, "landlords", landlordId)));
+      
+      // 7️⃣ Execute all deletions
+      setDeleteProgress(`Executing ${deletions.length} deletions...`);
+      await Promise.all(deletions.map(del => del.catch(e => console.error("Deletion error:", e))));
+      
+      // 8️⃣ Update local state
+      setLandlords(prev => prev.filter(l => l.id !== landlordId));
+      
+      // 9️⃣ Show success message
+      setTimeout(() => {
+        setShowDeleteModal(false);
+        setLandlordToDelete(null);
+        setDeleting(false);
+        setDeleteProgress("");
+        setPassword("");
+        setPasswordError("");
+        setShowPasswordInput(false);
+        
+        alert(`✅ Landlord "${landlordName}" has been deleted successfully!\n\n` +
+              `🗑️ Deleted:\n` +
+              `• ${propertiesSnapshot.size} properties\n` +
+              `• ${deleteStats.tenants} tenants\n` +
+              `• ${deleteStats.units} units\n` +
+              `• ${deleteStats.futurePayments} future payments\n\n` +
+              `📁 Archived:\n` +
+              `• ${archivedCount} completed payment records (kept for accounting)`);
+      }, 1000);
+      
+    } catch (error) {
+      console.error("❌ Error deleting landlord:", error);
+      alert(`Failed to delete landlord: ${error.message}`);
+      setDeleting(false);
+      setDeleteProgress("");
+      setPassword("");
+      setPasswordError("");
+      setShowPasswordInput(false);
+    }
+  };
+
+  // Handle cancel delete
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setLandlordToDelete(null);
+    setDeleting(false);
+    setDeleteProgress("");
+    setPassword("");
+    setPasswordError("");
+    setShowPasswordInput(false);
   };
 
   // Filter landlords based on search term
@@ -221,6 +524,166 @@ const Landlords = () => {
 
   return (
     <div className="landlords-container">
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && landlordToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content delete-modal">
+            <div className="modal-header">
+              <FaExclamationTriangle className="modal-warning-icon" />
+              <h3>Delete Landlord</h3>
+              <button 
+                className="close-modal" 
+                onClick={handleCancelDelete}
+                disabled={deleting}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="delete-warning">
+                <p className="warning-text">
+                  <strong> This action cannot be undone!</strong>
+                </p>
+                <p>You are about to permanently delete:</p>
+                
+                <div className="landlord-to-delete-info">
+                  <h4>{landlordToDelete.name}</h4>
+                  <div className="landlord-delete-stats">
+                    <div className="delete-stat-item">
+                      <FaHome className="stat-icon" />
+                      <div className="stat-content">
+                        <span className="stat-label">Properties</span>
+                        <span className="stat-value">{deleteStats.properties}</span>
+                      </div>
+                    </div>
+                    <div className="delete-stat-item">
+                      <FaUsers className="stat-icon" />
+                      <div className="stat-content">
+                        <span className="stat-label">Tenants</span>
+                        <span className="stat-value">{deleteStats.tenants}</span>
+                      </div>
+                    </div>
+                    <div className="delete-stat-item">
+                      <FaHome className="stat-icon" />
+                      <div className="stat-content">
+                        <span className="stat-label">Units</span>
+                        <span className="stat-value">{deleteStats.units}</span>
+                      </div>
+                    </div>
+                    <div className="delete-stat-item">
+                      <FaMoneyBillWave className="stat-icon" />
+                      <div className="stat-content">
+                        <span className="stat-label">Future Payments</span>
+                        <span className="stat-value">{deleteStats.futurePayments}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="delete-consequences">
+                  <p><strong>This will permanently delete:</strong></p>
+                  <ul>
+                    <li>Landlord account and all access</li>
+                    <li>All {deleteStats.properties} properties owned by this landlord</li>
+                    <li>All {deleteStats.units} units in these properties</li>
+                    <li>All {deleteStats.tenants} tenant accounts in these properties</li>
+                    <li>All {deleteStats.futurePayments} future/pending payments</li>
+                  </ul>
+                  
+                  <p className="archive-note">
+                    <strong>✅ Payment records will be archived</strong><br />
+                    {deleteStats.archivedPayments} completed payments will be kept for accounting purposes only.
+                  </p>
+                </div>
+                
+                {/* Password Confirmation Section */}
+                {showPasswordInput && (
+                  <div className="password-confirmation-section">
+                    <div className="password-input-group">
+                      <label htmlFor="deletePassword">
+                        <FaLock className="password-icon" /> Enter admin password to confirm:
+                      </label>
+                      <input
+                        type="password"
+                        id="deletePassword"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setPasswordError("");
+                        }}
+                        placeholder="Enter your admin login password..."
+                        className={passwordError ? "password-input-error" : ""}
+                        disabled={deleting}
+                        autoComplete="current-password"
+                      />
+                      {passwordError && (
+                        <div className="password-error-message">{passwordError}</div>
+                      )}
+                    </div>
+                    <div className="password-warning">
+                      <small>
+                        ⚠️ This is the final confirmation step. Once deleted, all data is gone forever.
+                        Enter the same password you used to login as admin.
+                      </small>
+                    </div>
+                  </div>
+                )}
+                
+                {!showPasswordInput && (
+                  <div className="final-warning-section">
+                    <p><strong>⚠️ FINAL WARNING:</strong></p>
+                    <ul>
+                      <li>This will DELETE ALL data associated with this landlord</li>
+                      <li>Tenants will lose access to their accounts immediately</li>
+                      <li>Properties will be removed from the system</li>
+                      <li>This action requires admin password confirmation</li>
+                    </ul>
+                  </div>
+                )}
+                
+                {deleting && (
+                  <div className="delete-progress">
+                    <div className="progress-spinner"></div>
+                    <p>{deleteProgress}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button 
+                className="modal-btn cancel-btn"
+                onClick={handleCancelDelete}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button 
+                className="modal-btn delete-confirm-btn"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <span className="spinner-small"></span>
+                    Deleting...
+                  </>
+                ) : showPasswordInput ? (
+                  <>
+                    <FaLock /> Confirm 
+                  </>
+                ) : (
+                  <>
+                    <FaTrash /> Proceed 
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="landlords-header">
         <div>
@@ -364,6 +827,13 @@ const Landlords = () => {
                           >
                             ✏️ Edit
                           </button>
+                          <button 
+                            className="landlords-table-delete-btn"
+                            onClick={() => handleDeleteLandlord(landlord)}
+                            title="Delete Landlord (requires password confirmation)"
+                          >
+                            <FaTrash /> Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -381,7 +851,7 @@ const Landlords = () => {
                     </span>
                   )}
                 </div>
-  
+                
               </div>
             </>
           )}

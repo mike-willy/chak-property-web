@@ -1,4 +1,4 @@
-/* src/styles/Landlords.css - FIXED WITH UNIQUE CLASSES */
+/* src/styles/Landlords.css - FULL UPDATED WITH UNIQUE CLASS NAMES */
 .landlords-container {
   padding: 2rem;
   background-color: #f9fafb;
@@ -45,6 +45,9 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .landlords-refresh-btn:hover:not(:disabled) {
@@ -138,7 +141,7 @@
   letter-spacing: 0.05em;
 }
 
-/* Loading State - UNIQUE TO THIS COMPONENT */
+/* Loading State */
 .landlords-loading-container {
   display: flex;
   flex-direction: column;
@@ -260,7 +263,17 @@
   color: #6b7280;
 }
 
-/* Status Badges - UNIQUE TO THIS COMPONENT */
+.landlords-count-updated {
+  color: #10b981;
+  background: #d1fae5;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+  margin-left: 0.25rem;
+  cursor: help;
+}
+
+/* Status Badges */
 .landlords-status-badge {
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
@@ -289,14 +302,15 @@
   font-size: 0.875rem;
 }
 
-/* Action Buttons - UNIQUE TO THIS COMPONENT */
+/* Action Buttons */
 .landlords-action-buttons {
   display: flex;
   gap: 0.5rem;
 }
 
 .landlords-table-view-btn, 
-.landlords-table-edit-btn {
+.landlords-table-edit-btn,
+.landlords-table-delete-btn {
   padding: 0.5rem 0.75rem;
   border: none;
   border-radius: 0.375rem;
@@ -327,7 +341,21 @@
   background: #e0f2fe;
 }
 
-/* Empty State - UNIQUE TO THIS COMPONENT */
+.landlords-table-delete-btn {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.landlords-table-delete-btn:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.landlords-table-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Empty State */
 .landlords-empty-state {
   padding: 4rem;
   text-align: center;
@@ -380,9 +408,507 @@
 .landlords-results-count {
   color: #6b7280;
   font-size: 0.875rem;
+  margin-bottom: 0.5rem;
 }
 
-/* Responsive Design */
+.landlords-total-props {
+  color: #059669;
+  margin-left: 0.5rem;
+  font-weight: 500;
+}
+
+/* ==================== UNIQUE DELETE MODAL STYLES ==================== */
+.landlords-delete-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: landlords-fade-in 0.25s ease-out;
+}
+
+@keyframes landlords-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.landlords-delete-modal-content {
+  background: white;
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 540px;
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  animation: landlords-slide-up 0.3s ease-out;
+  overflow: hidden;
+  border: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+@keyframes landlords-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landlords-delete-modal-header {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  padding: 1.75rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid #fca5a5;
+}
+
+.landlords-delete-modal-warning-icon {
+  color: #dc2626;
+  font-size: 1.75rem;
+  background: white;
+  padding: 0.75rem;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+  flex-shrink: 0;
+}
+
+.landlords-delete-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #991b1b;
+  margin: 0;
+  flex: 1;
+}
+
+.landlords-delete-modal-close {
+  background: white;
+  border: 2px solid #fca5a5;
+  font-size: 1.75rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  line-height: 1;
+}
+
+.landlords-delete-modal-close:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #dc2626;
+  transform: rotate(90deg) scale(1.1);
+}
+
+.landlords-delete-modal-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.landlords-delete-modal-body {
+  padding: 2rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.landlords-delete-warning {
+  background: white;
+}
+
+.landlords-delete-warning-text {
+  color: #dc2626;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.125rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #fee2e2;
+}
+
+.landlords-delete-landlord-info {
+  background: linear-gradient(to right, #f8fafc, #f1f5f9);
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.landlords-delete-landlord-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landlords-delete-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.landlords-delete-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.landlords-delete-stat-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.landlords-delete-stat-icon {
+  font-size: 1.5rem;
+  color: #6b7280;
+  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.landlords-delete-stat-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.landlords-delete-stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.landlords-delete-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1;
+}
+
+.landlords-delete-consequences {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(to right, #fffbeb, #fef3c7);
+  border: 2px solid #fde68a;
+  border-radius: 0.875rem;
+  border-left: 6px solid #f59e0b;
+  box-shadow: 0 4px 8px -2px rgba(245, 158, 11, 0.1);
+}
+
+.landlords-delete-consequences-title {
+  color: #92400e;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.125rem;
+}
+
+.landlords-delete-consequences-list {
+  margin-left: 1.75rem;
+  color: #92400e;
+  list-style-type: '⚠️';
+  padding-left: 0.75rem;
+}
+
+.landlords-delete-consequences-list li {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+  padding-left: 0.75rem;
+}
+
+.landlords-archive-note {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  background: linear-gradient(to right, #d1fae5, #a7f3d0);
+  border: 2px solid #6ee7b7;
+  border-radius: 0.875rem;
+  color: #065f46;
+  border-left: 6px solid #10b981;
+  box-shadow: 0 4px 8px -2px rgba(16, 185, 129, 0.1);
+}
+
+.landlords-archive-note strong {
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Password Confirmation Section */
+.landlords-password-confirmation {
+  margin: 2rem 0;
+  padding: 1.75rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 2px solid #cbd5e1;
+  border-radius: 0.875rem;
+  border-left: 6px solid #3b82f6;
+  box-shadow: 0 4px 8px -2px rgba(59, 130, 246, 0.1);
+}
+
+.landlords-password-input-group {
+  margin-bottom: 1.5rem;
+}
+
+.landlords-password-input-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.landlords-password-icon {
+  color: #3b82f6;
+  font-size: 1.25rem;
+}
+
+.landlords-password-input {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  transition: all 0.3s;
+  background: white;
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+
+.landlords-password-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.landlords-password-input-error {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  animation: landlords-shake 0.5s;
+}
+
+@keyframes landlords-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.landlords-password-input-error:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+}
+
+.landlords-password-error-message {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  background: #fef2f2;
+  border-radius: 0.625rem;
+  border-left: 4px solid #dc2626;
+  font-weight: 500;
+}
+
+.landlords-password-warning {
+  padding: 1rem;
+  background: linear-gradient(to right, #fef3c7, #fde68a);
+  border: 2px solid #fbbf24;
+  border-radius: 0.75rem;
+  color: #92400e;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.landlords-password-warning small {
+  color: #92400e;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+/* Final Warning Section */
+.landlords-final-warning {
+  margin: 2rem 0;
+  padding: 1.75rem;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 2px solid #fecaca;
+  border-radius: 0.875rem;
+  border-left: 6px solid #dc2626;
+  box-shadow: 0 4px 8px -2px rgba(220, 38, 38, 0.1);
+}
+
+.landlords-final-warning-title {
+  color: #dc2626;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.125rem;
+}
+
+.landlords-final-warning-list {
+  margin-left: 1.75rem;
+  color: #991b1b;
+  list-style-type: '🔥';
+  padding-left: 0.75rem;
+}
+
+.landlords-final-warning-list li {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+  padding-left: 0.75rem;
+}
+
+/* Delete Progress */
+.landlords-delete-progress {
+  margin: 2rem 0;
+  padding: 1.75rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #bae6fd;
+  border-radius: 0.875rem;
+  text-align: center;
+  border-left: 6px solid #0ea5e9;
+  box-shadow: 0 4px 8px -2px rgba(14, 165, 233, 0.1);
+}
+
+.landlords-progress-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(14, 165, 233, 0.1);
+  border-top-color: #0ea5e9;
+  border-radius: 50%;
+  animation: landlords-spin 1s linear infinite;
+  margin: 0 auto 1.25rem;
+}
+
+.landlords-delete-progress p {
+  color: #0369a1;
+  font-weight: 600;
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+/* Modal Actions */
+.landlords-modal-actions {
+  padding: 1.75rem 2rem;
+  background: linear-gradient(to right, #f9fafb, #f3f4f6);
+  border-top: 2px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.landlords-modal-btn {
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  min-width: 160px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.landlords-modal-cancel-btn {
+  background: white;
+  color: #4b5563;
+  border: 2px solid #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.landlords-modal-cancel-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.landlords-modal-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.landlords-modal-delete-confirm-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.25);
+}
+
+.landlords-modal-delete-confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(220, 38, 38, 0.35);
+}
+
+.landlords-modal-delete-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.landlords-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: landlords-spin 1s linear infinite;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
 @media (max-width: 1024px) {
   .landlords-toolbar {
     flex-direction: column;
@@ -396,6 +922,10 @@
   
   .landlords-stats-container {
     justify-content: center;
+  }
+  
+  .landlords-delete-stats-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -421,5 +951,55 @@
   
   .landlords-action-buttons {
     flex-direction: column;
+  }
+  
+  .landlords-delete-modal-content {
+    width: 95%;
+    margin: 0.5rem;
+  }
+  
+  .landlords-delete-modal-body {
+    padding: 1.5rem;
+  }
+  
+  .landlords-modal-actions {
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+  
+  .landlords-modal-btn {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .landlords-delete-stat-item {
+    padding: 0.875rem;
+  }
+  
+  .landlords-delete-stat-icon {
+    width: 48px;
+    height: 48px;
+    padding: 0.625rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .landlords-delete-modal-body {
+    padding: 1.25rem;
+  }
+  
+  .landlords-delete-landlord-info {
+    padding: 1.25rem;
+  }
+  
+  .landlords-password-confirmation,
+  .landlords-final-warning,
+  .landlords-delete-consequences,
+  .landlords-archive-note {
+    padding: 1.25rem;
+  }
+  
+  .landlords-modal-btn {
+    padding: 0.875rem 1.5rem;
   }
 }
