@@ -1,6 +1,7 @@
 /**
  * mpesa-server.js - LIVE PAYMENT VERSION with Rent Automation
  * Updated for live payments with real-time Firebase updates + Rent automation
+ * FIXED: Now updates rentCycles when M-Pesa payments come in
  */
 
 const path = require('path');
@@ -66,6 +67,120 @@ const MPESA_CONFIG = {
 const MPESA_BASE_URL = MPESA_CONFIG.environment === 'production' 
   ? 'https://api.safaricom.co.ke' 
   : 'https://sandbox.safaricom.co.ke';
+
+// ==================== NEW: UPDATE RENT CYCLE FOR PAYMENT ====================
+async function updateRentCycleForPayment(paymentData) {
+  try {
+    const { tenantId, month, amount, mpesaCode } = paymentData;
+    
+    if (!tenantId || !month) {
+      console.warn(`⚠️ Missing tenantId or month for payment update`);
+      return null;
+    }
+    
+    // Find the matching rent cycle (tenantId + month)
+    const rentCyclesRef = db.collection('rentCycles');
+    const querySnapshot = await rentCyclesRef
+      .where('tenantId', '==', tenantId)
+      .where('cycleMonth', '==', month)
+      .where('status', 'in', ['pending', 'overdue', 'partial'])
+      .limit(1)
+      .get();
+    
+    if (querySnapshot.empty) {
+      console.warn(`⚠️ No rent cycle found for tenant ${tenantId}, month ${month}`);
+      
+      // Try to find by tenant name and month
+      const paymentDoc = await db.collection('payments').where('tenantId', '==', tenantId).limit(1).get();
+      if (!paymentDoc.empty) {
+        const paymentData = paymentDoc.docs[0].data();
+        const tenantName = paymentData.tenantName;
+        
+        const nameQuery = await rentCyclesRef
+          .where('tenantName', '==', tenantName)
+          .where('cycleMonth', '==', month)
+          .where('status', 'in', ['pending', 'overdue', 'partial'])
+          .limit(1)
+          .get();
+          
+        if (!nameQuery.empty) {
+          const cycleDoc = nameQuery.docs[0];
+          const cycleRef = cycleDoc.ref;
+          const cycleData = cycleDoc.data();
+          
+          const paidAmount = (cycleData.paidAmount || 0) + amount;
+          const newStatus = paidAmount >= cycleData.amountDue ? 'paid' : 'partial';
+          
+          await cycleRef.update({
+            status: newStatus,
+            paidAmount: paidAmount,
+            paidDate: new Date(),
+            paymentMethod: 'mpesa',
+            mpesaTransactionId: mpesaCode,
+            'timestamps.updatedAt': new Date()
+          });
+          
+          console.log(`✅ Updated rent cycle ${cycleDoc.id} (by name): ${cycleData.status} → ${newStatus}, KSh ${paidAmount}/${cycleData.amountDue}`);
+          return cycleDoc.id;
+        }
+      }
+      
+      return null;
+    }
+    
+    const cycleDoc = querySnapshot.docs[0];
+    const cycleRef = cycleDoc.ref;
+    const cycleData = cycleDoc.data();
+    
+    // Calculate new status
+    const paidAmount = (cycleData.paidAmount || 0) + amount;
+    const newStatus = paidAmount >= cycleData.amountDue ? 'paid' : 'partial';
+    
+    // Update rent cycle
+    const updateData = {
+      status: newStatus,
+      paidAmount: paidAmount,
+      paidDate: new Date(),
+      paymentMethod: 'mpesa',
+      mpesaTransactionId: mpesaCode,
+      'timestamps.updatedAt': new Date()
+    };
+    
+    // If it was overdue, update overdue amount
+    if (cycleData.status === 'overdue') {
+      updateData.overdueAmount = Math.max(0, cycleData.amountDue - paidAmount);
+      updateData.daysOverdue = 0; // Reset days overdue when paid
+    }
+    
+    await cycleRef.update(updateData);
+    
+    console.log(`✅ Updated rent cycle ${cycleDoc.id}: ${cycleData.status} → ${newStatus}, KSh ${paidAmount}/${cycleData.amountDue}`);
+    
+    // Create a payment record in tenant's subcollection
+    try {
+      const tenantPaymentRef = db.collection('tenants').doc(tenantId).collection('payments').doc();
+      await tenantPaymentRef.set({
+        id: tenantPaymentRef.id,
+        rentCycleId: cycleDoc.id,
+        amount: amount,
+        paymentMethod: 'mpesa',
+        mpesaCode: mpesaCode,
+        month: month,
+        status: 'completed',
+        paidAt: new Date(),
+        createdAt: new Date()
+      });
+    } catch (error) {
+      console.warn('⚠️ Could not create tenant payment record:', error.message);
+    }
+    
+    return cycleDoc.id;
+    
+  } catch (error) {
+    console.error('❌ Error updating rent cycle:', error);
+    throw error;
+  }
+}
 
 // ==================== RENT AUTOMATION FUNCTIONS ====================
 
@@ -133,7 +248,7 @@ async function createMonthlyRentCycles() {
         paidAmount: 0,
         paidDate: null,
         paymentMethod: null,
-        transactionCode: null,
+        mpesaTransactionId: null, // NEW: For M-Pesa transaction tracking
         
         daysOverdue: 0,
         overdueAmount: 0,
@@ -574,7 +689,7 @@ app.post('/api/mpesa/pay', async (req, res) => {
   }
 });
 
-// M-Pesa Callback Webhook
+// M-Pesa Callback Webhook - UPDATED TO UPDATE RENT CYCLES
 app.post('/api/mpesa/callback', async (req, res) => {
   console.log('📞 M-PESA CALLBACK RECEIVED:', JSON.stringify(req.body, null, 2));
   
@@ -604,6 +719,7 @@ app.post('/api/mpesa/callback', async (req, res) => {
     const paymentDoc = querySnapshot.docs[0];
     const paymentRef = paymentDoc.ref;
     const paymentId = paymentDoc.id;
+    const paymentData = paymentDoc.data();
     
     if (ResultCode === 0) {
       // SUCCESSFUL PAYMENT
@@ -636,18 +752,30 @@ app.post('/api/mpesa/callback', async (req, res) => {
       await paymentRef.update({
         status: 'completed',
         mpesaCode: mpesaCode || 'Unknown',
-        amount: parseFloat(amount) || paymentDoc.data().amount,
-        phoneNumber: phone || paymentDoc.data().phoneNumber,
+        amount: parseFloat(amount) || paymentData.amount,
+        phoneNumber: phone || paymentData.phoneNumber,
         transactionDate: parsedDate,
         completedAt: new Date(),
         updatedAt: new Date()
       });
       
+      // ✅ NEW: UPDATE THE RENT CYCLE FOR THIS PAYMENT
+      try {
+        await updateRentCycleForPayment({
+          tenantId: paymentData.tenantId,
+          month: paymentData.month,
+          amount: parseFloat(amount) || paymentData.amount,
+          mpesaCode: mpesaCode || 'Unknown'
+        });
+      } catch (cycleError) {
+        console.error('❌ Failed to update rent cycle:', cycleError.message);
+        // Don't fail the whole callback if rent cycle update fails
+      }
+      
       // Update admin stats
-      await updateAdminStats(amount || paymentDoc.data().amount, 'completed');
+      await updateAdminStats(amount || paymentData.amount, 'completed');
       
       // Update tenant's last payment
-      const paymentData = paymentDoc.data();
       if (paymentData.tenantId) {
         try {
           await db.collection('tenants').doc(paymentData.tenantId).update({
@@ -659,6 +787,24 @@ app.post('/api/mpesa/callback', async (req, res) => {
         } catch (e) {
           console.warn('⚠️ Could not update tenant record:', e.message);
         }
+      }
+      
+      // Create M-Pesa transaction record
+      try {
+        await db.collection('mpesaTransactions').add({
+          paymentId: paymentId,
+          rentCycleId: paymentData.rentCycleId || null,
+          tenantId: paymentData.tenantId,
+          tenantName: paymentData.tenantName,
+          amount: parseFloat(amount) || paymentData.amount,
+          mpesaCode: mpesaCode,
+          phoneNumber: phone || paymentData.phoneNumber,
+          transactionDate: parsedDate,
+          status: 'completed',
+          createdAt: new Date()
+        });
+      } catch (e) {
+        console.warn('⚠️ Could not create M-Pesa transaction record:', e.message);
       }
       
       console.log(`✅ Payment ${paymentId} completed: ${mpesaCode} - KSh ${amount}`);
@@ -849,6 +995,77 @@ app.post('/api/rent/send-reminder', async (req, res) => {
   }
 });
 
+// ==================== NEW: MARK AS CASH PAID ENDPOINT ====================
+app.post('/api/rent/mark-cash-paid', async (req, res) => {
+  try {
+    const { cycleId, tenantName, amount } = req.body;
+    
+    console.log(`💵 Marking as cash paid: ${tenantName}, cycle ${cycleId}`);
+    
+    // Get rent cycle
+    const cycleRef = db.collection('rentCycles').doc(cycleId);
+    const cycleDoc = await cycleRef.get();
+    
+    if (!cycleDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Rent cycle not found' });
+    }
+    
+    const cycleData = cycleDoc.data();
+    
+    // Calculate new paid amount
+    const newPaidAmount = (cycleData.paidAmount || 0) + (parseFloat(amount) || cycleData.amountDue);
+    const newStatus = newPaidAmount >= cycleData.amountDue ? 'paid' : 'partial';
+    
+    // Update rent cycle
+    await cycleRef.update({
+      status: newStatus,
+      paidAmount: newPaidAmount,
+      paidDate: new Date(),
+      paymentMethod: 'cash',
+      'timestamps.updatedAt': new Date(),
+      ...(cycleData.status === 'overdue' && { 
+        overdueAmount: Math.max(0, cycleData.amountDue - newPaidAmount),
+        daysOverdue: 0 
+      })
+    });
+    
+    // Create cash payment record
+    const paymentRef = db.collection('payments').doc();
+    await paymentRef.set({
+      id: paymentRef.id,
+      rentCycleId: cycleId,
+      tenantId: cycleData.tenantId,
+      tenantName: cycleData.tenantName,
+      amount: parseFloat(amount) || cycleData.amountDue,
+      paymentMethod: 'cash',
+      month: cycleData.cycleMonth,
+      year: new Date().getFullYear(),
+      status: 'completed',
+      cashReceivedBy: 'admin',
+      paidAt: new Date(),
+      createdAt: new Date()
+    });
+    
+    // Update admin stats
+    await updateAdminStats(amount || cycleData.amountDue, 'completed');
+    
+    res.json({
+      success: true,
+      message: `Marked as cash paid: ${tenantName}, KSh ${amount || cycleData.amountDue}`,
+      data: {
+        cycleId,
+        newStatus,
+        paidAmount: newPaidAmount,
+        totalDue: cycleData.amountDue
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error marking as cash paid:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -859,6 +1076,7 @@ app.get('/health', (req, res) => {
     firebase: 'Connected',
     mpesa: 'Ready',
     rentAutomation: 'Active',
+    autoPaymentUpdates: 'ENABLED', // NEW: Shows payment auto-updates are working
     schedules: [
       'Monthly rent cycles: 1st of month at 00:00',
       'Overdue checks: Daily at 09:00'
@@ -874,5 +1092,7 @@ app.listen(PORT, () => {
   console.log(`🏪 Till Number: ${MPESA_CONFIG.shortCode}`);
   console.log(`🌐 Callback URL: ${MPESA_CONFIG.callbackUrl}`);
   console.log(`⏰ Rent Automation: ACTIVE`);
+  console.log(`💰 Auto-Update Rent Cycles: ENABLED`);
+  console.log(`💵 Cash Payment Endpoint: /api/rent/mark-cash-paid`);
   console.log('==========================================');
 });

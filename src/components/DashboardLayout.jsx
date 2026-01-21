@@ -3,9 +3,7 @@ import Sidebar from "./Sidebar";
 import TopNavbar from "./TopNavbar";
 import { useLocation } from "react-router-dom";
 
-// Create context for sidebar state
 const SidebarContext = createContext();
-
 export const useSidebar = () => useContext(SidebarContext);
 
 const DashboardLayout = ({ children }) => {
@@ -13,10 +11,12 @@ const DashboardLayout = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false);
   const location = useLocation();
 
-  // Check if mobile
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // Auto-collapse on mobile initially
+      if (mobile) setIsSidebarExpanded(false);
     };
     
     checkMobile();
@@ -24,47 +24,60 @@ const DashboardLayout = ({ children }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Auto-collapse sidebar on non-dashboard pages
+  // Collapse sidebar when navigating on mobile
   useEffect(() => {
-    if (location.pathname === "/dashboard") {
-      setIsSidebarExpanded(true);
-    } else {
+    if (isMobile) {
       setIsSidebarExpanded(false);
     }
-  }, [location.pathname]);
+  }, [location.pathname, isMobile]);
 
   const toggleSidebar = () => {
     setIsSidebarExpanded(!isSidebarExpanded);
   };
 
-  // Calculate margin based on device and sidebar state
-  let sidebarWidth;
-  if (isMobile) {
-    // On mobile: NO margin when collapsed, NO margin when expanded (overlay)
-     sidebarWidth = isSidebarExpanded ? 0 : 60;
-  } else {
-    // On desktop: margin based on sidebar state
-    sidebarWidth = isSidebarExpanded ? 250 : 70;
-  }
+  // Logic: Desktop needs margin to avoid being hidden behind fixed Sidebar.
+  // Mobile Sidebar is an overlay, so content stays at 0 margin.
+  const getMarginLeft = () => {
+    if (isMobile) return "0px";
+    return isSidebarExpanded ? "250px" : "70px";
+  };
 
   return (
     <SidebarContext.Provider value={{ isSidebarExpanded, toggleSidebar }}>
       <div className={`dashboard-wrapper ${isSidebarExpanded ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
-        <div style={{ display: "flex", minHeight: "100vh" }}>
-          <Sidebar />
-          <div style={{ 
-            flex: 1, 
-            marginLeft: `${sidebarWidth}px`,
-            position: "relative",
-            transition: "margin-left 0.3s ease",
-            overflowX: "hidden"
-          }}>
-            <TopNavbar />
-            <div className="dashboard-container">
-              {children}
-            </div>
-          </div>
-        </div>
+        <Sidebar />
+        
+        <main style={{ 
+          flex: 1, 
+          marginLeft: getMarginLeft(),
+          transition: "margin-left 0.3s ease",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column"
+        }}>
+          <TopNavbar />
+          
+          {/* REMOVED extra <div className="dashboard-container"> here 
+              because Dashboard.jsx already has it. This prevents double padding.
+          */}
+          {children}
+          
+          {/* Mobile Overlay: Closes sidebar when clicking outside on mobile */}
+          {isMobile && isSidebarExpanded && (
+            <div 
+              onClick={() => setIsSidebarExpanded(false)}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0,0,0,0.5)",
+                zIndex: 99 // Just below the Sidebar
+              }}
+            />
+          )}
+        </main>
       </div>
     </SidebarContext.Provider>
   );

@@ -14,9 +14,7 @@ const DashboardHeader = () => {
         <button className="btn-outline">
           <FaDownload /> Export Report
         </button>
-        <button className="btn-primary">
-          <FaPlus /> Add Property
-        </button>
+      
       </div>
     </div>
   );

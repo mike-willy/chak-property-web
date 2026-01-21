@@ -10,34 +10,36 @@ import "../styles/dashboard.css";
 
 const Dashboard = () => {
   return (
-    <>
+    <div className="dashboard-container">
       <DashboardHeader />
       <StatsGrid />
 
-      {/* Charts & Tables Section */}
-      <div className="dashboard-charts-layout">
-        {/* ROW 1 - Financial Chart */}
-        <div className="charts-left">
-          <FinancialChart />
+      {/* Main Grid Content */}
+      <div className="dashboard-grid-content">
+        
+        {/* ROW 1: Financial Chart + Utility Cards */}
+        <div className="dashboard-row">
+          <div className="row-main">
+            <FinancialChart />
+          </div>
+          <div className="row-side">
+            <QuickActions />
+            <PropertyStatusChart />
+          </div>
         </div>
 
-        {/* ROW 1 - Quick Actions + Status */}
-        <div className="charts-right">
-          <QuickActions />
-          <PropertyStatusChart />
+        {/* ROW 2: Overdue Payments + Recent Activity */}
+        <div className="dashboard-row">
+          <div className="row-main">
+            <OverduePayments />
+          </div>
+          <div className="row-side">
+            <RecentActivity />
+          </div>
         </div>
 
-        {/* ROW 2 - Overdue Payments */}
-        <div className="charts-left">
-          <OverduePayments />
-        </div>
-
-        {/* ROW 2 - Recent Activity */}
-        <div className="charts-right">
-          <RecentActivity />
-        </div>
       </div>
-    </>
+    </div>
   );
 };
 

@@ -65,7 +65,7 @@ const StatsGrid = () => {
       
       // PART 2: Count active maintenance requests from tenants
       try {
-        const maintenanceRequestsRef = collection(db, "maintenanceRequests");
+        const maintenanceRequestsRef = collection(db, "maintenance");
         const requestsSnapshot = await getDocs(maintenanceRequestsRef);
         
         requestsSnapshot.forEach((doc) => {

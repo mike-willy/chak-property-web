@@ -1,34 +1,38 @@
-/* overduePayments.css */
+/* OVERDUE PAYMENTS - DASHBOARD STYLE MATCHING REFERENCE IMAGE */
 
 .overdue-card {
   background: white;
   padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 500px;
+  border: 1px solid #e5e7eb;
 }
 
-/* Header */
+/* ========== HEADER ========== */
 .overdue-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .overdue-header h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 4px;
+  color: #111827;
+  margin: 0;
 }
 
 .overdue-stats {
   display: flex;
-  gap: 12px;
   align-items: center;
+  gap: 12px;
 }
 
 .total-amount {
@@ -37,33 +41,48 @@
   color: #dc2626;
 }
 
-.total-cases {
-  font-size: 13px;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 2px 8px;
-  border-radius: 12px;
-}
-
 .view-all {
-  font-size: 13px;
-  color: #2563eb;
+  font-size: 14px;
+  color: #4f46e5;
   cursor: pointer;
   font-weight: 500;
+  user-select: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
 .view-all:hover {
-  text-decoration: underline;
+  background: #f5f5f5;
 }
 
-/* Table Container */
+.stats-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.stat-item {
+  font-weight: 500;
+}
+
+.stat-divider {
+  color: #d1d5db;
+}
+
+/* ========== TABLE CONTAINER ========== */
 .table-container {
   flex: 1;
   overflow-y: auto;
-  max-height: 350px;
+  max-height: 400px;
+  min-height: 200px;
+  margin-bottom: 16px;
+  background: #ffffff;
 }
 
-/* Table */
+/* ========== TABLE ========== */
 .overdue-table {
   width: 100%;
   border-collapse: collapse;
@@ -71,191 +90,347 @@
 
 .overdue-table th {
   text-align: left;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: #6b7280;
-  padding: 10px 8px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 16px;
+  border-bottom: 2px solid #e5e7eb;
   position: sticky;
   top: 0;
-  background: white;
+  background: #f9fafb;
   z-index: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .overdue-table td {
-  padding: 14px 8px;
-  font-size: 13px;
+  padding: 16px;
+  font-size: 14px;
   border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+  transition: background 0.2s;
 }
+
+/* Column widths optimized for dashboard */
+.overdue-table th:nth-child(1),
+.overdue-table td:nth-child(1) { width: 22%; min-width: 150px; } /* Tenant */
+
+.overdue-table th:nth-child(2),
+.overdue-table td:nth-child(2) { width: 20%; min-width: 130px; } /* Property */
+
+.overdue-table th:nth-child(3),
+.overdue-table td:nth-child(3) { width: 15%; min-width: 100px; } /* First Due */
+
+.overdue-table th:nth-child(4),
+.overdue-table td:nth-child(4) { width: 15%; min-width: 100px; } /* Amount */
+
+.overdue-table th:nth-child(5),
+.overdue-table td:nth-child(5) { width: 10%; min-width: 60px; text-align: center; } /* Mos */
+
+.overdue-table th:nth-child(6),
+.overdue-table td:nth-child(6) { width: 12%; min-width: 90px; } /* Risk */
+
+.overdue-table th:nth-child(7),
+.overdue-table td:nth-child(7) { width: 16%; min-width: 140px; } /* Actions */
 
 .overdue-row:hover {
   background-color: #f9fafb;
 }
 
-/* Risk-based row colors */
-.overdue-row.risk-critical {
-  background-color: #fef2f2;
-}
-
-.overdue-row.risk-high {
-  background-color: #fff7ed;
-}
-
-.overdue-row.risk-medium {
-  background-color: #fffbeb;
-}
-
-.overdue-row.risk-low {
-  background-color: #f0fdf4;
-}
-
-/* Tenant Info */
+/* ========== TENANT INFO ========== */
 .tenant-info {
   display: flex;
   flex-direction: column;
 }
 
 .tenant-name {
-  font-weight: 500;
-  color: #1f2937;
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.3;
+  margin-bottom: 4px;
 }
 
 .tenant-days {
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+/* ========== PROPERTY DISPLAY ========== */
+.property-cell {
+  font-size: 14px;
+}
+
+.property-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.property-name {
+  font-weight: 500;
+  color: #374151;
+  line-height: 1.3;
+}
+
+.property-code {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* ========== AMOUNT ========== */
+.amount {
+  font-weight: 600;
+}
+
+.amount-main {
+  font-size: 15px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.amount-breakdown {
   font-size: 11px;
-  color: #9ca3af;
+  color: #6b7280;
+  font-weight: normal;
+  line-height: 1.3;
   margin-top: 2px;
 }
 
-.amount {
+/* ========== MONTHS BADGE ========== */
+.months-cell {
+  text-align: center;
+}
+
+.months-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e0e7ff;
+  color: #4f46e5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
-  color: #1f2937;
+  min-width: 28px;
+  height: 28px;
 }
 
-/* Status */
-.status.overdue {
-  background: #fee2e2;
-  color: #b91c1c;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
-  display: inline-block;
-}
-
-/* Risk Badges */
+/* ========== RISK BADGES (Simplified to match image) ========== */
 .risk-badge {
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
-  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 70px;
+  justify-content: center;
+  letter-spacing: 0.3px;
+}
+
+.risk-icon {
+  font-size: 12px;
 }
 
 .risk-critical {
-  background: #fef2f2;
+  background: #fee2e2;
   color: #dc2626;
-  border: 1px solid #fecaca;
 }
 
 .risk-high {
-  background: #fff7ed;
+  background: #fed7aa;
   color: #ea580c;
-  border: 1px solid #fed7aa;
 }
 
 .risk-medium {
-  background: #fffbeb;
+  background: #fde68a;
   color: #d97706;
-  border: 1px solid #fde68a;
 }
 
 .risk-low {
-  background: #f0fdf4;
+  background: #bbf7d0;
   color: #16a34a;
-  border: 1px solid #bbf7d0;
 }
 
-/* Action Buttons */
+/* ========== ACTION BUTTONS ========== */
 .action-buttons {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 120px;
 }
 
 .reminder-btn {
-  background: #2563eb;
+  background: #3b82f6;
   color: white;
   border: none;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   font-weight: 500;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  width: 100%;
 }
 
 .reminder-btn:hover {
-  background: #1d4ed8;
+  background: #2563eb;
 }
 
-.mark-paid-btn {
+.cash-btn {
   background: #10b981;
   color: white;
   border: none;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   font-weight: 500;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  width: 100%;
 }
 
-.mark-paid-btn:hover {
+.cash-btn:hover {
   background: #059669;
 }
 
-/* No Overdue State */
+/* ========== SHOW MORE INDICATOR ========== */
+.show-more-indicator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 6px;
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.show-more-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.show-more-btn:hover {
+  background: #4338ca;
+}
+
+/* ========== SUMMARY FOOTER ========== */
+.summary-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.summary-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.summary-stat .stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.summary-stat .stat-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.automation-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+/* ========== NO OVERDUE STATE ========== */
 .no-overdue {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
   text-align: center;
+  min-height: 300px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px dashed #bbf7d0;
 }
 
 .no-overdue-icon {
   font-size: 48px;
   margin-bottom: 16px;
+  opacity: 0.8;
 }
 
 .no-overdue p {
   font-size: 16px;
-  font-weight: 500;
-  color: #1f2937;
-  margin-bottom: 4px;
+  font-weight: 600;
+  color: #15803d;
+  margin-bottom: 8px;
 }
 
 .no-overdue .subtext {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 14px;
+  color: #22c55e;
 }
 
-/* Loading State */
+/* ========== LOADING STATE ========== */
 .loading-state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
+  min-height: 300px;
+  background: #fafafa;
+  border-radius: 8px;
 }
 
 .loading-spinner {
   width: 40px;
   height: 40px;
   border: 3px solid #e5e7eb;
-  border-top-color: #2563eb;
+  border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -270,61 +445,127 @@
 .loading-state p {
   color: #6b7280;
   font-size: 14px;
+  font-weight: 500;
 }
 
-/* Automation Status */
-.automation-status {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
+/* ========== ERROR STATE ========== */
+.error-state {
+  flex: 1;
   display: flex;
-  gap: 16px;
-}
-
-.status-item {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #6b7280;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  min-height: 300px;
+  background: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
 }
 
-.status-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #dc2626;
+  opacity: 0.8;
 }
 
-.status-indicator.active {
-  background: #10b981;
-  animation: pulse 2s infinite;
+.error-state p {
+  font-size: 16px;
+  font-weight: 600;
+  color: #991b1b;
+  margin-bottom: 8px;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+.error-details {
+  font-size: 14px;
+  color: #b91c1c;
+  margin-bottom: 20px;
+  max-width: 400px;
+  line-height: 1.5;
 }
 
-/* Scrollbar Styling */
+.retry-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.retry-btn:hover {
+  background: #2563eb;
+}
+
+/* ========== SCROLLBAR ========== */
 .table-container::-webkit-scrollbar {
   width: 6px;
 }
 
 .table-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
+  background: #f1f5f9;
 }
 
 .table-container::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 10px;
+  background: #cbd5e1;
+  border-radius: 3px;
 }
 
 .table-container::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #94a3b8;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 1200px) {
+  .overdue-table th:nth-child(3),
+  .overdue-table td:nth-child(3) {
+    display: none;
+  }
+  
+  .overdue-table th:nth-child(1),
+  .overdue-table td:nth-child(1) { width: 25%; }
+  
+  .overdue-table th:nth-child(2),
+  .overdue-table td:nth-child(2) { width: 25%; }
+  
+  .overdue-table th:nth-child(4),
+  .overdue-table td:nth-child(4) { width: 20%; }
+  
+  .overdue-table th:nth-child(5),
+  .overdue-table td:nth-child(5) { width: 10%; }
+  
+  .overdue-table th:nth-child(6),
+  .overdue-table td:nth-child(6) { width: 15%; }
+  
+  .overdue-table th:nth-child(7),
+  .overdue-table td:nth-child(7) { width: 20%; }
+}
+
+@media (max-width: 768px) {
+  .overdue-card {
+    padding: 16px;
+  }
+  
+  .summary-footer {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  
+  .summary-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .property-display {
+    max-width: 120px;
+  }
+  
+  .action-buttons {
+    min-width: 100px;
+  }
 }
