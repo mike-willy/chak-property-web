@@ -1,6 +1,6 @@
 /**
- * mpesa-server.js - LIVE PAYMENT VERSION
- * Updated for live payments with real-time Firebase updates
+ * mpesa-server.js - LIVE PAYMENT VERSION with Rent Automation
+ * Updated for live payments with real-time Firebase updates + Rent automation
  */
 
 const path = require('path');
@@ -11,6 +11,7 @@ const axios = require('axios');
 const admin = require('firebase-admin');
 const cors = require('cors');
 const { FieldValue } = require('firebase-admin/firestore');
+const cron = require('node-cron');
 
 const app = express();
 app.use(express.json());
@@ -65,6 +66,291 @@ const MPESA_CONFIG = {
 const MPESA_BASE_URL = MPESA_CONFIG.environment === 'production' 
   ? 'https://api.safaricom.co.ke' 
   : 'https://sandbox.safaricom.co.ke';
+
+// ==================== RENT AUTOMATION FUNCTIONS ====================
+
+// Function to create monthly rent cycles
+async function createMonthlyRentCycles() {
+  console.log('🔄 Creating monthly rent cycles...');
+  
+  try {
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Find all active tenants
+    const tenantsSnapshot = await db.collection('tenants')
+      .where('status', '==', 'active')
+      .get();
+    
+    console.log(`📋 Found ${tenantsSnapshot.size} active tenants`);
+    
+    let createdCount = 0;
+    
+    for (const tenantDoc of tenantsSnapshot.docs) {
+      const tenant = tenantDoc.data();
+      
+      if (!tenant.propertyId) continue;
+      
+      // Get property details
+      let propertyData = {};
+      try {
+        const propertyDoc = await db.collection('properties').doc(tenant.propertyId).get();
+        if (propertyDoc.exists) {
+          propertyData = propertyDoc.data();
+        }
+      } catch (err) {
+        console.warn(`⚠️ Could not fetch property ${tenant.propertyId}:`, err.message);
+      }
+      
+      const rentCycleId = `${tenantDoc.id}_${nextMonthStr}`;
+      
+      // Check if cycle already exists
+      const existingCycle = await db.collection('rentCycles').doc(rentCycleId).get();
+      if (existingCycle.exists) {
+        console.log(`⏭️ Cycle already exists for ${tenant.fullName} - ${nextMonthStr}`);
+        continue;
+      }
+      
+      // Create rent cycle
+      const rentCycleData = {
+        id: rentCycleId,
+        tenantId: tenantDoc.id,
+        tenantName: tenant.fullName || 'Unknown',
+        tenantPhone: tenant.phone || '',
+        tenantEmail: tenant.email || '',
+        
+        propertyId: tenant.propertyId,
+        propertyCode: propertyData.propertyCode || `PROP-${tenant.propertyId.substring(0, 8)}`,
+        propertyAddress: propertyData.address || 'Address not set',
+        
+        cycleMonth: nextMonthStr,
+        amountDue: tenant.monthlyRent || propertyData.rentAmount || 0,
+        dueDate: nextMonth,
+        gracePeriodEnds: new Date(nextMonth.getTime() + (3 * 24 * 60 * 60 * 1000)), // +3 days
+        
+        status: 'pending',
+        paidAmount: 0,
+        paidDate: null,
+        paymentMethod: null,
+        transactionCode: null,
+        
+        daysOverdue: 0,
+        overdueAmount: 0,
+        lastReminderSent: null,
+        remindersSent: 0,
+        
+        riskLevel: 'low',
+        notes: `Monthly rent for ${nextMonthStr}`,
+        
+        timestamps: {
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      };
+      
+      await db.collection('rentCycles').doc(rentCycleId).set(rentCycleData);
+      createdCount++;
+      
+      if (createdCount % 10 === 0) {
+        console.log(`📝 Created ${createdCount} rent cycles...`);
+      }
+    }
+    
+    console.log(`✅ Created ${createdCount} new rent cycles for ${nextMonthStr}`);
+    
+    // Create system alert
+    await db.collection('alerts').add({
+      type: 'system_notification',
+      priority: 'low',
+      targetUserId: 'system',
+      targetEmail: 'admin@chakestates.com',
+      title: 'Monthly Rent Cycles Created',
+      message: `Created ${createdCount} rent cycles for ${nextMonthStr}`,
+      data: {
+        month: nextMonthStr,
+        cyclesCreated: createdCount,
+        timestamp: new Date().toISOString()
+      },
+      status: 'unread',
+      actionRequired: false,
+      channels: ['in_app'],
+      sentAt: new Date(),
+      createdAt: new Date()
+    });
+    
+    return createdCount;
+  } catch (error) {
+    console.error('❌ Error creating rent cycles:', error);
+    throw error;
+  }
+}
+
+// Function to check overdue rent
+async function checkOverdueRent() {
+  console.log('🔍 Checking for overdue rent...');
+  
+  try {
+    const now = new Date();
+    
+    // Find pending rent cycles past grace period
+    const overdueQuery = db.collection('rentCycles')
+      .where('status', 'in', ['pending', 'partial'])
+      .where('gracePeriodEnds', '<', now);
+    
+    const overdueSnapshot = await overdueQuery.get();
+    
+    console.log(`📊 Found ${overdueSnapshot.size} potentially overdue cycles`);
+    
+    let updatedCount = 0;
+    let alertCount = 0;
+    
+    for (const cycleDoc of overdueSnapshot.docs) {
+      const rentCycle = cycleDoc.data();
+      const graceEnd = rentCycle.gracePeriodEnds.toDate();
+      
+      const daysOverdue = Math.max(0, Math.floor((now - graceEnd) / (1000 * 60 * 60 * 24)));
+      
+      if (daysOverdue > 0) {
+        // Determine risk level
+        let riskLevel = 'low';
+        if (daysOverdue >= 30) riskLevel = 'critical';
+        else if (daysOverdue >= 15) riskLevel = 'high';
+        else if (daysOverdue >= 7) riskLevel = 'medium';
+        
+        // Update rent cycle
+        await cycleDoc.ref.update({
+          status: 'overdue',
+          daysOverdue: daysOverdue,
+          overdueAmount: rentCycle.amountDue - (rentCycle.paidAmount || 0),
+          riskLevel: riskLevel,
+          'timestamps.updatedAt': new Date()
+        });
+        
+        updatedCount++;
+        
+        // Create alert
+        await db.collection('alerts').add({
+          type: 'rent_overdue',
+          priority: riskLevel === 'critical' ? 'critical' : riskLevel === 'high' ? 'high' : 'medium',
+          targetUserId: 'admin',
+          targetEmail: 'admin@chakestates.com',
+          title: `Rent Overdue: ${rentCycle.propertyCode}`,
+          message: `Tenant ${rentCycle.tenantName} has overdue rent of KSh ${rentCycle.amountDue} (${daysOverdue} days overdue)`,
+          data: {
+            tenantId: rentCycle.tenantId,
+            tenantName: rentCycle.tenantName,
+            propertyId: rentCycle.propertyId,
+            propertyCode: rentCycle.propertyCode,
+            amountDue: rentCycle.amountDue,
+            daysOverdue: daysOverdue,
+            riskLevel: riskLevel
+          },
+          status: 'unread',
+          actionRequired: true,
+          channels: ['in_app'],
+          sentAt: new Date(),
+          createdAt: new Date()
+        });
+        
+        alertCount++;
+        
+        // Send reminder based on days overdue
+        await sendReminder(rentCycle, daysOverdue);
+        
+        console.log(`⚠️ Marked ${rentCycle.tenantName} as overdue (${daysOverdue} days)`);
+      }
+    }
+    
+    console.log(`✅ Updated ${updatedCount} cycles, created ${alertCount} alerts`);
+    
+    return { updatedCount, alertCount };
+  } catch (error) {
+    console.error('❌ Error checking overdue rent:', error);
+    throw error;
+  }
+}
+
+// Function to send reminders
+async function sendReminder(rentCycle, daysOverdue) {
+  try {
+    let reminderType = '';
+    let message = '';
+    
+    if (daysOverdue === 1) {
+      reminderType = 'first_reminder';
+      message = `Gentle reminder: Rent for ${rentCycle.propertyCode} is now overdue. Amount: KSh ${rentCycle.amountDue}`;
+    } else if (daysOverdue === 7) {
+      reminderType = 'second_reminder';
+      message = `Second reminder: Rent for ${rentCycle.propertyCode} is ${daysOverdue} days overdue. Amount: KSh ${rentCycle.amountDue}`;
+    } else if (daysOverdue === 15) {
+      reminderType = 'final_notice';
+      message = `FINAL NOTICE: Rent for ${rentCycle.propertyCode} is ${daysOverdue} days overdue. Legal action may follow.`;
+    } else if (daysOverdue === 30) {
+      reminderType = 'legal_notice';
+      message = `LEGAL NOTICE: Rent for ${rentCycle.propertyCode} is ${daysOverdue} days overdue. Preparing for legal action.`;
+    } else {
+      return; // Skip if not a reminder day
+    }
+    
+    // Create reminder log
+    await db.collection('reminderLogs').add({
+      rentCycleId: rentCycle.id,
+      tenantId: rentCycle.tenantId,
+      tenantName: rentCycle.tenantName,
+      tenantPhone: rentCycle.tenantPhone,
+      type: reminderType,
+      sentVia: ['in_app'],
+      message: message,
+      sentBy: 'system',
+      sentAt: new Date(),
+      acknowledged: false,
+      createdAt: new Date()
+    });
+    
+    // Update rent cycle
+    await db.collection('rentCycles').doc(rentCycle.id).update({
+      lastReminderSent: new Date(),
+      remindersSent: FieldValue.increment(1)
+    });
+    
+    console.log(`📧 Sent ${reminderType} to ${rentCycle.tenantName}`);
+    
+  } catch (error) {
+    console.error('❌ Error sending reminder:', error);
+  }
+}
+
+// ==================== CRON SCHEDULES ====================
+
+// Schedule: Create rent cycles on 1st of every month at midnight
+cron.schedule('0 0 1 * *', async () => {
+  console.log('⏰ Scheduled: Creating monthly rent cycles...');
+  try {
+    const result = await createMonthlyRentCycles();
+    console.log(`✅ Scheduled task completed: Created ${result} rent cycles`);
+  } catch (error) {
+    console.error('❌ Scheduled task failed:', error);
+  }
+});
+
+// Schedule: Check overdue rent daily at 9 AM Nairobi time
+cron.schedule('0 9 * * *', async () => {
+  console.log('⏰ Scheduled: Checking overdue rent...');
+  try {
+    const result = await checkOverdueRent();
+    console.log(`✅ Scheduled task completed: Updated ${result.updatedCount} cycles`);
+  } catch (error) {
+    console.error('❌ Scheduled task failed:', error);
+  }
+});
+
+// Schedule: Run every 5 minutes for testing (comment out in production)
+cron.schedule('*/5 * * * *', async () => {
+  console.log('🧪 Test schedule: Running every 5 minutes');
+  // Uncomment for testing:
+  // await checkOverdueRent();
+});
 
 // ==================== HELPERS ====================
 function generateTimestamp() {
@@ -441,15 +727,142 @@ app.get('/api/mpesa/stats', async (req, res) => {
   }
 });
 
+// ==================== RENT AUTOMATION ENDPOINTS ====================
+
+// Manual trigger: Create rent cycles
+app.post('/api/rent/create-cycles', async (req, res) => {
+  try {
+    console.log('🔧 Manual trigger: Creating rent cycles');
+    const result = await createMonthlyRentCycles();
+    res.json({
+      success: true,
+      message: `Created ${result} rent cycles`,
+      count: result
+    });
+  } catch (error) {
+    console.error('❌ Manual trigger failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Manual trigger: Check overdue rent
+app.post('/api/rent/check-overdue', async (req, res) => {
+  try {
+    console.log('🔧 Manual trigger: Checking overdue rent');
+    const result = await checkOverdueRent();
+    res.json({
+      success: true,
+      message: `Updated ${result.updatedCount} overdue cycles`,
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ Manual trigger failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get all overdue rent cycles
+app.get('/api/rent/overdue', async (req, res) => {
+  try {
+    const overdueSnapshot = await db.collection('rentCycles')
+      .where('status', '==', 'overdue')
+      .orderBy('daysOverdue', 'desc')
+      .limit(50)
+      .get();
+    
+    const overdueCycles = [];
+    overdueSnapshot.forEach(doc => {
+      overdueCycles.push({ id: doc.id, ...doc.data() });
+    });
+    
+    res.json({
+      success: true,
+      count: overdueCycles.length,
+      data: overdueCycles
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get rent cycle by ID
+app.get('/api/rent/cycle/:cycleId', async (req, res) => {
+  try {
+    const { cycleId } = req.params;
+    const cycleDoc = await db.collection('rentCycles').doc(cycleId).get();
+    
+    if (!cycleDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Rent cycle not found' });
+    }
+    
+    res.json({ success: true, data: cycleDoc.data() });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Send reminder endpoint
+app.post('/api/rent/send-reminder', async (req, res) => {
+  try {
+    const { tenantId, tenantName, cycleId, tenantPhone } = req.body;
+    
+    console.log(`📧 Sending reminder to ${tenantName} (${tenantPhone})`);
+    
+    // Create reminder log
+    await db.collection('reminderLogs').add({
+      tenantId,
+      tenantName,
+      cycleId,
+      tenantPhone,
+      type: 'manual_reminder',
+      sentVia: ['in_app'],
+      message: `Manual reminder sent for overdue rent`,
+      sentBy: 'agent',
+      sentAt: new Date(),
+      acknowledged: false,
+      createdAt: new Date()
+    });
+    
+    // Update rent cycle
+    await db.collection('rentCycles').doc(cycleId).update({
+      lastReminderSent: new Date(),
+      remindersSent: FieldValue.increment(1)
+    });
+    
+    res.json({
+      success: true,
+      message: `Reminder sent to ${tenantName}`
+    });
+    
+  } catch (error) {
+    console.error('Error sending reminder:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    service: 'M-Pesa Payment Server',
+    service: 'M-Pesa Payment Server with Rent Automation',
     environment: MPESA_CONFIG.environment,
     timestamp: new Date().toISOString(),
     firebase: 'Connected',
-    mpesa: 'Ready'
+    mpesa: 'Ready',
+    rentAutomation: 'Active',
+    schedules: [
+      'Monthly rent cycles: 1st of month at 00:00',
+      'Overdue checks: Daily at 09:00'
+    ]
   });
 });
 
@@ -460,5 +873,6 @@ app.listen(PORT, () => {
   console.log(`📡 Environment: ${MPESA_CONFIG.environment}`);
   console.log(`🏪 Till Number: ${MPESA_CONFIG.shortCode}`);
   console.log(`🌐 Callback URL: ${MPESA_CONFIG.callbackUrl}`);
+  console.log(`⏰ Rent Automation: ACTIVE`);
   console.log('==========================================');
 });

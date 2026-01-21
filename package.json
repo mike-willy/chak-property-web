@@ -28,6 +28,7 @@
     "firebase": "^12.7.0",
     "firebase-admin": "^11.11.1",
     "lucide-react": "^0.562.0",
+    "node-cron": "^4.2.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-icons": "^5.5.0",
