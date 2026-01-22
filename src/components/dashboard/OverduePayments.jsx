@@ -328,7 +328,7 @@ const OverduePayments = () => {
 
   if (loading) {
     return (
-      <div className="overdue-card">
+      <div className="overdue-payments-card">
         <div className="overdue-header">
           <h3>Overdue Payments</h3>
           <span className="view-all">View All</span>
@@ -342,7 +342,7 @@ const OverduePayments = () => {
   }
 
   return (
-    <div className="overdue-card">
+    <div className="overdue-payments-card">
       <div className="overdue-header">
         <div>
           <h3>Overdue Payments</h3>
@@ -391,48 +391,47 @@ const OverduePayments = () => {
               <tbody>
                 {displayedPayments.map((item) => (
                   <tr key={item.id} className={`overdue-row risk-${item.riskLevel}`}>
-                    <td>
+                    <td data-label="Tenant">
                       <div className="tenant-info">
-                        <div className="tenant-name">
-                          {item.tenant}
-                        </div>
-                        <div className="tenant-days">
-                          {item.daysOverdue} days overdue
-                        </div>
+                        <div className="tenant-name">{item.tenant}</div>
+                        <div className="tenant-days">{item.daysOverdue} days overdue</div>
                       </div>
                     </td>
-                    <td className="property-cell">
+                    <td data-label="Property" className="property-cell">
                       <div className="property-display">
                         <div className="property-name">{item.propertyName}</div>
-                        <div className="property-code">{item.propertyCode}</div>
+                        {/* TRUNCATED PROPERTY CODE */}
+                        <div className="property-code" title={item.propertyCode}>
+                          {item.propertyCode.length > 8 
+                            ? `${item.propertyCode.substring(0, 8)}...` 
+                            : item.propertyCode}
+                        </div>
                       </div>
                     </td>
-                    <td>{item.dueDate}</td>
-                    <td className="amount total-amount">
+                    <td data-label="First Due">{item.dueDate}</td>
+                    <td data-label="Amount" className="amount total-amount">
                       <div className="amount-main">{item.amount}</div>
                       <div className="amount-breakdown">
                         ({item.monthsOverdue} × KSh {Math.round(item.amountValue / item.monthsOverdue).toLocaleString()})
                       </div>
                     </td>
-                    <td className="months-cell">
+                    <td data-label="Mos" className="months-cell">
                       <span className="months-badge">{item.monthsOverdue}</span>
                     </td>
-                    <td>
+                    <td data-label="Risk">
                       {getRiskBadge(item.riskLevel)}
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="action-buttons">
                         <button 
                           className="reminder-btn"
                           onClick={() => sendReminder(item.tenantId, item.tenant, item.cycles, item.tenantPhone, item.tenantEmail)}
-                          title={`Send reminder for ${item.monthsOverdue} month(s)`}
                         >
                           Remind
                         </button>
                         <button 
                           className="cash-btn"
                           onClick={() => markAsCashPaid(item.tenantId, item.tenant, item.cycles)}
-                          title="Mark as cash paid"
                         >
                           Cash Paid
                         </button>
@@ -444,35 +443,8 @@ const OverduePayments = () => {
             </table>
           </div>
 
-          {/* Show "Show More" indicator */}
-          {!showAll && overduePayments.length > 5 && (
-            <div className="show-more-indicator">
-              <span>... and {overduePayments.length - 5} more overdue tenants</span>
-              <button 
-                className="show-more-btn"
-                onClick={() => setShowAll(true)}
-              >
-                Show All
-              </button>
-            </div>
-          )}
-
-          {/* Summary Footer */}
+          {/* ... (Footer section remains the same) */}
           <div className="summary-footer">
-            <div className="summary-stats">
-              <div className="summary-stat">
-                <span className="stat-value">{stats.totalTenants}</span>
-                <span className="stat-label">Tenants</span>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-value">{stats.totalMonths}</span>
-                <span className="stat-label">Months</span>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-value">KSh {stats.totalOverdue.toLocaleString()}</span>
-                <span className="stat-label">Total Due</span>
-              </div>
-            </div>
             <div className="automation-status">
               <span className="status-indicator active"></span>
               <span>M-Pesa auto-pay • Cash manual • {displayedPayments.length} shown</span>

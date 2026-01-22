@@ -26,7 +26,7 @@
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 /* Left Column Styling */
@@ -41,8 +41,7 @@
 .row-side {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  height: 480px; 
+  gap: 24px; 
   min-width: 0;
 }
 
@@ -84,6 +83,7 @@
   box-sizing: border-box;
   overflow: hidden;
 }
+
 
 /* Scrollable areas for Lists and Tables */
 .scrollable-content {
