@@ -1,0 +1,338 @@
+/* src/components/analytics/AnalyticsTest.css */
+.analytics-test-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+.test-description {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.error-message {
+  background-color: #fee;
+  border: 1px solid #f99;
+  color: #c00;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.test-controls {
+  margin-bottom: 30px;
+}
+
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.test-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.test-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.test-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rent-button {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.vacancy-button {
+  background-color: #2196F3;
+  color: white;
+}
+
+.tenant-button {
+  background-color: #9C27B0;
+  color: white;
+}
+
+.insights-button {
+  background-color: #FF9800;
+  color: white;
+}
+
+.all-button {
+  background-color: #607D8B;
+  color: white;
+}
+
+.clear-button {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.results-section {
+  display: grid;
+  gap: 20px;
+}
+
+.result-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 1px solid #e0e0e0;
+}
+
+.result-card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.metric {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #2196F3;
+}
+
+.metric label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+
+.metric .value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.metric .value.highlight {
+  color: #4CAF50;
+}
+
+.metric .value.warning {
+  color: #FF9800;
+}
+
+.no-data {
+  color: #999;
+  font-style: italic;
+  text-align: center;
+  padding: 40px 20px;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
+
+.raw-data {
+  margin-top: 15px;
+  font-size: 12px;
+}
+
+.raw-data summary {
+  cursor: pointer;
+  color: #666;
+  padding: 5px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.raw-data pre {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+.tenant-list {
+  margin: 15px 0;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.tenant-list h4 {
+  margin-top: 0;
+  color: #555;
+}
+
+.tenant-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tenant-list li {
+  padding: 8px 12px;
+  margin: 5px 0;
+  border-radius: 4px;
+  background: white;
+  border-left: 4px solid #ddd;
+}
+
+.tenant-list li.risk-high {
+  border-left-color: #f44336;
+  background: #ffebee;
+}
+
+.tenant-list li.risk-medium {
+  border-left-color: #FF9800;
+  background: #fff3e0;
+}
+
+.tenant-list li.risk-low {
+  border-left-color: #4CAF50;
+  background: #e8f5e8;
+}
+
+.payment-info {
+  font-size: 12px;
+  color: #666;
+  margin-left: 10px;
+}
+
+.insights-list {
+  display: grid;
+  gap: 10px;
+}
+
+.insight-item {
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: white;
+}
+
+.insight-item.priority-high {
+  border-left: 4px solid #f44336;
+  background: #ffebee;
+}
+
+.insight-item.priority-medium {
+  border-left: 4px solid #FF9800;
+  background: #fff3e0;
+}
+
+.insight-item.priority-low {
+  border-left: 4px solid #4CAF50;
+  background: #e8f5e8;
+}
+
+.insight-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.insight-type {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e0e0e0;
+}
+
+.insight-type.warning {
+  background: #FF9800;
+  color: white;
+}
+
+.insight-type.alert {
+  background: #f44336;
+  color: white;
+}
+
+.insight-type.positive {
+  background: #4CAF50;
+  color: white;
+}
+
+.insight-type.monitoring {
+  background: #2196F3;
+  color: white;
+}
+
+.insight-priority {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #666;
+}
+
+.insight-item h4 {
+  margin: 0 0 5px 0;
+  color: #333;
+}
+
+.insight-item p {
+  margin: 0 0 10px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.insight-action {
+  font-size: 13px;
+  color: #333;
+  padding-top: 10px;
+  border-top: 1px dashed #ddd;
+}
+
+.insight-tenants {
+  font-size: 13px;
+  color: #555;
+  margin-top: 8px;
+  padding: 5px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.instructions {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border: 1px solid #d0e3ff;
+}
+
+.instructions h4 {
+  margin-top: 0;
+  color: #1976d2;
+}
+
+.instructions ol {
+  padding-left: 20px;
+  color: #555;
+}
+
+.instructions li {
+  margin-bottom: 8px;
+}

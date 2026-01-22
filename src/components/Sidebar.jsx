@@ -65,8 +65,10 @@ const Sidebar = () => {
 
   // Auto-expand analytics if on analytics page
   useEffect(() => {
-    if (location.pathname.startsWith('/analytics')) {
+    if (location.pathname === '/analytics' || location.pathname.startsWith('/analytics')) {
       setAnalyticsOpen(true);
+    } else {
+      setAnalyticsOpen(false);
     }
   }, [location.pathname]);
 
@@ -184,27 +186,32 @@ const Sidebar = () => {
     { icon: <FaMoneyBillWave />, label: "Finance", path: "/finance" },
   ];
 
-  // Analytics sub-items
+  // Analytics sub-items - UPDATED TO MATCH OUR HASH ROUTING
   const analyticsSubItems = [
     { 
       icon: <FaChartLine />, 
       label: "Rent Collection", 
-      path: "/analytics/rent",
+      path: "/analytics#rent-collection",
       description: "Track rent payment trends and collection rates"
     },
     { 
       icon: <FaPercentage />, 
       label: "Vacancy Rates", 
-      path: "/analytics/vacancy",
+      path: "/analytics#vacancy-rates",
       description: "Monitor occupancy and vacancy trends"
     },
     { 
       icon: <FaUserClock />, 
       label: "Tenant Behavior", 
-      path: "/analytics/tenants",
+      path: "/analytics#tenant-behavior",
       description: "Analyze tenant payment patterns and behavior"
     },
-    
+    { 
+      icon: <FaChartPie />, 
+      label: "Insights & Recommendations", 
+      path: "/analytics#insights",
+      description: "AI-powered recommendations and alerts"
+    },
   ];
 
   const systemItems = [
@@ -213,10 +220,36 @@ const Sidebar = () => {
   ];
 
   const isActive = (path) => {
+    // Check if current path matches exactly or starts with path
+    if (path.includes('#')) {
+      // For hash-based analytics paths
+      const [basePath, hash] = path.split('#');
+      return location.pathname === basePath && location.hash === `#${hash}`;
+    }
     return location.pathname === path || location.pathname.startsWith(path + "/");
   };
 
-  const isAnalyticsActive = analyticsSubItems.some(item => isActive(item.path));
+  const isAnalyticsActive = () => {
+    return location.pathname === '/analytics' || 
+           analyticsSubItems.some(item => isActive(item.path));
+  };
+
+  const handleAnalyticsClick = (path) => {
+    navigate(path);
+    // If sidebar is collapsed, close the analytics dropdown after navigation
+    if (!isSidebarExpanded) {
+      setAnalyticsOpen(false);
+    }
+  };
+
+  const handleAnalyticsParentClick = () => {
+    if (isSidebarExpanded) {
+      toggleAnalytics();
+    } else {
+      // If sidebar is collapsed, navigate to main analytics page
+      navigate('/analytics');
+    }
+  };
 
   return (
     <div className={`sidebar ${isSidebarExpanded ? "" : "collapsed"}`}>
@@ -303,8 +336,8 @@ const Sidebar = () => {
 
           {/* ANALYTICS SECTION WITH DROPDOWN */}
           <li 
-            className={`sidebar-item analytics-parent ${isAnalyticsActive ? 'active-parent' : ''}`}
-            onClick={toggleAnalytics}
+            className={`sidebar-item analytics-parent ${isAnalyticsActive() ? 'active-parent' : ''}`}
+            onClick={handleAnalyticsParentClick}
           >
             <div className="sidebar-item-content">
               <FaChartBar /> 
@@ -316,26 +349,27 @@ const Sidebar = () => {
                   </span>
                 </>
               )}
+              {!isSidebarExpanded && (
+                <div className="tooltip">Analytics & Reports</div>
+              )}
             </div>
           </li>
 
-          {/* ANALYTICS SUB-ITEMS */}
-          {analyticsOpen && isSidebarExpanded && (
+          {/* ANALYTICS SUB-ITEMS - Only show when expanded */}
+          {isSidebarExpanded && analyticsOpen && (
             <ul className="sidebar-submenu">
               {analyticsSubItems.map((item, index) => (
                 <li
                   key={index}
                   className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => handleAnalyticsClick(item.path)}
                   title={item.description}
                 >
                   <div className="sidebar-subitem-content">
                     {item.icon}
                     <div className="subitem-text">
                       <span className="subitem-label">{item.label}</span>
-                      {isSidebarExpanded && (
-                        <span className="subitem-description">{item.description}</span>
-                      )}
+                      <span className="subitem-description">{item.description}</span>
                     </div>
                   </div>
                 </li>
@@ -343,14 +377,14 @@ const Sidebar = () => {
             </ul>
           )}
 
-          {/* If sidebar is collapsed, show analytics sub-items as hover tooltips or separate */}
-          {!isSidebarExpanded && analyticsOpen && (
-            <div className="collapsed-submenu">
+          {/* If sidebar is collapsed, show direct analytics icons */}
+          {!isSidebarExpanded && isAnalyticsActive() && (
+            <div className="collapsed-analytics-icons">
               {analyticsSubItems.map((item, index) => (
                 <li
                   key={index}
                   className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => handleAnalyticsClick(item.path)}
                   title={`${item.label}: ${item.description}`}
                 >
                   <div className="sidebar-subitem-content">

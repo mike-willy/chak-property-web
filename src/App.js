@@ -4,7 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRoute from "./routes/AdminRoute";
-import MpesaTest from './components/MpesaTest';
+
 
 // Admin pages
 import Dashboard from "./pages/Dashboard";
@@ -28,7 +28,8 @@ import Units from "./pages/Units";
 import AssignTenant from "./pages/AssignTenant";
 import ApprovedTenants from './pages/ApprovedTenants';
 import AllActivities from './pages/AllActivities'; 
-
+import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard';
+import AnalyticsTest from './components/analytics/AnalyticsTest';
 // Wrapper component for admin pages with layout
 const AdminPage = ({ children }) => {
   return (
@@ -56,8 +57,10 @@ function App() {
         }
       />
 
-<Route path="/test-mpesa" element={<MpesaTest />} />
+
 <Route path="/activities" element={<AllActivities />} />
+<Route path="/analytics" element={<AnalyticsDashboard />} />
+<Route path="/test-analytics" element={<AnalyticsTest />} />
 
       <Route
         path="/properties/add"
