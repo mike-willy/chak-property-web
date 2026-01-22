@@ -237,7 +237,7 @@ class AnalyticsService {
   }
   
   /**
-   * Generate Analytics Insights (Rule-based) - FIXED
+   * Generate Analytics Insights (Rule-based) - UPDATED WITH FIXED DATA STRUCTURE
    */
   async generateAnalyticsInsights() {
     try {
@@ -250,104 +250,183 @@ class AnalyticsService {
       
       // Apply rule-based intelligence
       const insights = [];
+      const timestamp = Date.now();
       
       // Rule 1: Low collection rate alert
       if (rentData.summary.collectionRate < 0.85) {
         insights.push({
-          id: `insight_${Date.now()}_1`,
+          id: `insight_${timestamp}_1`,
           type: 'warning',
           category: 'rent_collection',
           title: 'Low Collection Rate',
           description: `Collection rate is ${(rentData.summary.collectionRate * 100).toFixed(1)}%, below the 85% target`,
           priority: 'high',
           recommendation: 'Review pending payments and send reminders to tenants',
+          action: 'Review pending payments and send reminders to tenants',
+          // FLATTENED DATA - no nested objects
           data: {
             collectionRate: rentData.summary.collectionRate,
             outstandingAmount: rentData.summary.outstandingAmount,
-            pendingPayments: rentData.summary.latePaymentsCount
-          }
+            pendingPayments: rentData.summary.latePaymentsCount,
+            expectedRent: rentData.summary.expectedRent,
+            collectedRent: rentData.summary.collectedRent
+          },
+          tenants: []
         });
       }
       
       // Rule 2: High vacancy rate alert
       if (vacancyData.summary.vacancyRate > 0.15) {
         insights.push({
-          id: `insight_${Date.now()}_2`,
+          id: `insight_${timestamp}_2`,
           type: 'warning',
           category: 'vacancy',
           title: 'High Vacancy Rate',
           description: `Vacancy rate is ${(vacancyData.summary.vacancyRate * 100).toFixed(1)}%, above the 15% threshold`,
           priority: 'medium',
           recommendation: 'Consider rent adjustments or marketing campaigns',
+          action: 'Consider rent adjustments or marketing campaigns',
+          // FLATTENED DATA
           data: {
             vacancyRate: vacancyData.summary.vacancyRate,
             vacantUnits: vacancyData.summary.vacantUnits,
-            avgVacancyDays: vacancyData.summary.avgVacancyDays
-          }
+            avgVacancyDays: vacancyData.summary.avgVacancyDays,
+            totalUnits: vacancyData.summary.totalUnits,
+            occupiedUnits: vacancyData.summary.occupiedUnits
+          },
+          tenants: []
         });
       }
       
       // Rule 3: High-risk tenants alert
       const highRiskTenants = tenantData.details.tenants.filter(t => t.riskScore > 70);
       if (highRiskTenants.length > 0) {
+        // Extract tenant names only (not full objects)
+        const highRiskTenantNames = highRiskTenants.map(t => t.tenantName || 'Unknown Tenant');
+        
         insights.push({
-          id: `insight_${Date.now()}_3`,
+          id: `insight_${timestamp}_3`,
           type: 'alert',
           category: 'tenant_behavior',
           title: 'High-Risk Tenants Detected',
           description: `${highRiskTenants.length} tenants have high risk scores`,
           priority: 'high',
           recommendation: 'Review these tenants for possible lease termination or additional deposits',
+          action: 'Review these tenants for possible lease termination or additional deposits',
+          // FLATTENED DATA - using simple values
           data: {
             highRiskCount: highRiskTenants.length,
-            tenants: highRiskTenants.map(t => ({
-              name: t.tenantName,
-              riskScore: t.riskScore,
-              latePayments: t.overduePayments.length,
-              outstandingBalance: t.balance
-            }))
-          }
+            averageRiskScore: highRiskTenants.reduce((sum, t) => sum + t.riskScore, 0) / highRiskTenants.length,
+            totalOutstanding: highRiskTenants.reduce((sum, t) => sum + t.balance, 0),
+            totalLatePayments: highRiskTenants.reduce((sum, t) => sum + t.overduePayments.length, 0)
+          },
+          tenants: highRiskTenantNames.slice(0, 5) // Limit to 5 names
         });
       }
       
       // Rule 4: Units under maintenance
       if (vacancyData.summary.maintenanceUnits > 0) {
+        // Get unit numbers/names for display
+        const maintenanceUnitNames = vacancyData.details.maintenanceUnits
+          .slice(0, 3)
+          .map(unit => unit.unitNumber || `Unit ${unit.id.substring(0, 8)}`);
+        
         insights.push({
-          id: `insight_${Date.now()}_4`,
+          id: `insight_${timestamp}_4`,
           type: 'maintenance',
           category: 'vacancy',
           title: 'Units Under Maintenance',
           description: `${vacancyData.summary.maintenanceUnits} units are under maintenance`,
           priority: 'medium',
           recommendation: 'Check maintenance status and estimated completion dates',
+          action: 'Check maintenance status and estimated completion dates',
+          // FLATTENED DATA
           data: {
             maintenanceUnits: vacancyData.summary.maintenanceUnits,
-            units: vacancyData.details.maintenanceUnits.slice(0, 5)
-          }
+            leasedUnderMaintenance: vacancyData.summary.leasedUnderMaintenance,
+            vacantUnderMaintenance: vacancyData.summary.vacantUnderMaintenance
+          },
+          tenants: maintenanceUnitNames
         });
       }
       
       // Rule 5: Vacant units under maintenance
       if (vacancyData.summary.vacantUnderMaintenance > 0) {
+        // Get unit numbers for vacant units under maintenance
+        const vacantMaintenanceUnits = vacancyData.details.vacantUnits
+          .filter(unit => unit.isUnderMaintenance)
+          .slice(0, 3)
+          .map(unit => unit.unitNumber || `Unit ${unit.id.substring(0, 8)}`);
+        
         insights.push({
-          id: `insight_${Date.now()}_5`,
+          id: `insight_${timestamp}_5`,
           type: 'maintenance',
           category: 'vacancy',
           title: 'Vacant Units Under Maintenance',
           description: `${vacancyData.summary.vacantUnderMaintenance} vacant units are under maintenance`,
           priority: 'medium',
           recommendation: 'Prioritize maintenance completion to make these units rent-ready',
+          action: 'Prioritize maintenance completion to make these units rent-ready',
+          // FLATTENED DATA
           data: {
             vacantUnderMaintenance: vacancyData.summary.vacantUnderMaintenance,
-            normalVacant: vacancyData.summary.vacantNormal
-          }
+            normalVacant: vacancyData.summary.vacantNormal,
+            totalVacant: vacancyData.summary.vacantUnits
+          },
+          tenants: vacantMaintenanceUnits
         });
       }
+      
+      // Rule 6: Positive insight - Good collection rate
+      if (rentData.summary.collectionRate >= 0.95) {
+        insights.push({
+          id: `insight_${timestamp}_6`,
+          type: 'positive',
+          category: 'rent_collection',
+          title: 'Excellent Collection Rate',
+          description: `Collection rate is ${(rentData.summary.collectionRate * 100).toFixed(1)}%, exceeding the 95% target`,
+          priority: 'low',
+          recommendation: 'Continue current collection strategies',
+          action: 'Continue current collection strategies',
+          // FLATTENED DATA
+          data: {
+            collectionRate: rentData.summary.collectionRate,
+            completedPayments: rentData.summary.completedPaymentsCount,
+            latePayments: rentData.summary.latePaymentsCount
+          },
+          tenants: []
+        });
+      }
+      
+      // Rule 7: Low vacancy rate (positive)
+      if (vacancyData.summary.vacancyRate < 0.05) {
+        insights.push({
+          id: `insight_${timestamp}_7`,
+          type: 'positive',
+          category: 'vacancy',
+          title: 'Low Vacancy Rate',
+          description: `Vacancy rate is ${(vacancyData.summary.vacancyRate * 100).toFixed(1)}%, below the 5% target`,
+          priority: 'low',
+          recommendation: 'Property is operating at high occupancy',
+          action: 'Property is operating at high occupancy',
+          // FLATTENED DATA
+          data: {
+            vacancyRate: vacancyData.summary.vacancyRate,
+            occupancyRate: vacancyData.summary.occupancyRate,
+            totalUnits: vacancyData.summary.totalUnits,
+            occupiedUnits: vacancyData.summary.occupiedUnits
+          },
+          tenants: []
+        });
+      }
+      
+      // Add more rules as needed...
       
       return insights;
     } catch (error) {
       console.error('Error generating insights:', error);
-      throw error;
+      // Return empty array instead of throwing error to prevent UI crash
+      return [];
     }
   }
   

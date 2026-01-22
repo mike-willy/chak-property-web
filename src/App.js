@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRoute from "./routes/AdminRoute";
+import MetricCard from "./components/analytics/MetricCard";
 
 
 // Admin pages
@@ -61,6 +62,7 @@ function App() {
 <Route path="/activities" element={<AllActivities />} />
 <Route path="/analytics" element={<AnalyticsDashboard />} />
 <Route path="/test-analytics" element={<AnalyticsTest />} />
+<Route path="/metric-card" element={<MetricCard />} />
 
       <Route
         path="/properties/add"
