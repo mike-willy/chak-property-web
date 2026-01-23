@@ -144,7 +144,6 @@ const FinancialChart = () => {
     return result;
   };
 
-  // UPDATED: Better currency formatting for all value ranges
   const formatCurrency = (amount) => {
     const numAmount = Number(amount) || 0;
     
@@ -172,12 +171,12 @@ const FinancialChart = () => {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="custom-tooltip">
-          <p className="tooltip-label">{label}</p>
-          <p className="tooltip-value">
+        <div className="fc-custom-tooltip">
+          <p className="fc-tooltip-label">{label}</p>
+          <p className="fc-tooltip-value">
             Amount: <strong>{formatCurrency(payload[0].value)}</strong>
           </p>
-          <p className="tooltip-count">
+          <p className="fc-tooltip-count">
             Payments: <strong>{payload[0].payload.count || 0}</strong>
           </p>
         </div>
@@ -187,34 +186,34 @@ const FinancialChart = () => {
   };
 
   return (
-    <div className="financial-chart-container"> {/* New container */}
-      <div className="financial-chart-card">
-        <div className="chart-header">
-          <div>
-            <h3 className="chart-title">Financial Performance</h3>
-            <p className="chart-subtitle">{getPeriodLabel()}</p>
+    <div className="fc-container"> {/* Unique class */}
+      <div className="fc-card"> {/* Unique class */}
+        <div className="fc-header"> {/* Unique class */}
+          <div className="fc-header-left">
+            <h3 className="fc-title">Financial Performance</h3>
+            <p className="fc-subtitle">{getPeriodLabel()}</p>
           </div>
-          <div className="chart-stats">
-            <div className="total-revenue">
-              <span className="revenue-label">Total Revenue:</span>
-              <span className="revenue-amount">{formatCurrency(totalRevenue)}</span>
+          <div className="fc-stats"> {/* Unique class */}
+            <div className="fc-total-revenue">
+              <span className="fc-revenue-label">Total Revenue:</span>
+              <span className="fc-revenue-amount">{formatCurrency(totalRevenue)}</span>
             </div>
           </div>
-          <div className="chart-filter">
+          <div className="fc-filter"> {/* Unique class */}
             <button 
-              className={`filter-btn ${selectedPeriod === "3months" ? "active" : ""}`}
+              className={`fc-filter-btn ${selectedPeriod === "3months" ? "fc-active" : ""}`}
               onClick={() => setSelectedPeriod("3months")}
             >
               3 Months
             </button>
             <button 
-              className={`filter-btn ${selectedPeriod === "6months" ? "active" : ""}`}
+              className={`fc-filter-btn ${selectedPeriod === "6months" ? "fc-active" : ""}`}
               onClick={() => setSelectedPeriod("6months")}
             >
               6 Months
             </button>
             <button 
-              className={`filter-btn ${selectedPeriod === "1year" ? "active" : ""}`}
+              className={`fc-filter-btn ${selectedPeriod === "1year" ? "fc-active" : ""}`}
               onClick={() => setSelectedPeriod("1year")}
             >
               1 Year
@@ -222,19 +221,19 @@ const FinancialChart = () => {
           </div>
         </div>
         
-        <div className="chart-wrapper">
+        <div className="fc-chart-wrapper"> {/* Unique class */}
           {loading ? (
-            <div className="chart-loading">
-              <div className="spinner"></div>
+            <div className="fc-chart-loading">
+              <div className="fc-spinner"></div>
               <p>Loading payment data...</p>
             </div>
           ) : chartData.length === 0 ? (
-            <div className="no-data">
+            <div className="fc-no-data">
               <p>No payment data available for the selected period.</p>
-              <p className="no-data-sub">Payments will appear here once tenants start paying via M-Pesa.</p>
+              <p className="fc-no-data-sub">Payments will appear here once tenants start paying via M-Pesa.</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%"> {/* Changed to 100% */}
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart 
                 data={chartData} 
                 margin={{ top: 15, right: 15, left: 5, bottom: 25 }}
@@ -250,7 +249,6 @@ const FinancialChart = () => {
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#6c757d', fontSize: 11 }}
-                  // UPDATED: Smart Y-axis formatting
                   tickFormatter={(value) => {
                     if (value === 0) return "KSh 0";
                     if (value < 1000) return `KSh ${value}`;
@@ -260,7 +258,7 @@ const FinancialChart = () => {
                     if (value < 10000000) return `KSh ${(value/1000000).toFixed(2)}M`;
                     return `KSh ${(value/1000000).toFixed(1)}M`;
                   }}
-                  width={60} // Fixed width for consistent layout
+                  width={60}
                 />
                 <Tooltip 
                   content={<CustomTooltip />}
@@ -269,12 +267,12 @@ const FinancialChart = () => {
                 <Bar 
                   dataKey="amount" 
                   name="Monthly Revenue"
-                  fill="url(#colorGradient)"
+                  fill="url(#fc-colorGradient)"
                   radius={[6, 6, 0, 0]}
                   barSize={40}
                 />
                 <defs>
-                  <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="fc-colorGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#4361ee" />
                     <stop offset="100%" stopColor="#3a56d4" />
                   </linearGradient>
@@ -284,28 +282,27 @@ const FinancialChart = () => {
           )}
         </div>
 
-        {/* Summary Stats */}
         {chartData.length > 0 && (
-          <div className="chart-summary">
-            <div className="summary-item">
-              <span className="summary-label">Average Monthly:</span>
-              <span className="summary-value">
+          <div className="fc-summary"> {/* Unique class */}
+            <div className="fc-summary-item">
+              <span className="fc-summary-label">Average Monthly:</span>
+              <span className="fc-summary-value">
                 {formatCurrency(
                   chartData.reduce((sum, item) => sum + item.amount, 0) / chartData.length
                 )}
               </span>
             </div>
-            <div className="summary-item">
-              <span className="summary-label">Highest Month:</span>
-              <span className="summary-value highlight">
+            <div className="fc-summary-item">
+              <span className="fc-summary-label">Highest Month:</span>
+              <span className="fc-summary-value fc-highlight">
                 {formatCurrency(
                   Math.max(...chartData.map(item => item.amount))
                 )}
               </span>
             </div>
-            <div className="summary-item">
-              <span className="summary-label">Total Payments:</span>
-              <span className="summary-value">
+            <div className="fc-summary-item">
+              <span className="fc-summary-label">Total Payments:</span>
+              <span className="fc-summary-value">
                 {chartData.reduce((sum, item) => sum + (item.count || 0), 0)}
               </span>
             </div>

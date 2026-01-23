@@ -2,7 +2,7 @@
 
 .dashboard-container {
   padding: 24px;
-  margin-top: 70px;
+  /*margin-top: 70px;*/
   background-color: #f9fafb;
   min-height: calc(100vh - 70px);
   width: 100%;

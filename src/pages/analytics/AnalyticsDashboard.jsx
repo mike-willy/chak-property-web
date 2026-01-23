@@ -38,11 +38,37 @@ const AnalyticsDashboard = () => {
     vacantUnits: 0
   });
 
-  // Get active tab from URL or default
+  // Get active tab from URL hash - FIXED VERSION
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && ['rent-collection', 'vacancy-rates', 'tenant-behavior', 'insights'].includes(hash)) {
+        setActiveTab(hash);
+        // Scroll to top when hash changes
+        window.scrollTo(0, 0);
+      } else {
+        // Default to rent-collection if no valid hash
+        setActiveTab('rent-collection');
+      }
+    };
+
+    // Initial check
+    handleHashChange();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []);
+
+  // Also check when location changes (for React Router navigation)
   useEffect(() => {
     const hash = location.hash.replace('#', '');
     if (hash && ['rent-collection', 'vacancy-rates', 'tenant-behavior', 'insights'].includes(hash)) {
       setActiveTab(hash);
+      window.scrollTo(0, 0);
     }
   }, [location]);
 
@@ -84,7 +110,10 @@ const AnalyticsDashboard = () => {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    navigate(`/analytics#${tab}`);
+    // Update URL hash without reloading
+    window.location.hash = tab;
+    // Force scroll to top
+    window.scrollTo(0, 0);
   };
 
   const formatCurrency = (amount) => {

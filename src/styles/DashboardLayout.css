@@ -1,0 +1,65 @@
+/* DashboardLayout.css - UPDATED WITH HORIZONTAL SCROLL FIX */
+.dashboard-layout {
+  position: relative;
+  min-height: 100vh;
+  width: 100%; /* CHANGED BACK: 100% instead of 100vw */
+  overflow-x: hidden; /* Ensure no horizontal scroll */
+}
+
+.layout-container {
+  display: flex;
+  position: relative;
+  width: 100%;
+  overflow-x: hidden; /* ADDED: Prevent container overflow */
+}
+
+/* Main content area */
+.main-content {
+  flex: 1;
+  padding: 24px;
+  transition: margin-left 0.3s ease;
+  min-height: calc(100vh - 70px);
+  width: calc(100% - 70px); /* FIXED: Subtract sidebar width */
+  box-sizing: border-box;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-y: auto;
+}
+
+/* When sidebar is expanded */
+.main-content.sidebar-expanded {
+  width: calc(100% - 250px); /* FIXED: Adjust for expanded sidebar */
+}
+
+/* New wrapper for content */
+.content-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden; /* Extra safety */
+  box-sizing: border-box;
+}
+
+/* Ensure all children don't cause overflow */
+.content-wrapper > * {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Mobile overlay */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 16px;
+    margin-left: 0 !important;
+    width: 100% !important; /* ADDED: Full width on mobile */
+  }
+}

@@ -58,9 +58,18 @@ function App() {
         }
       />
 
+<Route
+  path="/analytics"
+  element={
+    <AdminPage>
+      <AnalyticsDashboard />
+    </AdminPage>
+  }
+/>
+
 
 <Route path="/activities" element={<AllActivities />} />
-<Route path="/analytics" element={<AnalyticsDashboard />} />
+
 <Route path="/test-analytics" element={<AnalyticsTest />} />
 <Route path="/metric-card" element={<MetricCard />} />
 

@@ -163,7 +163,7 @@ const Sidebar = () => {
     setAnalyticsOpen(!analyticsOpen);
   };
 
-  // Main menu items
+  // Main menu items (ANALYTICS REMOVED FROM HERE)
   const menuItems = [
     { icon: <FaTachometerAlt />, label: "Dashboard", path: "/dashboard" },
     { icon: <FaHome />, label: "Properties", path: "/properties" },
@@ -186,7 +186,7 @@ const Sidebar = () => {
     { icon: <FaMoneyBillWave />, label: "Finance", path: "/finance" },
   ];
 
-  // Analytics sub-items - UPDATED TO MATCH OUR HASH ROUTING
+  // Analytics sub-items
   const analyticsSubItems = [
     { 
       icon: <FaChartLine />, 
@@ -214,17 +214,17 @@ const Sidebar = () => {
     },
   ];
 
-  const systemItems = [
-    { icon: <FaCog />, label: "Settings", path: "/settings" },
-    { icon: <FaLifeRing />, label: "Support", path: "/support" },
-  ];
+  // System items - ONLY Analytics & Reports (Settings and Support removed)
+  const systemItems = [];
 
   const isActive = (path) => {
-    // Check if current path matches exactly or starts with path
-    if (path.includes('#')) {
-      // For hash-based analytics paths
+    if (path.includes('/analytics#')) {
       const [basePath, hash] = path.split('#');
-      return location.pathname === basePath && location.hash === `#${hash}`;
+      const currentPath = location.pathname;
+      const currentHash = location.hash || window.location.hash;
+      
+      return currentPath === '/analytics' && 
+             currentHash === `#${hash}`;
     }
     return location.pathname === path || location.pathname.startsWith(path + "/");
   };
@@ -236,7 +236,7 @@ const Sidebar = () => {
 
   const handleAnalyticsClick = (path) => {
     navigate(path);
-    // If sidebar is collapsed, close the analytics dropdown after navigation
+    window.scrollTo(0, 0);
     if (!isSidebarExpanded) {
       setAnalyticsOpen(false);
     }
@@ -246,8 +246,8 @@ const Sidebar = () => {
     if (isSidebarExpanded) {
       toggleAnalytics();
     } else {
-      // If sidebar is collapsed, navigate to main analytics page
       navigate('/analytics');
+      window.scrollTo(0, 0);
     }
   };
 
@@ -319,7 +319,10 @@ const Sidebar = () => {
             <li
               key={index}
               className={`sidebar-item ${isActive(item.path) ? "active" : ""}`}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                navigate(item.path);
+                window.scrollTo(0, 0);
+              }}
               title={!isSidebarExpanded ? item.label : ""}
             >
               <div className="sidebar-item-content">
@@ -333,86 +336,65 @@ const Sidebar = () => {
               </div>
             </li>
           ))}
-
-          {/* ANALYTICS SECTION WITH DROPDOWN */}
-          <li 
-            className={`sidebar-item analytics-parent ${isAnalyticsActive() ? 'active-parent' : ''}`}
-            onClick={handleAnalyticsParentClick}
-          >
-            <div className="sidebar-item-content">
-              <FaChartBar /> 
-              {isSidebarExpanded && (
-                <>
-                  <span>Analytics & Reports</span>
-                  <span className="chevron-icon">
-                    {analyticsOpen ? <FaChevronDown /> : <FaChevronRight />}
-                  </span>
-                </>
-              )}
-              {!isSidebarExpanded && (
-                <div className="tooltip">Analytics & Reports</div>
-              )}
-            </div>
-          </li>
-
-          {/* ANALYTICS SUB-ITEMS - Only show when expanded */}
-          {isSidebarExpanded && analyticsOpen && (
-            <ul className="sidebar-submenu">
-              {analyticsSubItems.map((item, index) => (
-                <li
-                  key={index}
-                  className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
-                  onClick={() => handleAnalyticsClick(item.path)}
-                  title={item.description}
-                >
-                  <div className="sidebar-subitem-content">
-                    {item.icon}
-                    <div className="subitem-text">
-                      <span className="subitem-label">{item.label}</span>
-                      <span className="subitem-description">{item.description}</span>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* If sidebar is collapsed, show direct analytics icons */}
-          {!isSidebarExpanded && isAnalyticsActive() && (
-            <div className="collapsed-analytics-icons">
-              {analyticsSubItems.map((item, index) => (
-                <li
-                  key={index}
-                  className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
-                  onClick={() => handleAnalyticsClick(item.path)}
-                  title={`${item.label}: ${item.description}`}
-                >
-                  <div className="sidebar-subitem-content">
-                    {item.icon}
-                  </div>
-                </li>
-              ))}
-            </div>
-          )}
         </ul>
 
-        {/* SYSTEM */}
+        {/* SYSTEM - ONLY ANALYTICS & REPORTS */}
         <div className="sidebar-system">
           {isSidebarExpanded && <p className="sidebar-title">SYSTEM</p>}
           <ul className="sidebar-bottom">
-            {systemItems.map((item, index) => (
-              <li
-                key={index}
-                className={`sidebar-item ${isActive(item.path) ? "active" : ""}`}
-                onClick={() => navigate(item.path)}
-                title={!isSidebarExpanded ? item.label : ""}
+            {/* ANALYTICS & REPORTS - NOW IN SYSTEM SECTION */}
+            {isSidebarExpanded ? (
+              <>
+                <li 
+                  className={`sidebar-item analytics-parent ${isAnalyticsActive() ? 'active-parent' : ''}`}
+                  onClick={toggleAnalytics}
+                >
+                  <div className="sidebar-item-content">
+                    <FaChartBar /> 
+                    <span>Analytics & Reports</span>
+                    <span className="chevron-icon">
+                      {analyticsOpen ? <FaChevronDown /> : <FaChevronRight />}
+                    </span>
+                  </div>
+                </li>
+
+                {/* ANALYTICS SUB-ITEMS - Only show when expanded AND analyticsOpen */}
+                {analyticsOpen && (
+                  <ul className="sidebar-submenu">
+                    {analyticsSubItems.map((item, index) => (
+                      <li
+                        key={index}
+                        className={`sidebar-subitem ${isActive(item.path) ? "active" : ""}`}
+                        onClick={() => handleAnalyticsClick(item.path)}
+                        title={item.description}
+                      >
+                        <div className="sidebar-subitem-content">
+                          {item.icon}
+                          <div className="subitem-text">
+                            <span className="subitem-label">{item.label}</span>
+                            <span className="subitem-description">{item.description}</span>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              /* When sidebar is collapsed: Simple analytics button without dropdown */
+              <li 
+                className={`sidebar-item analytics-parent ${isAnalyticsActive() ? 'active-parent' : ''}`}
+                onClick={() => {
+                  navigate('/analytics');
+                  window.scrollTo(0, 0);
+                }}
+                title="Analytics & Reports"
               >
                 <div className="sidebar-item-content">
-                  {item.icon} 
-                  {isSidebarExpanded && <span>{item.label}</span>}
+                  <FaChartBar /> 
                 </div>
               </li>
-            ))}
+            )}
           </ul>
         </div>
       </div>

@@ -25,7 +25,11 @@ import {
   FaBuilding,
   FaDoorOpen,
   FaBed,
-  FaBath
+  FaBath,
+  FaChevronDown,
+  FaChevronUp,
+  FaCheck,
+  FaTimes
 } from "react-icons/fa";
 import "../styles/applications.css";
 
@@ -35,6 +39,8 @@ const Applications = () => {
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Fetch ALL applications
   useEffect(() => {
@@ -57,7 +63,7 @@ const Applications = () => {
           processedAt: data.processedAt?.toDate(),
           rejectedAt: data.rejectedAt?.toDate(),
           reviewedAt: data.reviewedAt?.toDate(),
-          adminDeleted: data.adminDeleted || false // Add this field
+          adminDeleted: data.adminDeleted || false
         });
       });
 
@@ -102,7 +108,7 @@ const Applications = () => {
     );
   };
 
-  // Navigate to AddTenant with prefill data
+  // Navigate to AddTenant with prefill data (YOUR ORIGINAL FUNCTION)
   const viewApplicationDetails = (application) => {
     if (application.status !== "pending") {
       setSelectedApp(application);
@@ -140,7 +146,7 @@ const Applications = () => {
     navigate('/tenants/add', { state: { prefillData } });
   };
 
-  // SOFT DELETE: Remove from admin view only
+  // SOFT DELETE: Remove from admin view only (YOUR ORIGINAL FUNCTION)
   const deleteApplication = async (application) => {
     if (!window.confirm(`Remove ${application.fullName}'s application from your dashboard?\n\nThis will only hide it from admin view. Tenant can still see their application.`)) return;
 
@@ -204,62 +210,74 @@ const Applications = () => {
     return `Applied: ${formatDate(app.appliedDate)}`;
   };
 
-  // Get unit details display
-  const getUnitDetails = (app) => {
-    let details = [];
-    
-    if (app.unitType) details.push(app.unitType);
-    if (app.bedrooms) details.push(`${app.bedrooms} bed`);
-    if (app.bathrooms) details.push(`${app.bathrooms} bath`);
-    if (app.unitSize) details.push(`${app.unitSize} sqft`);
-    
-    return details.length > 0 ? details.join(" • ") : "No unit details";
-  };
-
   // Get competing applicants count
   const getCompetingCount = (application) => {
     const competingApps = getCompetingApplications(application);
     return competingApps.length;
   };
 
+  // Toggle expanded row
+  const toggleExpand = (id) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
+  // Filter applications
+  const filteredApplications = useMemo(() => {
+    if (statusFilter === "all") return applications;
+    return applications.filter(app => app.status === statusFilter);
+  }, [applications, statusFilter]);
+
+  // Count by status
+  const pendingCount = applications.filter(app => app.status === "pending").length;
+  const approvedCount = applications.filter(app => app.status === "approved").length;
+  const rejectedCount = applications.filter(app => app.status === "rejected").length;
+  const totalCount = applications.length;
+
   if (loading) {
     return (
-      <div className="app-container">
-        <div className="app-loading">
-          <div className="loading-spinner"></div>
+      <div className="applications-container">
+        <div className="applications-loading">
+          <div className="applications-spinner"></div>
           <p>Loading applications...</p>
         </div>
       </div>
     );
   }
 
-  // Count by status
-  const pendingCount = applications.filter(app => app.status === "pending").length;
-  const approvedCount = applications.filter(app => app.status === "approved").length;
-  const rejectedCount = applications.filter(app => app.status === "rejected").length;
-
   return (
-    <div className="app-container">
-      <div className="app-header">
-        <h1>Tenant Applications</h1>
-        <p>Review and approve tenant registration requests</p>
-        <div className="app-summary-stats">
-          <div className="app-stat-card pending">
-            <span className="app-stat-count">{pendingCount}</span>
-            <span className="app-stat-label">Pending</span>
-          </div>
-          <div className="app-stat-card approved">
-            <span className="app-stat-count">{approvedCount}</span>
-            <span className="app-stat-label">Approved</span>
-          </div>
-          <div className="app-stat-card rejected">
-            <span className="app-stat-count">{rejectedCount}</span>
-            <span className="app-stat-label">Rejected</span>
-          </div>
-          <div className="app-stat-card total">
-            <span className="app-stat-count">{applications.length}</span>
-            <span className="app-stat-label">Total</span>
-          </div>
+    <div className="applications-container">
+      <div className="applications-header">
+        <div className="applications-title">
+          <h1>Tenant Applications</h1>
+          <p>Review and approve tenant registration requests</p>
+        </div>
+        
+        {/* Status Tabs */}
+        <div className="applications-status-tabs">
+          <button 
+            className={`applications-tab ${statusFilter === "all" ? "active" : ""}`}
+            onClick={() => setStatusFilter("all")}
+          >
+            All <span className="applications-tab-count">{totalCount}</span>
+          </button>
+          <button 
+            className={`applications-tab ${statusFilter === "pending" ? "active" : ""}`}
+            onClick={() => setStatusFilter("pending")}
+          >
+            Pending <span className="applications-tab-count">{pendingCount}</span>
+          </button>
+          <button 
+            className={`applications-tab ${statusFilter === "approved" ? "active" : ""}`}
+            onClick={() => setStatusFilter("approved")}
+          >
+            Approved <span className="applications-tab-count">{approvedCount}</span>
+          </button>
+          <button 
+            className={`applications-tab ${statusFilter === "rejected" ? "active" : ""}`}
+            onClick={() => setStatusFilter("rejected")}
+          >
+            Rejected <span className="applications-tab-count">{rejectedCount}</span>
+          </button>
         </div>
       </div>
 
@@ -267,7 +285,7 @@ const Applications = () => {
       {Object.keys(duplicateApplications).some(key => 
         duplicateApplications[key].filter(app => app.status === "pending").length > 1
       ) && (
-        <div className="app-duplicate-warning">
+        <div className="applications-warning">
           <FaExclamationTriangle />
           <span>
             <strong>Note:</strong> Multiple tenants have applied for the same units. 
@@ -277,170 +295,232 @@ const Applications = () => {
       )}
 
       {applications.length === 0 ? (
-        <div className="app-no-applications">
-          <FaUser className="app-no-apps-icon" />
+        <div className="applications-empty">
+          <FaUser className="applications-empty-icon" />
           <h3>No applications found</h3>
           <p>When tenants register via mobile app, they'll appear here.</p>
         </div>
       ) : (
-        <div className="app-horizontal-list">
-          {applications.map((app) => {
-            const competingCount = getCompetingCount(app);
-            const hasCompeting = competingCount > 0 && app.status === "pending";
-            
-            return (
-              <div 
-                key={app.id} 
-                className={`app-horizontal-card ${app.status} ${hasCompeting ? 'has-competing' : ''}`}
-              >
-                <div className="app-horizontal-main">
-                  <div className="app-horizontal-avatar">
-                    <FaUser />
-                    {app.status !== "pending" && (
-                      <div className={`app-status-indicator ${app.status}`}>
-                        {app.status === "approved" ? <FaCheckCircle /> : <FaThumbsDown />}
-                      </div>
-                    )}
-                    {hasCompeting && app.status === "pending" && (
-                      <div className="app-competing-indicator">
-                        <FaUsers />
-                        <span className="app-competing-count">{competingCount}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="app-horizontal-info">
-                    <div className="app-horizontal-name-section">
-                      <h3>{app.fullName}</h3>
-                      <span className={`app-horizontal-status ${getStatusClass(app.status)}`}>
-                        {getStatusText(app.status)}
-                      </span>
-                      {hasCompeting && (
-                        <span className="app-competing-badge">
-                          <FaExclamationTriangle /> {competingCount} other applicant{competingCount > 1 ? 's' : ''} for this unit
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="app-horizontal-contact">
-                      <p><FaEnvelope /> {app.email}</p>
-                      <p><FaPhone /> {app.phone}</p>
-                    </div>
-                    
-                    {/* Enhanced Unit Information */}
-                    <div className="app-horizontal-property-section">
-                      <div className="app-unit-header">
-                        <FaBuilding className="app-unit-icon" />
-                        <span className="app-property-name">{app.propertyName || `Property ${app.propertyId}`}</span>
-                        <FaDoorOpen className="app-unit-icon" />
-                        <span className="app-unit-name">{app.unitNumber || app.unitName || `Unit ${app.unitId}`}</span>
-                        {app.monthlyRent && (
-                          <span className="app-rent">KSh {parseInt(app.monthlyRent).toLocaleString()}/month</span>
-                        )}
-                      </div>
-                      
-                      <div className="app-unit-details">
-                        {getUnitDetails(app)}
-                      </div>
-                      
-                      <div className="app-unit-meta">
-                        {app.unitType && (
-                          <span className="app-unit-type">
-                            <FaHome /> {app.unitType}
-                          </span>
-                        )}
-                        {app.bedrooms && (
-                          <span className="app-unit-bedrooms">
-                            <FaBed /> {app.bedrooms} bed{app.bedrooms > 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {app.bathrooms && (
-                          <span className="app-unit-bathrooms">
-                            <FaBath /> {app.bathrooms} bath{app.bathrooms > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="app-horizontal-meta">
-                      <span className="app-date">
-                        <FaCalendar /> {getProcessedDate(app)}
-                      </span>
-                      {app.rejectionReason && app.status === "rejected" && (
-                        <span className="app-rejection-reason">
-                          Reason: {app.rejectionReason}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        <div className="applications-table-container">
+          <table className="applications-table">
+            <thead>
+              <tr>
+                <th className="applications-th-status">Status</th>
+                <th className="applications-th-applicant">Applicant</th>
+                <th className="applications-th-property">Property & Unit</th>
+                <th className="applications-th-contact">Contact</th>
+                <th className="applications-th-date">Applied</th>
+                <th className="applications-th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredApplications.map((app) => {
+                const competingCount = getCompetingCount(app);
+                const hasCompeting = competingCount > 0 && app.status === "pending";
+                const isExpanded = expandedId === app.id;
                 
-                <div className="app-horizontal-actions">
-                  {app.status === "pending" ? (
-                    <>
-                      <button
-                        className="app-btn-view"
-                        onClick={() => viewApplicationDetails(app)}
-                      >
-                        <FaEye /> {hasCompeting ? "Review & Compare" : "Review"}
-                      </button>
-                      
-                      <button
-                        className="app-btn-delete"
-                        onClick={() => deleteApplication(app)}
-                        disabled={deletingId === app.id}
-                        title="Remove from dashboard"
-                      >
-                        {deletingId === app.id ? (
-                          <span className="app-deleting">Removing...</span>
-                        ) : (
-                          <FaTrash />
-                        )}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="app-btn-view-details"
-                        onClick={() => setSelectedApp(app)}
-                      >
-                        <FaEye /> View Details
-                      </button>
-                      
-                      <button
-                        className="app-btn-delete"
-                        onClick={() => deleteApplication(app)}
-                        disabled={deletingId === app.id}
-                        title="Remove from dashboard"
-                      >
-                        {deletingId === app.id ? (
-                          <span className="app-deleting">Removing...</span>
-                        ) : (
-                          <FaTrash />
-                        )}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                return (
+                  <React.Fragment key={app.id}>
+                    <tr className={`applications-table-row ${app.status} ${hasCompeting ? 'has-competing' : ''}`}>
+                      <td className="applications-td-status">
+                        <span className={`applications-status ${getStatusClass(app.status)}`}>
+                          {app.status === "pending" && <FaExclamationTriangle />}
+                          {app.status === "approved" && <FaCheckCircle />}
+                          {app.status === "rejected" && <FaThumbsDown />}
+                          <span className="applications-status-text">{getStatusText(app.status)}</span>
+                          {hasCompeting && (
+                            <span className="applications-competing-badge">
+                              <FaUsers /> {competingCount}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="applications-td-applicant">
+                        <div className="applications-applicant">
+                          <div className="applications-avatar">
+                            <FaUser />
+                          </div>
+                          <div className="applications-applicant-info">
+                            <div className="applications-name">{app.fullName}</div>
+                            {app.idNumber && (
+                              <div className="applications-id">ID: {app.idNumber}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="applications-td-property">
+                        <div className="applications-property">
+                          <div className="applications-property-name">
+                            <FaBuilding /> {app.propertyName || `Property ${app.propertyId}`}
+                          </div>
+                          <div className="applications-unit-info">
+                            <FaDoorOpen /> {app.unitNumber || `Unit ${app.unitId}`}
+                            {app.monthlyRent && (
+                              <span className="applications-rent">
+                                • KSh {parseInt(app.monthlyRent).toLocaleString()}/month
+                              </span>
+                            )}
+                          </div>
+                          <div className="applications-unit-details">
+                            {app.bedrooms && <span><FaBed /> {app.bedrooms} bed</span>}
+                            {app.bathrooms && <span><FaBath /> {app.bathrooms} bath</span>}
+                            {app.unitType && <span><FaHome /> {app.unitType}</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="applications-td-contact">
+                        <div className="applications-contact">
+                          <div className="applications-email">
+                            <FaEnvelope /> {app.email}
+                          </div>
+                          <div className="applications-phone">
+                            <FaPhone /> {app.phone}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="applications-td-date">
+                        <div className="applications-date">
+                          <FaCalendar /> {formatDate(app.appliedDate)}
+                        </div>
+                      </td>
+                      <td className="applications-td-actions">
+                        <div className="applications-actions">
+                          {app.status === "pending" ? (
+                            <>
+                              <button
+                                className="applications-btn-review"
+                                onClick={() => viewApplicationDetails(app)}
+                                title={hasCompeting ? "Review & Compare" : "Review Application"}
+                              >
+                                <FaEye /> {hasCompeting ? "Review & Compare" : "Review"}
+                              </button>
+                              <button
+                                className="applications-btn-delete"
+                                onClick={() => deleteApplication(app)}
+                                disabled={deletingId === app.id}
+                                title="Remove from dashboard"
+                              >
+                                {deletingId === app.id ? (
+                                  <span className="applications-deleting">Removing...</span>
+                                ) : (
+                                  <FaTrash />
+                                )}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                className="applications-btn-view"
+                                onClick={() => setSelectedApp(app)}
+                                title="View details"
+                              >
+                                <FaEye /> View
+                              </button>
+                              <button
+                                className="applications-btn-delete"
+                                onClick={() => deleteApplication(app)}
+                                disabled={deletingId === app.id}
+                                title="Remove from dashboard"
+                              >
+                                {deletingId === app.id ? (
+                                  <span className="applications-deleting">Removing...</span>
+                                ) : (
+                                  <FaTrash />
+                                )}
+                              </button>
+                            </>
+                          )}
+                          {/* EXPAND BUTTON MOVED HERE - CLOSE TO OTHER BUTTONS */}
+                          <button
+                            className="applications-btn-expand"
+                            onClick={() => toggleExpand(app.id)}
+                            title={isExpanded ? "Collapse details" : "Expand details"}
+                          >
+                            {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    
+                    {/* Expanded Row Details */}
+                    {isExpanded && (
+                      <tr className="applications-expanded-row">
+                        <td colSpan="6">
+                          <div className="applications-expanded-content">
+                            <div className="applications-details-section">
+                              <h4>Application Details</h4>
+                              <div className="applications-details-grid">
+                                <div><strong>Full Name:</strong> {app.fullName}</div>
+                                <div><strong>Email:</strong> {app.email}</div>
+                                <div><strong>Phone:</strong> {app.phone}</div>
+                                {app.idNumber && <div><strong>ID Number:</strong> {app.idNumber}</div>}
+                                {app.occupation && <div><strong>Occupation:</strong> {app.occupation}</div>}
+                                {app.employer && <div><strong>Employer:</strong> {app.employer}</div>}
+                                {app.emergencyContactName && <div><strong>Emergency Contact:</strong> {app.emergencyContactName}</div>}
+                                {app.emergencyContactPhone && <div><strong>Emergency Phone:</strong> {app.emergencyContactPhone}</div>}
+                              </div>
+                            </div>
+                            
+                            <div className="applications-action-buttons">
+                              {app.status === "pending" ? (
+                                <>
+                                  <button
+                                    className="applications-btn-approve-main"
+                                    onClick={() => viewApplicationDetails(app)}
+                                  >
+                                    <FaCheck /> Review & Approve
+                                  </button>
+                                  <button
+                                    className="applications-btn-delete-main"
+                                    onClick={() => deleteApplication(app)}
+                                    disabled={deletingId === app.id}
+                                  >
+                                    <FaTrash /> Remove from Dashboard
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="applications-btn-view-main"
+                                    onClick={() => setSelectedApp(app)}
+                                  >
+                                    <FaEye /> View Full Details
+                                  </button>
+                                  <button
+                                    className="applications-btn-delete-main"
+                                    onClick={() => deleteApplication(app)}
+                                    disabled={deletingId === app.id}
+                                  >
+                                    <FaTrash /> Remove from Dashboard
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* View Details Modal */}
+      {/* View Details Modal (KEEP YOUR ORIGINAL MODAL) */}
       {selectedApp && (
-        <div className="app-modal-overlay" onClick={() => setSelectedApp(null)}>
-          <div className="app-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="app-modal-header">
+        <div className="applications-modal-overlay" onClick={() => setSelectedApp(null)}>
+          <div className="applications-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="applications-modal-header">
               <h2>Application Details</h2>
-              <button className="app-close-btn" onClick={() => setSelectedApp(null)}>
+              <button className="applications-close-btn" onClick={() => setSelectedApp(null)}>
                 ×
               </button>
             </div>
 
-            <div className="app-modal-body">
-              <div className="app-detail-section">
+            <div className="applications-modal-body">
+              <div className="applications-detail-section">
                 <h3>Personal Information</h3>
                 <p><strong>Full Name:</strong> {selectedApp.fullName}</p>
                 <p><strong>Email:</strong> {selectedApp.email}</p>
@@ -462,7 +542,7 @@ const Applications = () => {
                 )}
               </div>
 
-              <div className="app-detail-section">
+              <div className="applications-detail-section">
                 <h3>Unit & Property Information</h3>
                 <p><strong>Property:</strong> {selectedApp.propertyName || selectedApp.propertyId}</p>
                 <p><strong>Unit:</strong> {selectedApp.unitNumber || selectedApp.unitName || selectedApp.unitId}</p>
@@ -486,11 +566,11 @@ const Applications = () => {
                 )}
               </div>
 
-              <div className="app-detail-section">
+              <div className="applications-detail-section">
                 <h3>Application Status</h3>
                 <p><strong>Applied:</strong> {formatDate(selectedApp.appliedDate)}</p>
                 <p><strong>Status:</strong>
-                  <span className={`app-status-badge ${getStatusClass(selectedApp.status)}`}>
+                  <span className={`applications-status-badge ${getStatusClass(selectedApp.status)}`}>
                     {getStatusText(selectedApp.status)}
                   </span>
                 </p>
@@ -506,15 +586,15 @@ const Applications = () => {
               </div>
             </div>
 
-            <div className="app-modal-footer">
+            <div className="applications-modal-footer">
               <button
-                className="app-btn-secondary"
+                className="applications-btn-secondary"
                 onClick={() => setSelectedApp(null)}
               >
                 Close
               </button>
               <button
-                className="app-btn-delete"
+                className="applications-btn-delete-modal"
                 onClick={() => {
                   if (window.confirm(`Remove ${selectedApp.fullName}'s application from your dashboard?\n\nThis only hides it from admin view.`)) {
                     deleteApplication(selectedApp);
@@ -527,7 +607,7 @@ const Applications = () => {
               </button>
               {selectedApp.status === "pending" && (
                 <button
-                  className="app-btn-primary"
+                  className="applications-btn-primary"
                   onClick={() => {
                     const prefillData = {
                       fullName: selectedApp.fullName,
