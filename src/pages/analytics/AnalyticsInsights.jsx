@@ -1,5 +1,6 @@
-// src/pages/analytics/AnalyticsInsights.jsx
+// src/pages/analytics/AnalyticsInsights.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // FIXED: Use React Router
 import { analyticsService } from '../../services/analyticsService';
 import { 
   FaLightbulb, 
@@ -13,17 +14,27 @@ import {
   FaEye,
   FaEyeSlash,
   FaThumbsUp,
-  FaThumbsDown
+  FaThumbsDown,
+  FaSpinner,
+  FaTimes,
+  FaArrowRight
 } from 'react-icons/fa';
+import { toast } from 'react-toastify'; // FIXED: Replace alert() with toast
 import '../../styles/analytics.css';
 
 const AnalyticsInsights = () => {
+  const navigate = useNavigate(); // FIXED: Use navigate instead of window.location
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [acknowledging, setAcknowledging] = useState(null);
+  const [dismissing, setDismissing] = useState(null);
   const [filter, setFilter] = useState('all');
   const [acknowledgedInsights, setAcknowledgedInsights] = useState([]);
   const [selectedInsight, setSelectedInsight] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     loadInsights();
@@ -34,46 +45,67 @@ const AnalyticsInsights = () => {
       setLoading(true);
       const insightsData = await analyticsService.generateAnalyticsInsights();
       setInsights(insightsData);
+      toast.success('Insights generated successfully');
     } catch (error) {
       console.error('Error loading insights:', error);
+      toast.error('Failed to load insights');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const handleAcknowledge = async (insightId) => {
     try {
-      // Get current user ID - replace with your auth system
-      const userId = localStorage.getItem('userId') || 'current-user-id';
+      setAcknowledging(insightId);
+      // Get current user ID from auth context or localStorage
+      const userId = localStorage.getItem('userId') || 'current-user';
       await analyticsService.acknowledgeInsight(insightId, userId);
       
       setAcknowledgedInsights(prev => [...prev, insightId]);
-      alert('Insight acknowledged!');
+      toast.success('Insight acknowledged!');
     } catch (error) {
       console.error('Error acknowledging insight:', error);
-      alert('Failed to acknowledge insight');
+      toast.error('Failed to acknowledge insight');
+    } finally {
+      setAcknowledging(null);
     }
   };
 
-  const handleDismiss = (insightId) => {
-    setInsights(prev => prev.filter(insight => insight.id !== insightId));
+  const handleDismiss = async (insightId) => {
+    try {
+      setDismissing(insightId);
+      // Optional: Add API call to dismiss insight on server
+      setInsights(prev => prev.filter(insight => insight.id !== insightId));
+      toast.success('Insight dismissed');
+    } catch (error) {
+      console.error('Error dismissing insight:', error);
+      toast.error('Failed to dismiss insight');
+    } finally {
+      setDismissing(null);
+    }
   };
 
-  const handleRefresh = () => {
-    loadInsights();
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadInsights();
+    } catch (error) {
+      // Error handled in loadInsights
+    }
   };
 
   const handleExport = async () => {
     try {
-      await analyticsService.exportAnalyticsToCSV(
-        'analytics-insights', 
-        insights,
-        `insights_report_${new Date().toISOString().split('T')[0]}.csv`
-      );
-      alert('Insights exported successfully! Check your downloads.');
+      setExporting(true);
+      toast.info('Exporting insights report...');
+      await analyticsService.exportAnalyticsToCSV('analytics-insights', insights);
+      toast.success('Insights exported successfully!');
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export insights');
+      toast.error('Failed to export insights');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -84,44 +116,45 @@ const AnalyticsInsights = () => {
 
   const handleDownloadReport = async () => {
     try {
-      const result = await analyticsService.generateComprehensiveReport('full');
+      setGeneratingReport(true);
+      toast.info('Generating comprehensive report...');
       
-      // Create download link
-      const link = document.createElement('a');
-      link.href = result.downloadUrl;
-      link.download = `full_analytics_report_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // FIXED: Use the correct service method that actually exists
+      await analyticsService.generateComprehensiveReport('full');
       
-      alert('Full report downloaded successfully!');
+      toast.success('Full report downloaded successfully!');
     } catch (error) {
       console.error('Report generation failed:', error);
-      alert('Failed to generate report');
+      toast.error('Failed to generate report');
+    } finally {
+      setGeneratingReport(false);
     }
   };
 
-  const handleTakeAction = async (insight) => {
-    // Implement specific action based on insight type
-    switch(insight.type) {
-      case 'warning':
-        if (insight.category === 'rent_collection') {
-          window.location.href = '/analytics/rent-collection';
-        } else if (insight.category === 'vacancy') {
-          window.location.href = '/analytics/vacancy-rate';
-        }
+  const handleTakeAction = (insight) => {
+    // FIXED: Use React Router navigation instead of window.location
+    switch(insight.category) {
+      case 'rent_collection':
+        navigate('/analytics#rent-collection');
         break;
-      case 'alert':
-        window.location.href = '/analytics/tenant-behavior';
+      case 'vacancy':
+        navigate('/analytics#vacancy-rates');
+        break;
+      case 'tenant_behavior':
+        navigate('/analytics#tenant-behavior');
         break;
       default:
-        alert(`Action triggered for: ${insight.title}`);
+        toast.info(`Action triggered for: ${insight.title}`);
     }
   };
 
   const handleScheduleForLater = (insight) => {
-    // You can implement calendar integration here
-    alert(`Insight "${insight.title}" scheduled for later review.`);
+    // Implement calendar integration here
+    toast.info(`Insight "${insight.title}" scheduled for later review.`);
+  };
+
+  const handleViewAnalyticsDashboard = () => {
+    navigate('/analytics');
   };
 
   const getPriorityIcon = (priority) => {
@@ -144,9 +177,13 @@ const AnalyticsInsights = () => {
   };
 
   const filteredInsights = insights.filter(insight => {
+    if (!insight || !insight.id) return false;
+    
     if (filter === 'all') return true;
     if (filter === 'unacknowledged') return !acknowledgedInsights.includes(insight.id);
-    return insight.priority === filter || insight.type === filter;
+    if (filter === 'positive') return insight.type === 'positive';
+    if (filter === 'warning') return insight.type === 'warning';
+    return insight.priority === filter;
   });
 
   if (loading) {
@@ -173,6 +210,7 @@ const AnalyticsInsights = () => {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="filter-select"
+            disabled={exporting || refreshing}
           >
             <option value="all">All Insights</option>
             <option value="unacknowledged">Unacknowledged Only</option>
@@ -183,11 +221,35 @@ const AnalyticsInsights = () => {
             <option value="positive">Positive</option>
           </select>
           
-          <button className="refresh-btn" onClick={handleRefresh}>
-            <FaCalendar /> Regenerate
+          <button 
+            className="refresh-btn" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <FaSpinner className="spinner" /> Regenerating...
+              </>
+            ) : (
+              <>
+                <FaCalendar /> Regenerate
+              </>
+            )}
           </button>
-          <button className="export-btn" onClick={handleExport}>
-            <FaDownload /> Export
+          <button 
+            className="export-btn" 
+            onClick={handleExport}
+            disabled={exporting || insights.length === 0}
+          >
+            {exporting ? (
+              <>
+                <FaSpinner className="spinner" /> Exporting...
+              </>
+            ) : (
+              <>
+                <FaDownload /> Export
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -305,8 +367,17 @@ const AnalyticsInsights = () => {
                       <button 
                         className="action-btn acknowledge"
                         onClick={() => handleAcknowledge(insight.id)}
+                        disabled={acknowledging === insight.id}
                       >
-                        <FaThumbsUp /> Acknowledge
+                        {acknowledging === insight.id ? (
+                          <>
+                            <FaSpinner className="spinner" /> Acknowledging...
+                          </>
+                        ) : (
+                          <>
+                            <FaThumbsUp /> Acknowledge
+                          </>
+                        )}
                       </button>
                     ) : (
                       <span className="acknowledged-badge">
@@ -317,8 +388,17 @@ const AnalyticsInsights = () => {
                     <button 
                       className="action-btn dismiss"
                       onClick={() => handleDismiss(insight.id)}
+                      disabled={dismissing === insight.id}
                     >
-                      <FaThumbsDown /> Dismiss
+                      {dismissing === insight.id ? (
+                        <>
+                          <FaSpinner className="spinner" /> Dismissing...
+                        </>
+                      ) : (
+                        <>
+                          <FaThumbsDown /> Dismiss
+                        </>
+                      )}
                     </button>
                     
                     <button 
@@ -414,7 +494,7 @@ const AnalyticsInsights = () => {
                       className="action-btn primary" 
                       onClick={() => handleTakeAction(insight)}
                     >
-                      Take Action
+                      <FaArrowRight /> Take Action
                     </button>
                     <button 
                       className="action-btn"
@@ -464,15 +544,39 @@ const AnalyticsInsights = () => {
         </div>
         
         <div className="summary-actions">
-          <button className="action-btn primary" onClick={handleRefresh}>
-            <FaCalendar /> Update Insights
+          <button 
+            className="action-btn primary" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <FaSpinner className="spinner" /> Updating...
+              </>
+            ) : (
+              <>
+                <FaCalendar /> Update Insights
+              </>
+            )}
           </button>
-          <button className="action-btn" onClick={handleDownloadReport}>
-            <FaDownload /> Download Report
+          <button 
+            className="action-btn" 
+            onClick={handleDownloadReport}
+            disabled={generatingReport}
+          >
+            {generatingReport ? (
+              <>
+                <FaSpinner className="spinner" /> Generating...
+              </>
+            ) : (
+              <>
+                <FaDownload /> Download Report
+              </>
+            )}
           </button>
           <button 
             className="action-btn"
-            onClick={() => window.location.href = '/analytics'}
+            onClick={handleViewAnalyticsDashboard}
           >
             <FaEye /> View Analytics Dashboard
           </button>
@@ -485,8 +589,12 @@ const AnalyticsInsights = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{selectedInsight.title}</h3>
-              <button className="modal-close" onClick={() => setShowDetailsModal(false)}>
-                ×
+              <button 
+                className="modal-close" 
+                onClick={() => setShowDetailsModal(false)}
+                aria-label="Close modal"
+              >
+                <FaTimes />
               </button>
             </div>
             <div className="modal-body">
@@ -523,7 +631,10 @@ const AnalyticsInsights = () => {
               )}
             </div>
             <div className="modal-footer">
-              <button className="action-btn" onClick={() => setShowDetailsModal(false)}>
+              <button 
+                className="action-btn" 
+                onClick={() => setShowDetailsModal(false)}
+              >
                 Close
               </button>
               <button 
@@ -533,7 +644,7 @@ const AnalyticsInsights = () => {
                   setShowDetailsModal(false);
                 }}
               >
-                Take Action
+                <FaArrowRight /> Take Action
               </button>
             </div>
           </div>

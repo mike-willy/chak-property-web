@@ -1,5 +1,6 @@
-// src/pages/analytics/RentCollectionAnalysis.jsx
+// src/pages/analytics/RentCollectionAnalysis.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { analyticsService } from '../../services/analyticsService';
 import MetricCard from '../../components/analytics/MetricCard';
 import { 
@@ -11,14 +12,20 @@ import {
   FaCalendar,
   FaDownload,
   FaLightbulb,
-  FaUserTimes
+  FaUserTimes,
+  FaSpinner
 } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 import "../../styles/analytics.css";
 
 const RentCollectionAnalysis = ({ timeframe }) => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [sendingReminders, setSendingReminders] = useState(false);
   const [detailedView, setDetailedView] = useState(false);
+  const [selectedTenants, setSelectedTenants] = useState([]);
 
   useEffect(() => {
     loadRentCollectionData();
@@ -29,8 +36,10 @@ const RentCollectionAnalysis = ({ timeframe }) => {
       setLoading(true);
       const analyticsData = await analyticsService.getRentCollectionAnalytics(timeframe);
       setData(analyticsData);
+      toast.success('Rent collection data loaded');
     } catch (error) {
       console.error('Error loading rent collection data:', error);
+      toast.error('Failed to load rent collection data');
     } finally {
       setLoading(false);
     }
@@ -48,6 +57,71 @@ const RentCollectionAnalysis = ({ timeframe }) => {
     return `${(value * 100).toFixed(1)}%`;
   };
 
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      toast.info('Generating rent collection report...');
+      await analyticsService.exportAnalyticsToCSV('rent-collection', data);
+      toast.success('Report exported successfully!');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export report');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSendReminder = async (tenantId, tenantName) => {
+    try {
+      toast.info(`Sending reminder to ${tenantName}...`);
+      await analyticsService.sendPaymentReminder(tenantId);
+      toast.success(`Reminder sent to ${tenantName}`);
+      // Refresh data
+      loadRentCollectionData();
+    } catch (error) {
+      console.error('Failed to send reminder:', error);
+      toast.error('Failed to send reminder');
+    }
+  };
+
+  const handleSendBulkReminders = async () => {
+    try {
+      setSendingReminders(true);
+      toast.info('Sending bulk reminders...');
+      const overdueTenants = data?.details?.overduePayments?.map(p => p.tenantId) || [];
+      
+      if (overdueTenants.length === 0) {
+        toast.warning('No tenants to remind');
+        return;
+      }
+
+      const result = await analyticsService.sendBulkReminders(overdueTenants);
+      toast.success(`Sent ${result.successful} reminders successfully`);
+      
+      // Refresh data
+      loadRentCollectionData();
+    } catch (error) {
+      console.error('Failed to send bulk reminders:', error);
+      toast.error('Failed to send bulk reminders');
+    } finally {
+      setSendingReminders(false);
+    }
+  };
+
+  const handleViewTenantDetails = (tenantId) => {
+    navigate(`/tenants/${tenantId}`);
+  };
+
+  const handleViewDetailedAnalysis = () => {
+    // Navigate to detailed analysis page or open modal
+    toast.info('Opening detailed analysis...');
+    // Implement detailed analysis view
+  };
+
+  const handleViewRiskReport = () => {
+    navigate('/analytics#tenant-behavior');
+  };
+
   if (loading) {
     return (
       <div className="section-loading">
@@ -61,6 +135,9 @@ const RentCollectionAnalysis = ({ timeframe }) => {
     return (
       <div className="no-data">
         <p>No rent collection data available</p>
+        <button className="action-btn" onClick={loadRentCollectionData}>
+          Retry
+        </button>
       </div>
     );
   }
@@ -81,11 +158,24 @@ const RentCollectionAnalysis = ({ timeframe }) => {
           <button 
             className="view-toggle"
             onClick={() => setDetailedView(!detailedView)}
+            disabled={exporting || sendingReminders}
           >
             {detailedView ? 'Show Summary' : 'Show Details'}
           </button>
-          <button className="export-btn">
-            <FaDownload /> Export Report
+          <button 
+            className="export-btn" 
+            onClick={handleExport}
+            disabled={exporting || !data}
+          >
+            {exporting ? (
+              <>
+                <FaSpinner className="spinner" /> Exporting...
+              </>
+            ) : (
+              <>
+                <FaDownload /> Export Report
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -154,16 +244,40 @@ const RentCollectionAnalysis = ({ timeframe }) => {
                         <td>{payment.month || 'N/A'}</td>
                         <td>
                           <span className="days-badge">
-                            {Math.floor(Math.random() * 30) + 1} days
+                            {/* FIXED: Use actual calculation instead of random */}
+                            {payment.daysOverdue || 'Unknown'} days
                           </span>
                         </td>
                         <td>
-                          <button className="action-btn small">Send Reminder</button>
+                          <button 
+                            className="action-btn small" 
+                            onClick={() => handleSendReminder(payment.tenantId, payment.tenantName)}
+                            disabled={sendingReminders}
+                          >
+                            Send Reminder
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                <div className="bulk-action">
+                  <button 
+                    className="action-btn warning" 
+                    onClick={handleSendBulkReminders}
+                    disabled={sendingReminders || details.overduePayments.length === 0}
+                  >
+                    {sendingReminders ? (
+                      <>
+                        <FaSpinner className="spinner" /> Sending...
+                      </>
+                    ) : (
+                      <>
+                        <FaExclamationTriangle /> Send Bulk Reminders ({details.overduePayments.length} tenants)
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="no-overdue">
@@ -194,7 +308,7 @@ const RentCollectionAnalysis = ({ timeframe }) => {
                     </div>
                   </div>
                   <div className="payment-date">
-                    {payment.createdAt?.toLocaleDateString?.() || 'N/A'}
+                    {payment.createdAt ? new Date(payment.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                   </div>
                 </div>
               ))}
@@ -234,18 +348,20 @@ const RentCollectionAnalysis = ({ timeframe }) => {
               <div className="timeline-chart">
                 {/* Simple bar chart for monthly collection */}
                 <div className="chart-bars">
-                  {[75, 82, 90, 85, 88, 92].map((percent, index) => (
+                  {data.details.collectionTrend?.map((trend, index) => (
                     <div key={index} className="chart-bar-container">
-                      <div className="chart-bar-label">Month {index + 1}</div>
+                      <div className="chart-bar-label">{trend.month}</div>
                       <div className="chart-bar">
                         <div 
                           className="chart-bar-fill" 
-                          style={{ height: `${percent}%` }}
+                          style={{ height: `${trend.collectionRate * 100}%` }}
                         ></div>
                       </div>
-                      <div className="chart-bar-value">{percent}%</div>
+                      <div className="chart-bar-value">{formatPercent(trend.collectionRate)}</div>
                     </div>
-                  ))}
+                  )) || (
+                    <p className="no-chart-data">No trend data available</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -298,7 +414,13 @@ const RentCollectionAnalysis = ({ timeframe }) => {
               <div className="recommendation-content">
                 <h4>Send Payment Reminders</h4>
                 <p>Contact tenants with overdue payments</p>
-                <button className="action-btn">Send Bulk Reminders</button>
+                <button 
+                  className="action-btn" 
+                  onClick={handleSendBulkReminders}
+                  disabled={sendingReminders}
+                >
+                  {sendingReminders ? 'Sending...' : 'Send Bulk Reminders'}
+                </button>
               </div>
             </div>
           )}
@@ -308,7 +430,12 @@ const RentCollectionAnalysis = ({ timeframe }) => {
             <div className="recommendation-content">
               <h4>Review Collection Strategy</h4>
               <p>Analyze payment patterns for optimization</p>
-              <button className="action-btn">View Detailed Analysis</button>
+              <button 
+                className="action-btn" 
+                onClick={handleViewDetailedAnalysis}
+              >
+                View Detailed Analysis
+              </button>
             </div>
           </div>
           
@@ -317,7 +444,12 @@ const RentCollectionAnalysis = ({ timeframe }) => {
             <div className="recommendation-content">
               <h4>Monitor High-Risk Tenants</h4>
               <p>Identify tenants with frequent late payments</p>
-              <button className="action-btn">View Risk Report</button>
+              <button 
+                className="action-btn" 
+                onClick={handleViewRiskReport}
+              >
+                View Risk Report
+              </button>
             </div>
           </div>
         </div>

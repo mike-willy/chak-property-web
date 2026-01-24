@@ -1,5 +1,6 @@
-// src/pages/analytics/VacancyRateAnalysis.jsx
+// src/pages/analytics/VacancyRateAnalysis.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { analyticsService } from '../../services/analyticsService';
 import MetricCard from '../../components/analytics/MetricCard';
 import { 
@@ -13,13 +14,19 @@ import {
   FaMapMarkerAlt,
   FaBuilding,
   FaExclamationTriangle,
-  FaClock
+  FaClock,
+  FaSpinner,
+  FaArrowRight
 } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 import '../../styles/analytics.css';
 
 const VacancyRateAnalysis = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [viewType, setViewType] = useState('summary'); // 'summary' or 'detailed'
   const [selectedProperty, setSelectedProperty] = useState('all');
 
@@ -32,10 +39,13 @@ const VacancyRateAnalysis = () => {
       setLoading(true);
       const analyticsData = await analyticsService.getVacancyRateAnalytics();
       setData(analyticsData);
+      toast.success('Vacancy data loaded');
     } catch (error) {
       console.error('Error loading vacancy rate data:', error);
+      toast.error('Failed to load vacancy data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -44,18 +54,52 @@ const VacancyRateAnalysis = () => {
   };
 
   const formatDays = (days) => {
+    if (!days && days !== 0) return 'N/A';
     if (days === 0) return '0 days';
     if (days === 1) return '1 day';
     return `${days} days`;
   };
 
-  const handleRefresh = () => {
-    loadVacancyData();
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadVacancyData();
+    } catch (error) {
+      // Error handled in loadVacancyData
+    }
   };
 
-  const handleExport = () => {
-    // Export functionality
-    console.log('Export vacancy report');
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      toast.info('Generating vacancy report...');
+      await analyticsService.exportAnalyticsToCSV('vacancy-rate', data);
+      toast.success('Vacancy report exported successfully!');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export vacancy report');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleAdjustPricing = () => {
+    toast.info('Opening pricing adjustment dashboard...');
+    navigate('/properties?tab=pricing');
+  };
+
+  const handleViewMaintenanceSchedule = () => {
+    toast.info('Opening maintenance schedule...');
+    navigate('/maintenance');
+  };
+
+  const handleLaunchCampaign = () => {
+    toast.info('Preparing marketing campaign...');
+    navigate('/marketing');
+  };
+
+  const handleViewUnits = (propertyId) => {
+    navigate(`/properties/${propertyId}/units`);
   };
 
   if (loading) {
@@ -71,6 +115,9 @@ const VacancyRateAnalysis = () => {
     return (
       <div className="no-data">
         <p>No vacancy rate data available</p>
+        <button className="action-btn" onClick={loadVacancyData}>
+          Retry
+        </button>
       </div>
     );
   }
@@ -95,12 +142,14 @@ const VacancyRateAnalysis = () => {
             <button 
               className={`view-btn ${viewType === 'summary' ? 'active' : ''}`}
               onClick={() => setViewType('summary')}
+              disabled={exporting || refreshing}
             >
               Summary
             </button>
             <button 
               className={`view-btn ${viewType === 'detailed' ? 'active' : ''}`}
               onClick={() => setViewType('detailed')}
+              disabled={exporting || refreshing}
             >
               Detailed View
             </button>
@@ -110,6 +159,7 @@ const VacancyRateAnalysis = () => {
             value={selectedProperty}
             onChange={(e) => setSelectedProperty(e.target.value)}
             className="property-select"
+            disabled={exporting || refreshing}
           >
             <option value="all">All Properties</option>
             {details.byProperty.map((property, index) => (
@@ -119,11 +169,35 @@ const VacancyRateAnalysis = () => {
             ))}
           </select>
           
-          <button className="refresh-btn" onClick={handleRefresh}>
-            <FaCalendar /> Refresh
+          <button 
+            className="refresh-btn" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <FaSpinner className="spinner" /> Refreshing...
+              </>
+            ) : (
+              <>
+                <FaCalendar /> Refresh
+              </>
+            )}
           </button>
-          <button className="export-btn" onClick={handleExport}>
-            <FaDownload /> Export
+          <button 
+            className="export-btn" 
+            onClick={handleExport}
+            disabled={exporting || !data}
+          >
+            {exporting ? (
+              <>
+                <FaSpinner className="spinner" /> Exporting...
+              </>
+            ) : (
+              <>
+                <FaDownload /> Export
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -252,7 +326,8 @@ const VacancyRateAnalysis = () => {
                   <div className="vacancy-duration">
                     <span className="label">Average Vacancy Duration:</span>
                     <span className="value">
-                      {Math.floor(Math.random() * 60) + 1} days
+                      {/* FIXED: Use actual vacancy days from data instead of random */}
+                      {formatDays(property.avgVacancyDays || summary.avgVacancyDays)}
                     </span>
                   </div>
                   
@@ -264,7 +339,12 @@ const VacancyRateAnalysis = () => {
                         <div key={unitIndex} className="unit-status">
                           <div className="unit-info">
                             <strong>{unit.unitNumber}</strong>
-                            <span>{unit.rentAmount ? `KSh ${unit.rentAmount.toLocaleString()}/month` : 'Price not set'}</span>
+                            <span>
+                              {unit.rentAmount 
+                                ? `KSh ${unit.rentAmount.toLocaleString()}/month` 
+                                : 'Price not set'
+                              }
+                            </span>
                           </div>
                           <div className={`unit-vacancy ${unit.isUnderMaintenance ? 'maintenance' : 'normal'}`}>
                             {unit.isUnderMaintenance ? 'Under Maintenance' : 'Vacant'} 
@@ -272,6 +352,15 @@ const VacancyRateAnalysis = () => {
                           </div>
                         </div>
                       ))}
+                  </div>
+                  
+                  <div className="property-actions">
+                    <button 
+                      className="action-btn small" 
+                      onClick={() => handleViewUnits(property.propertyId)}
+                    >
+                      <FaArrowRight /> View Units
+                    </button>
                   </div>
                 </div>
               </div>
@@ -285,23 +374,27 @@ const VacancyRateAnalysis = () => {
             <div className="vacancy-trend">
               <h4><FaChartLine /> Vacancy Trend</h4>
               <div className="trend-chart">
-                {/* Simple trend visualization */}
+                {/* Use actual trend data if available */}
                 <div className="trend-months">
-                  {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map((month, index) => {
-                    const vacancyRate = [25, 22, 18, 20, 15, 12][index]; // Sample data
+                  {data.details.vacancyTrend?.map((trend, index) => {
+                    const vacancyPercent = trend.vacancyRate * 100;
                     return (
-                      <div key={month} className="trend-month">
-                        <div className="month-label">{month}</div>
+                      <div key={index} className="trend-month">
+                        <div className="month-label">{trend.month}</div>
                         <div className="vacancy-bar">
                           <div 
                             className="vacancy-fill"
-                            style={{ height: `${vacancyRate}%` }}
+                            style={{ height: `${vacancyPercent}%` }}
                           ></div>
                         </div>
-                        <div className="vacancy-value">{vacancyRate}%</div>
+                        <div className="vacancy-value">{vacancyPercent.toFixed(0)}%</div>
                       </div>
                     );
-                  })}
+                  }) || (
+                    <div className="no-trend-data">
+                      <p>No trend data available</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -368,7 +461,12 @@ const VacancyRateAnalysis = () => {
                       <span className="vacancy-rate">{formatPercent(property.vacancyRate)} vacancy</span>
                     </div>
                     <div className="property-action">
-                      <button className="action-btn small">View Units</button>
+                      <button 
+                        className="action-btn small" 
+                        onClick={() => handleViewUnits(property.propertyId)}
+                      >
+                        View Units
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -387,7 +485,12 @@ const VacancyRateAnalysis = () => {
               <div className="recommendation-content">
                 <h4>Reduce Vacancy Rate</h4>
                 <p>Consider 5-10% rent reduction for properties with high vacancy</p>
-                <button className="action-btn">Adjust Pricing</button>
+                <button 
+                  className="action-btn" 
+                  onClick={handleAdjustPricing}
+                >
+                  Adjust Pricing
+                </button>
               </div>
             </div>
           )}
@@ -398,7 +501,12 @@ const VacancyRateAnalysis = () => {
               <div className="recommendation-content">
                 <h4>Complete Maintenance</h4>
                 <p>Prioritize {summary.vacantUnderMaintenance} units under maintenance</p>
-                <button className="action-btn">View Maintenance Schedule</button>
+                <button 
+                  className="action-btn" 
+                  onClick={handleViewMaintenanceSchedule}
+                >
+                  View Maintenance Schedule
+                </button>
               </div>
             </div>
           )}
@@ -408,7 +516,12 @@ const VacancyRateAnalysis = () => {
             <div className="recommendation-content">
               <h4>Market Vacant Units</h4>
               <p>Increase visibility for {summary.vacantUnits} available units</p>
-              <button className="action-btn">Launch Campaign</button>
+              <button 
+                className="action-btn" 
+                onClick={handleLaunchCampaign}
+              >
+                Launch Campaign
+              </button>
             </div>
           </div>
         </div>

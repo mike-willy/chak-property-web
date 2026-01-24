@@ -1,4 +1,4 @@
-// src/services/analyticsService.js
+// src/services/analyticsService.js - UPDATED WITH PROPER PDF EXPORT
 import { db } from "../pages/firebase/firebase";
 import { 
   collection, 
@@ -21,8 +21,12 @@ import {
   generateInsights 
 } from './analyticsCalculations';
 
+// Import jsPDF for PDF generation
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
 /**
- * Main Analytics Service - UPDATED WITH CSV/PDF REPORTS ONLY (NO JSON)
+ * Main Analytics Service - UPDATED WITH CSV & PDF REPORTS
  */
 class AnalyticsService {
   
@@ -434,7 +438,7 @@ class AnalyticsService {
     }
   }
 
-  // ============ CSV EXPORT METHODS (NO JSON) ============
+  // ============ CSV EXPORT METHODS ============
 
   /**
    * Export Analytics Data to CSV
@@ -476,8 +480,9 @@ class AnalyticsService {
       
       return { 
         success: true, 
-        message: `Download started: ${filename}`,
-        filename: filename 
+        message: `CSV download started: ${filename}`,
+        filename: filename,
+        format: 'csv'
       };
     } catch (error) {
       console.error('Error exporting analytics data:', error);
@@ -486,9 +491,9 @@ class AnalyticsService {
   }
 
   /**
-   * Generate comprehensive report (CSV ONLY - NO JSON)
+   * Generate comprehensive report with format selection
    */
-  async generateComprehensiveReport(reportType, timeframe = 'monthly') {
+  async generateComprehensiveReport(reportType, timeframe = 'monthly', format = 'csv') {
     try {
       let reportData = {};
       let filename = '';
@@ -507,34 +512,67 @@ class AnalyticsService {
             rentCollection: rentData,
             vacancyRate: vacancyData,
             tenantBehavior: tenantData,
-            insights: insights
+            insights: insights,
+            generatedAt: new Date(),
+            timeframe: timeframe
           };
-          filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
           
-          // Generate comprehensive CSV
-          const csvContent = this._generateFullReportCSV(reportData);
-          this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
+          if (format === 'csv') {
+            filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            const csvContent = this._generateFullReportCSV(reportData);
+            this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'pdf') {
+            filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            await this._generateFullReportPDF(reportData, filename);
+          }
           break;
         
         case 'rent':
           reportData = await this.getRentCollectionAnalytics(timeframe);
-          filename = `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.csv`;
-          const rentCSV = this._generateRentCollectionCSV(reportData);
-          this._triggerFileDownload(rentCSV, filename, 'text/csv;charset=utf-8;');
+          if (format === 'csv') {
+            filename = `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            const rentCSV = this._generateRentCollectionCSV(reportData);
+            this._triggerFileDownload(rentCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'pdf') {
+            filename = `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            await this._generateRentCollectionPDF(reportData, filename);
+          }
           break;
         
         case 'vacancy':
           reportData = await this.getVacancyRateAnalytics();
-          filename = `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.csv`;
-          const vacancyCSV = this._generateVacancyRateCSV(reportData);
-          this._triggerFileDownload(vacancyCSV, filename, 'text/csv;charset=utf-8;');
+          if (format === 'csv') {
+            filename = `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            const vacancyCSV = this._generateVacancyRateCSV(reportData);
+            this._triggerFileDownload(vacancyCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'pdf') {
+            filename = `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            await this._generateVacancyRatePDF(reportData, filename);
+          }
           break;
         
         case 'tenants':
           reportData = await this.getTenantBehaviorAnalytics();
-          filename = `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.csv`;
-          const tenantCSV = this._generateTenantBehaviorCSV(reportData);
-          this._triggerFileDownload(tenantCSV, filename, 'text/csv;charset=utf-8;');
+          if (format === 'csv') {
+            filename = `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            const tenantCSV = this._generateTenantBehaviorCSV(reportData);
+            this._triggerFileDownload(tenantCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'pdf') {
+            filename = `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            await this._generateTenantBehaviorPDF(reportData, filename);
+          }
+          break;
+        
+        case 'insights':
+          reportData = await this.generateAnalyticsInsights();
+          if (format === 'csv') {
+            filename = `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            const insightsCSV = this._generateInsightsCSV(reportData);
+            this._triggerFileDownload(insightsCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'pdf') {
+            filename = `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            await this._generateInsightsPDF(reportData, filename);
+          }
           break;
         
         default:
@@ -543,9 +581,9 @@ class AnalyticsService {
       
       return {
         success: true,
-        message: `CSV Report downloaded: ${filename}`,
+        message: `${format.toUpperCase()} Report downloaded: ${filename}`,
         filename: filename,
-        format: 'csv'
+        format: format
       };
     } catch (error) {
       console.error('Error generating report:', error);
@@ -553,31 +591,44 @@ class AnalyticsService {
     }
   }
 
+  // ============ PDF EXPORT METHODS ============
+
   /**
-   * Generate PDF Report (Simple Text-Based PDF - For Future Implementation)
+   * Generate PDF Report with jsPDF
    */
-  async generatePDFReport(reportType, timeframe = 'monthly') {
+  async generatePDFReport(reportType, timeframe = 'monthly', customFilename = null) {
     try {
-      // For now, generate a simple text-based PDF
-      // In production, you would use jsPDF or similar library
-      
       let reportData = {};
       let title = '';
+      let filename = customFilename || '';
       
       switch (reportType) {
         case 'rent-collection':
           reportData = await this.getRentCollectionAnalytics(timeframe);
           title = 'Rent Collection Report';
+          filename = filename || `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          await this._generateRentCollectionPDF(reportData, filename);
           break;
         
         case 'vacancy-rate':
           reportData = await this.getVacancyRateAnalytics();
           title = 'Vacancy Rate Report';
+          filename = filename || `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          await this._generateVacancyRatePDF(reportData, filename);
           break;
         
         case 'tenant-behavior':
           reportData = await this.getTenantBehaviorAnalytics();
           title = 'Tenant Behavior Report';
+          filename = filename || `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          await this._generateTenantBehaviorPDF(reportData, filename);
+          break;
+        
+        case 'analytics-insights':
+          reportData = await this.generateAnalyticsInsights();
+          title = 'Analytics Insights Report';
+          filename = filename || `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          await this._generateInsightsPDF(reportData, filename);
           break;
         
         case 'full':
@@ -592,30 +643,52 @@ class AnalyticsService {
             rentCollection: rentData,
             vacancyRate: vacancyData,
             tenantBehavior: tenantData,
-            insights: insights
+            insights: insights,
+            generatedAt: new Date(),
+            timeframe: timeframe
           };
           title = 'Complete Analytics Report';
+          filename = filename || `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          await this._generateFullReportPDF(reportData, filename);
           break;
         
         default:
           throw new Error(`Unknown report type: ${reportType}`);
       }
       
-      // For now, generate a simple text file as placeholder for PDF
-      // TODO: Integrate with jsPDF library for proper PDF generation
-      const pdfContent = this._generateSimplePDFText(reportData, title);
-      const filename = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
-      
-      this._triggerFileDownload(pdfContent, filename, 'text/plain');
-      
       return {
         success: true,
-        message: `PDF report placeholder downloaded. Install jsPDF for proper PDF generation.`,
+        message: `PDF Report downloaded: ${filename}`,
         filename: filename,
-        format: 'text' // Will be 'pdf' when jsPDF is implemented
+        format: 'pdf'
       };
     } catch (error) {
       console.error('Error generating PDF report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Export analytics data in specified format
+   */
+  async exportAnalytics(analyticsType, data, format = 'csv', customFilename = null) {
+    try {
+      if (format === 'csv') {
+        return await this.exportAnalyticsToCSV(analyticsType, data, customFilename);
+      } else if (format === 'pdf') {
+        let reportType = analyticsType;
+        // Convert analyticsType to reportType format
+        if (analyticsType === 'rent-collection') reportType = 'rent-collection';
+        else if (analyticsType === 'tenant-behavior') reportType = 'tenant-behavior';
+        else if (analyticsType === 'vacancy-rate') reportType = 'vacancy-rate';
+        else if (analyticsType === 'analytics-insights') reportType = 'analytics-insights';
+        
+        return await this.generatePDFReport(reportType, 'monthly', customFilename);
+      } else {
+        throw new Error(`Unsupported format: ${format}. Use 'csv' or 'pdf'`);
+      }
+    } catch (error) {
+      console.error('Error exporting analytics:', error);
       throw error;
     }
   }
@@ -784,6 +857,499 @@ class AnalyticsService {
 
   // ============ PRIVATE HELPER METHODS ============
 
+  // ============ PDF GENERATION METHODS ============
+
+  _generateRentCollectionPDF(data, filename) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RENT COLLECTION REPORT', pageWidth / 2, yPosition, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    yPosition += 10;
+    doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 8;
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 15;
+    
+    // Summary Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 20, yPosition);
+    
+    yPosition += 10;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    
+    const summaryData = [
+      ['Total Units', data.summary.totalUnits],
+      ['Occupied Units', data.summary.occupiedUnits],
+      ['Expected Rent', `KES ${this._formatNumber(data.summary.expectedRent)}`],
+      ['Collected Rent', `KES ${this._formatNumber(data.summary.collectedRent)}`],
+      ['Collection Rate', `${(data.summary.collectionRate * 100).toFixed(1)}%`],
+      ['Outstanding Amount', `KES ${this._formatNumber(data.summary.outstandingAmount)}`],
+      ['Late Payments', data.summary.latePaymentsCount],
+      ['Completed Payments', data.summary.completedPaymentsCount]
+    ];
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Metric', 'Value']],
+      body: summaryData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 20, right: 20 }
+    });
+    
+    yPosition = doc.lastAutoTable.finalY + 15;
+    
+    // Overdue Payments Section (if any)
+    if (data.details.overduePayments.length > 0) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('OVERDUE PAYMENTS', 20, yPosition);
+      
+      yPosition += 10;
+      
+      const overdueTableData = data.details.overduePayments.slice(0, 15).map(payment => [
+        payment.tenantName || 'Unknown',
+        `KES ${this._formatNumber(payment.amount)}`,
+        payment.month || 'N/A',
+        payment.status || 'pending'
+      ]);
+      
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Tenant', 'Amount', 'Month', 'Status']],
+        body: overdueTableData,
+        theme: 'grid',
+        headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+        margin: { left: 20, right: 20 }
+      });
+    }
+    
+    // Footer
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.text('Property Management System', 20, pageHeight - 10);
+    }
+    
+    doc.save(filename);
+  }
+
+  _generateTenantBehaviorPDF(data, filename) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TENANT BEHAVIOR REPORT', pageWidth / 2, yPosition, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    yPosition += 10;
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 15;
+    
+    // Summary Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 20, yPosition);
+    
+    yPosition += 10;
+    
+    const summaryData = [
+      ['Total Tenants', data.summary.totalTenants],
+      ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
+      ['On-Time Payers', data.summary.onTimePayers],
+      ['Frequent Late Payers', data.summary.frequentLatePayers],
+      ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
+      ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
+    ];
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Metric', 'Value']],
+      body: summaryData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 20, right: 20 }
+    });
+    
+    yPosition = doc.lastAutoTable.finalY + 15;
+    
+    // Risk Distribution Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RISK DISTRIBUTION', 20, yPosition);
+    
+    yPosition += 10;
+    
+    const riskData = Object.entries(data.details.riskDistribution).map(([category, catData]) => [
+      category.charAt(0).toUpperCase() + category.slice(1) + ' Risk',
+      catData.count,
+      `${Math.round((catData.count / data.summary.totalTenants) * 100)}%`
+    ]);
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Risk Level', 'Count', 'Percentage']],
+      body: riskData,
+      theme: 'grid',
+      headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 20, right: 20 }
+    });
+    
+    yPosition = doc.lastAutoTable.finalY + 15;
+    
+    // Top High-Risk Tenants
+    if (data.details.topTenants.length > 0) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('HIGH-RISK TENANTS', 20, yPosition);
+      
+      yPosition += 10;
+      
+      const highRiskData = data.details.topTenants.slice(0, 10).map(tenant => [
+        tenant.tenantName || 'Unknown',
+        tenant.riskScore,
+        `KES ${this._formatNumber(tenant.monthlyRent)}`,
+        `KES ${this._formatNumber(tenant.balance)}`,
+        tenant.overduePayments?.length || 0
+      ]);
+      
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Tenant Name', 'Risk Score', 'Monthly Rent', 'Balance', 'Overdue']],
+        body: highRiskData,
+        theme: 'grid',
+        headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+        margin: { left: 20, right: 20 }
+      });
+    }
+    
+    // Footer
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.text('Property Management System', 20, pageHeight - 10);
+    }
+    
+    doc.save(filename);
+  }
+
+  _generateVacancyRatePDF(data, filename) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VACANCY RATE REPORT', pageWidth / 2, yPosition, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    yPosition += 10;
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 15;
+    
+    // Summary Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 20, yPosition);
+    
+    yPosition += 10;
+    
+    const summaryData = [
+      ['Total Units', data.summary.totalUnits],
+      ['Occupied Units', data.summary.occupiedUnits],
+      ['Vacant Units', data.summary.vacantUnits],
+      ['Under Maintenance', data.summary.maintenanceUnits],
+      ['Vacancy Rate', `${(data.summary.vacancyRate * 100).toFixed(1)}%`],
+      ['Occupancy Rate', `${(data.summary.occupancyRate * 100).toFixed(1)}%`],
+      ['Avg Vacancy Days', data.summary.avgVacancyDays],
+      ['Longest Vacancy', data.summary.longestVacancy]
+    ];
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Metric', 'Value']],
+      body: summaryData,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 20, right: 20 }
+    });
+    
+    yPosition = doc.lastAutoTable.finalY + 15;
+    
+    // Property Breakdown
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROPERTY BREAKDOWN', 20, yPosition);
+    
+    yPosition += 10;
+    
+    const propertyData = data.details.byProperty.map(property => [
+      property.propertyName,
+      property.totalUnits,
+      property.occupiedUnits,
+      property.vacantUnits,
+      `${(property.vacancyRate * 100).toFixed(1)}%`,
+      `${(property.occupancyRate * 100).toFixed(1)}%`
+    ]);
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Property', 'Total', 'Occupied', 'Vacant', 'Vacancy %', 'Occupancy %']],
+      body: propertyData,
+      theme: 'grid',
+      headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+      margin: { left: 20, right: 20 }
+    });
+    
+    // Footer
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.text('Property Management System', 20, pageHeight - 10);
+    }
+    
+    doc.save(filename);
+  }
+
+  _generateInsightsPDF(data, filename) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANALYTICS INSIGHTS REPORT', pageWidth / 2, yPosition, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    yPosition += 10;
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 8;
+    doc.text(`Total Insights: ${data.length}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 15;
+    
+    if (data.length === 0) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'italic');
+      doc.text('No insights generated. All systems are performing optimally.', pageWidth / 2, yPosition, { align: 'center' });
+    } else {
+      // Group insights by priority
+      const highPriority = data.filter(i => i.priority === 'high');
+      const mediumPriority = data.filter(i => i.priority === 'medium');
+      const lowPriority = data.filter(i => i.priority === 'low');
+      
+      // High Priority Insights
+      if (highPriority.length > 0) {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(231, 76, 60); // Red for high priority
+        doc.text(`HIGH PRIORITY INSIGHTS (${highPriority.length})`, 20, yPosition);
+        doc.setTextColor(0, 0, 0);
+        
+        yPosition += 10;
+        
+        highPriority.forEach((insight, index) => {
+          if (yPosition > pageHeight - 50) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+          
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+          
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+        
+        yPosition += 5;
+      }
+      
+      // Medium Priority Insights
+      if (mediumPriority.length > 0) {
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(243, 156, 18); // Orange for medium priority
+        doc.text(`MEDIUM PRIORITY INSIGHTS (${mediumPriority.length})`, 20, yPosition);
+        doc.setTextColor(0, 0, 0);
+        
+        yPosition += 10;
+        
+        mediumPriority.forEach((insight, index) => {
+          if (yPosition > pageHeight - 50) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+          
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+          
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+        
+        yPosition += 5;
+      }
+      
+      // Low Priority Insights
+      if (lowPriority.length > 0) {
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(46, 204, 113); // Green for low priority
+        doc.text(`LOW PRIORITY INSIGHTS (${lowPriority.length})`, 20, yPosition);
+        doc.setTextColor(0, 0, 0);
+        
+        yPosition += 10;
+        
+        lowPriority.forEach((insight, index) => {
+          if (yPosition > pageHeight - 50) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+          
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+          
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+      }
+    }
+    
+    // Footer
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.text('Property Management System', 20, pageHeight - 10);
+    }
+    
+    doc.save(filename);
+  }
+
+  _generateFullReportPDF(reportData, filename) {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Title Page
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('COMPLETE ANALYTICS REPORT', pageWidth / 2, 80, { align: 'center' });
+    
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Property Management System', pageWidth / 2, 100, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.text(`Time Period: ${reportData.timeframe}`, pageWidth / 2, 120, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, 130, { align: 'center' });
+    
+    // Add sections for each report type
+    let currentPage = 2;
+    
+    // Rent Collection
+    doc.addPage();
+    this._generateRentCollectionPDF(reportData.rentCollection, filename, true);
+    
+    // Vacancy Rate
+    doc.addPage();
+    this._generateVacancyRatePDF(reportData.vacancyRate, filename, true);
+    
+    // Tenant Behavior
+    doc.addPage();
+    this._generateTenantBehaviorPDF(reportData.tenantBehavior, filename, true);
+    
+    // Insights
+    doc.addPage();
+    this._generateInsightsPDF(reportData.insights, filename, true);
+    
+    // Update page numbers
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+    }
+    
+    doc.save(filename);
+  }
+
+  // ============ CSV GENERATION METHODS (UNCHANGED) ============
+
   _generateRentCollectionCSV(data) {
     const headers = ['Date', 'Tenant Name', 'Amount (KES)', 'Status', 'Month', 'Payment Method', 'Transaction ID'];
     const rows = data.details.payments.map(payment => [
@@ -908,35 +1474,6 @@ class AnalyticsService {
     return csvContent;
   }
 
-  _generateSimplePDFText(reportData, title) {
-    // Simple text-based PDF placeholder
-    // In production, replace with jsPDF implementation
-    const date = new Date().toLocaleString('en-KE');
-    
-    let text = `===============================================\n`;
-    text += `${title}\n`;
-    text += `Generated: ${date}\n`;
-    text += `===============================================\n\n`;
-    
-    if (title.includes('Rent')) {
-      const summary = reportData.summary;
-      text += `RENT COLLECTION SUMMARY\n`;
-      text += `Time Period: ${reportData.timeframe}\n`;
-      text += `Total Units: ${summary.totalUnits}\n`;
-      text += `Occupied Units: ${summary.occupiedUnits}\n`;
-      text += `Expected Rent: KES ${summary.expectedRent.toLocaleString('en-KE')}\n`;
-      text += `Collected Rent: KES ${summary.collectedRent.toLocaleString('en-KE')}\n`;
-      text += `Collection Rate: ${(summary.collectionRate * 100).toFixed(1)}%\n`;
-      text += `Outstanding Amount: KES ${summary.outstandingAmount.toLocaleString('en-KE')}\n`;
-      text += `Late Payments: ${summary.latePaymentsCount}\n`;
-      text += `Completed Payments: ${summary.completedPaymentsCount}\n\n`;
-      
-      text += `NOTE: Install jsPDF library for proper PDF formatting with charts and tables.\n`;
-    }
-    
-    return text;
-  }
-
   _triggerFileDownload(content, filename, mimeType) {
     // Create blob with proper MIME type
     const blob = new Blob([content], { type: mimeType });
@@ -966,6 +1503,10 @@ class AnalyticsService {
     };
     
     return templates[type] || templates.standard;
+  }
+
+  _formatNumber(num) {
+    return num ? num.toLocaleString('en-KE') : '0';
   }
 
   // ============ EXISTING PRIVATE HELPER METHODS ============

@@ -1,5 +1,6 @@
-// src/pages/analytics/TenantBehaviorAnalysis.jsx
+// src/pages/analytics/TenantBehaviorAnalysis.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { analyticsService } from '../../services/analyticsService';
 import MetricCard from '../../components/analytics/MetricCard';
 import { 
@@ -14,16 +15,27 @@ import {
   FaCalendar,
   FaDownload,
   FaFilter,
-  FaSearch
+  FaSearch,
+  FaSpinner,
+  FaEye,
+  FaFlag
 } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 import '../../styles/analytics.css';
 
 const TenantBehaviorAnalysis = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sendingReminders, setSendingReminders] = useState(false);
+  const [flaggingTenant, setFlaggingTenant] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [riskFilter, setRiskFilter] = useState('all');
   const [sortBy, setSortBy] = useState('riskScore');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   useEffect(() => {
     loadTenantData();
@@ -34,10 +46,13 @@ const TenantBehaviorAnalysis = () => {
       setLoading(true);
       const analyticsData = await analyticsService.getTenantBehaviorAnalytics();
       setData(analyticsData);
+      toast.success('Tenant behavior data loaded');
     } catch (error) {
       console.error('Error loading tenant behavior data:', error);
+      toast.error('Failed to load tenant data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -56,25 +71,116 @@ const TenantBehaviorAnalysis = () => {
   };
 
   const getPaymentConsistency = (patterns) => {
+    if (!patterns || patterns.onTimeRate === undefined) return 'Unknown';
     if (patterns.onTimeRate >= 0.9) return 'Excellent';
     if (patterns.onTimeRate >= 0.8) return 'Good';
     if (patterns.onTimeRate >= 0.7) return 'Fair';
     return 'Poor';
   };
 
-  const handleRefresh = () => {
-    loadTenantData();
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadTenantData();
+    } catch (error) {
+      // Error handled in loadTenantData
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      toast.info('Generating tenant behavior report...');
+      await analyticsService.exportAnalyticsToCSV('tenant-behavior', data);
+      toast.success('Tenant report exported successfully!');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export tenant report');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSendReminder = async (tenantId, tenantName) => {
+    try {
+      toast.info(`Sending reminder to ${tenantName}...`);
+      await analyticsService.sendPaymentReminder(tenantId);
+      toast.success(`Reminder sent to ${tenantName}`);
+      // Refresh data
+      loadTenantData();
+    } catch (error) {
+      console.error('Failed to send reminder:', error);
+      toast.error('Failed to send reminder');
+    }
+  };
+
+  const handleSendBulkReminders = async () => {
+    try {
+      setSendingReminders(true);
+      toast.info('Sending bulk reminders...');
+      
+      // Get tenants with outstanding balance
+      const tenantsWithBalance = filteredTenants.filter(t => t.balance > 0);
+      const tenantIds = tenantsWithBalance.map(t => t.tenantId);
+      
+      if (tenantIds.length === 0) {
+        toast.warning('No tenants with outstanding balance');
+        return;
+      }
+
+      const result = await analyticsService.sendBulkReminders(tenantIds);
+      toast.success(`Sent ${result.successful} reminders successfully`);
+      
+      // Refresh data
+      loadTenantData();
+    } catch (error) {
+      console.error('Failed to send bulk reminders:', error);
+      toast.error('Failed to send bulk reminders');
+    } finally {
+      setSendingReminders(false);
+    }
+  };
+
+  const handleFlagTenant = async (tenantId, tenantName, reason) => {
+    try {
+      setFlaggingTenant(tenantId);
+      toast.info(`Flagging ${tenantName} for review...`);
+      await analyticsService.flagTenantForReview(tenantId, reason, 'high');
+      toast.success(`${tenantName} flagged for review`);
+      // Refresh data
+      loadTenantData();
+    } catch (error) {
+      console.error('Failed to flag tenant:', error);
+      toast.error('Failed to flag tenant');
+    } finally {
+      setFlaggingTenant(null);
+    }
+  };
+
+  const handleViewTenantDetails = (tenantId) => {
+    navigate(`/tenants/${tenantId}`);
+  };
+
+  const handleViewTenantFiles = () => {
+    navigate('/tenants?filter=flagged');
+  };
+
+  const handleImplementAutoReminders = () => {
+    toast.info('Configuring auto-reminders...');
+    navigate('/settings/notifications');
   };
 
   // Filter and sort tenants
   const filteredTenants = data?.details?.tenants
     ?.filter(tenant => {
+      if (!tenant) return false;
+      
       // Search filter
       const matchesSearch = 
         !searchTerm ||
-        tenant.tenantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+        (tenant.tenantName && tenant.tenantName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (tenant.propertyName && tenant.propertyName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (tenant.unitNumber && tenant.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()));
       
       // Risk filter
       const matchesRisk = 
@@ -86,12 +192,19 @@ const TenantBehaviorAnalysis = () => {
       return matchesSearch && matchesRisk;
     })
     ?.sort((a, b) => {
-      if (sortBy === 'riskScore') return b.riskScore - a.riskScore;
-      if (sortBy === 'balance') return b.balance - a.balance;
-      if (sortBy === 'monthlyRent') return b.monthlyRent - a.monthlyRent;
-      if (sortBy === 'overduePayments') return b.overduePayments.length - a.overduePayments.length;
-      return a.tenantName.localeCompare(b.tenantName);
+      if (!a || !b) return 0;
+      
+      if (sortBy === 'riskScore') return (b.riskScore || 0) - (a.riskScore || 0);
+      if (sortBy === 'balance') return (b.balance || 0) - (a.balance || 0);
+      if (sortBy === 'monthlyRent') return (b.monthlyRent || 0) - (a.monthlyRent || 0);
+      if (sortBy === 'overduePayments') return (b.overduePayments?.length || 0) - (a.overduePayments?.length || 0);
+      return (a.tenantName || '').localeCompare(b.tenantName || '');
     }) || [];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTenants.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedTenants = filteredTenants.slice(startIndex, startIndex + itemsPerPage);
 
   if (loading) {
     return (
@@ -106,6 +219,9 @@ const TenantBehaviorAnalysis = () => {
     return (
       <div className="no-data">
         <p>No tenant behavior data available</p>
+        <button className="action-btn" onClick={loadTenantData}>
+          Retry
+        </button>
       </div>
     );
   }
@@ -123,11 +239,35 @@ const TenantBehaviorAnalysis = () => {
           Payment patterns, risk assessment, and tenant performance
         </p>
         <div className="section-actions">
-          <button className="refresh-btn" onClick={handleRefresh}>
-            <FaCalendar /> Refresh
+          <button 
+            className="refresh-btn" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <FaSpinner className="spinner" /> Refreshing...
+              </>
+            ) : (
+              <>
+                <FaCalendar /> Refresh
+              </>
+            )}
           </button>
-          <button className="export-btn">
-            <FaDownload /> Export Report
+          <button 
+            className="export-btn" 
+            onClick={handleExport}
+            disabled={exporting || !data}
+          >
+            {exporting ? (
+              <>
+                <FaSpinner className="spinner" /> Exporting...
+              </>
+            ) : (
+              <>
+                <FaDownload /> Export Report
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -194,7 +334,7 @@ const TenantBehaviorAnalysis = () => {
         <h3><FaChartLine /> Risk Distribution</h3>
         <div className="distribution-chart">
           <div className="distribution-bars">
-            {Object.entries(details.riskDistribution).map(([category, data]) => (
+            {Object.entries(details.riskDistribution || {}).map(([category, data]) => (
               <div key={category} className="distribution-bar-container">
                 <div className="distribution-label">
                   {category === 'low' ? 'Low Risk' : category === 'medium' ? 'Medium Risk' : 'High Risk'}
@@ -227,15 +367,23 @@ const TenantBehaviorAnalysis = () => {
             type="text"
             placeholder="Search tenants by name, property, or unit..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1); // Reset to first page on search
+            }}
+            disabled={exporting || refreshing}
           />
         </div>
         
         <div className="filter-controls">
           <select 
             value={riskFilter}
-            onChange={(e) => setRiskFilter(e.target.value)}
+            onChange={(e) => {
+              setRiskFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="filter-select"
+            disabled={exporting || refreshing}
           >
             <option value="all">All Risk Levels</option>
             <option value="low">Low Risk Only</option>
@@ -245,8 +393,12 @@ const TenantBehaviorAnalysis = () => {
           
           <select 
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => {
+              setSortBy(e.target.value);
+              setCurrentPage(1);
+            }}
             className="sort-select"
+            disabled={exporting || refreshing}
           >
             <option value="riskScore">Sort by Risk Score</option>
             <option value="balance">Sort by Balance</option>
@@ -259,7 +411,12 @@ const TenantBehaviorAnalysis = () => {
 
       {/* Tenants List */}
       <div className="tenants-list">
-        <h3>Tenant Performance Analysis</h3>
+        <div className="tenants-header">
+          <h3>Tenant Performance Analysis</h3>
+          <div className="tenants-stats">
+            Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredTenants.length)} of {filteredTenants.length} tenants
+          </div>
+        </div>
         <div className="tenants-table-container">
           <table className="tenants-table">
             <thead>
@@ -275,7 +432,7 @@ const TenantBehaviorAnalysis = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTenants.slice(0, 15).map((tenant, index) => {
+              {paginatedTenants.map((tenant, index) => {
                 const riskCategory = getRiskCategory(tenant.riskScore);
                 const consistency = getPaymentConsistency(tenant.paymentPatterns);
                 
@@ -283,14 +440,14 @@ const TenantBehaviorAnalysis = () => {
                   <tr key={index} className={`tenant-row risk-${riskCategory.color}`}>
                     <td>
                       <div className="tenant-info">
-                        <strong>{tenant.tenantName}</strong>
-                        <small>{tenant.status}</small>
+                        <strong>{tenant.tenantName || 'Unknown'}</strong>
+                        <small>{tenant.status || 'N/A'}</small>
                       </div>
                     </td>
                     <td>
                       <div className="property-info">
-                        <div>{tenant.propertyName}</div>
-                        <small>Unit {tenant.unitNumber || tenant.unitId}</small>
+                        <div>{tenant.propertyName || 'N/A'}</div>
+                        <small>Unit {tenant.unitNumber || tenant.unitId || 'N/A'}</small>
                       </div>
                     </td>
                     <td className="rent-amount">
@@ -299,7 +456,7 @@ const TenantBehaviorAnalysis = () => {
                     <td>
                       <div className="risk-score">
                         <div className={`risk-badge ${riskCategory.color}`}>
-                          {tenant.riskScore} • {riskCategory.label}
+                          {tenant.riskScore || 0} • {riskCategory.label}
                         </div>
                       </div>
                     </td>
@@ -307,11 +464,11 @@ const TenantBehaviorAnalysis = () => {
                       <div className={`consistency-badge ${consistency.toLowerCase()}`}>
                         {consistency}
                       </div>
-                      <small>Avg {tenant.paymentPatterns.avgDaysLate || 0} days late</small>
+                      <small>Avg {tenant.paymentPatterns?.avgDaysLate || 0} days late</small>
                     </td>
                     <td>
                       <div className="overdue-count">
-                        {tenant.overduePayments.length > 0 ? (
+                        {(tenant.overduePayments?.length || 0) > 0 ? (
                           <span className="overdue-badge">
                             {tenant.overduePayments.length} pending
                           </span>
@@ -331,17 +488,35 @@ const TenantBehaviorAnalysis = () => {
                     </td>
                     <td>
                       <div className="tenant-actions">
-                        <button className="action-btn small" title="View Details">
-                          View
+                        <button 
+                          className="action-btn small" 
+                          title="View Details"
+                          onClick={() => handleViewTenantDetails(tenant.tenantId)}
+                        >
+                          <FaEye /> View
                         </button>
                         {tenant.balance > 0 && (
-                          <button className="action-btn small warning" title="Send Reminder">
+                          <button 
+                            className="action-btn small warning" 
+                            title="Send Reminder"
+                            onClick={() => handleSendReminder(tenant.tenantId, tenant.tenantName)}
+                            disabled={sendingReminders}
+                          >
                             Remind
                           </button>
                         )}
                         {tenant.riskScore > 70 && (
-                          <button className="action-btn small danger" title="Flag for Review">
-                            Flag
+                          <button 
+                            className="action-btn small danger" 
+                            title="Flag for Review"
+                            onClick={() => handleFlagTenant(tenant.tenantId, tenant.tenantName, 'High risk score')}
+                            disabled={flaggingTenant === tenant.tenantId}
+                          >
+                            {flaggingTenant === tenant.tenantId ? (
+                              <FaSpinner className="spinner" />
+                            ) : (
+                              <FaFlag />
+                            )}
                           </button>
                         )}
                       </div>
@@ -358,6 +533,29 @@ const TenantBehaviorAnalysis = () => {
               <p>No tenants match your search criteria</p>
             </div>
           )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button 
+                className="pagination-btn" 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span className="pagination-info">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button 
+                className="pagination-btn" 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -366,7 +564,7 @@ const TenantBehaviorAnalysis = () => {
         <h3><FaExclamationTriangle /> High-Risk Tenant Insights</h3>
         <div className="insights-grid">
           {details.tenants
-            .filter(t => t.riskScore > 70)
+            ?.filter(t => t.riskScore > 70)
             .slice(0, 3)
             .map((tenant, index) => (
               <div key={index} className="risk-insight-card">
@@ -375,21 +573,21 @@ const TenantBehaviorAnalysis = () => {
                     <div className="risk-score-high">{tenant.riskScore}</div>
                     <span className="risk-label">High Risk</span>
                   </div>
-                  <div className="tenant-name">{tenant.tenantName}</div>
+                  <div className="tenant-name">{tenant.tenantName || 'Unknown'}</div>
                 </div>
                 
                 <div className="insight-details">
                   <div className="detail-item">
                     <span className="label">Property:</span>
-                    <span className="value">{tenant.propertyName}</span>
+                    <span className="value">{tenant.propertyName || 'N/A'}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Overdue Payments:</span>
-                    <span className="value warning">{tenant.overduePayments.length}</span>
+                    <span className="value warning">{tenant.overduePayments?.length || 0}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Outstanding:</span>
-                    <span className="value danger">{formatCurrency(tenant.balance)}</span>
+                    <span className="value danger">{formatCurrency(tenant.balance || 0)}</span>
                   </div>
                   <div className="detail-item">
                     <span className="label">Payment Pattern:</span>
@@ -406,7 +604,7 @@ const TenantBehaviorAnalysis = () => {
               </div>
             ))}
           
-          {details.tenants.filter(t => t.riskScore > 70).length === 0 && (
+          {(!details.tenants || details.tenants.filter(t => t.riskScore > 70).length === 0) && (
             <div className="no-high-risk">
               <FaCheckCircle />
               <p>No high-risk tenants detected. Excellent!</p>
@@ -425,7 +623,7 @@ const TenantBehaviorAnalysis = () => {
             </div>
             <div className="pattern-content">
               <h4>Always On Time</h4>
-              <div className="pattern-count">{details.paymentPatterns.alwaysOnTime} tenants</div>
+              <div className="pattern-count">{details.paymentPatterns?.alwaysOnTime || 0} tenants</div>
               <p>Pay consistently before due date</p>
             </div>
           </div>
@@ -436,8 +634,8 @@ const TenantBehaviorAnalysis = () => {
             </div>
             <div className="pattern-content">
               <h4>Occasionally Late</h4>
-              <div className="pattern-count">{details.paymentPatterns.occasionallyLate} tenants</div>
-              <p>Average {details.paymentPatterns.avgDaysLate} days late</p>
+              <div className="pattern-count">{details.paymentPatterns?.occasionallyLate || 0} tenants</div>
+              <p>Average {details.paymentPatterns?.avgDaysLate || 0} days late</p>
             </div>
           </div>
           
@@ -447,7 +645,7 @@ const TenantBehaviorAnalysis = () => {
             </div>
             <div className="pattern-content">
               <h4>Frequently Late</h4>
-              <div className="pattern-count">{details.paymentPatterns.frequentlyLate} tenants</div>
+              <div className="pattern-count">{details.paymentPatterns?.frequentlyLate || 0} tenants</div>
               <p>Require frequent follow-ups</p>
             </div>
           </div>
@@ -464,18 +662,29 @@ const TenantBehaviorAnalysis = () => {
               <div className="recommendation-content">
                 <h4>Collect Outstanding Balances</h4>
                 <p>{formatCurrency(summary.totalOutstandingBalance)} in overdue payments</p>
-                <button className="action-btn">Send Payment Reminders</button>
+                <button 
+                  className="action-btn" 
+                  onClick={handleSendBulkReminders}
+                  disabled={sendingReminders}
+                >
+                  {sendingReminders ? 'Sending...' : 'Send Payment Reminders'}
+                </button>
               </div>
             </div>
           )}
           
-          {details.tenants.filter(t => t.riskScore > 70).length > 0 && (
+          {details.tenants?.filter(t => t.riskScore > 70).length > 0 && (
             <div className="recommendation">
               <FaExclamationTriangle className="recommendation-icon warning" />
               <div className="recommendation-content">
                 <h4>Review High-Risk Tenants</h4>
                 <p>{details.tenants.filter(t => t.riskScore > 70).length} tenants flagged as high risk</p>
-                <button className="action-btn">Review Tenant Files</button>
+                <button 
+                  className="action-btn" 
+                  onClick={handleViewTenantFiles}
+                >
+                  Review Tenant Files
+                </button>
               </div>
             </div>
           )}
@@ -485,7 +694,12 @@ const TenantBehaviorAnalysis = () => {
             <div className="recommendation-content">
               <h4>Improve Payment Consistency</h4>
               <p>{summary.frequentLatePayers} tenants frequently pay late</p>
-              <button className="action-btn">Implement Auto-Reminders</button>
+              <button 
+                className="action-btn" 
+                onClick={handleImplementAutoReminders}
+              >
+                Implement Auto-Reminders
+              </button>
             </div>
           </div>
         </div>

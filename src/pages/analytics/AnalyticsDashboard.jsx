@@ -1,4 +1,4 @@
-// src/pages/analytics/AnalyticsDashboard.jsx
+// src/pages/analytics/AnalyticsDashboard.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { analyticsService } from '../../services/analyticsService';
@@ -17,9 +17,11 @@ import {
   FaCalendar,
   FaDollarSign,
   FaDoorClosed,
+  FaDownload,
   FaUserCheck,
   FaExclamationTriangle
 } from 'react-icons/fa';
+import { toast } from 'react-toastify'; // Add toast notifications
 import '../../styles/analytics.css';
 
 const AnalyticsDashboard = () => {
@@ -27,6 +29,7 @@ const AnalyticsDashboard = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('rent-collection');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [timeframe, setTimeframe] = useState('monthly');
   const [refreshKey, setRefreshKey] = useState(0);
   const [overviewMetrics, setOverviewMetrics] = useState({
@@ -99,21 +102,45 @@ const AnalyticsDashboard = () => {
       
     } catch (error) {
       console.error('Error loading overview metrics:', error);
+      toast.error('Failed to load dashboard metrics');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1);
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setRefreshKey(prev => prev + 1);
+      toast.info('Refreshing analytics data...');
+    } catch (error) {
+      toast.error('Failed to refresh data');
+    }
   };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    // Update URL hash without reloading
-    window.location.hash = tab;
+    // FIXED: Use React Router navigation instead of window.location
+    navigate(`#${tab}`, { replace: true });
     // Force scroll to top
     window.scrollTo(0, 0);
+  };
+
+  const handleTimeframeChange = async (newTimeframe) => {
+    setTimeframe(newTimeframe);
+    toast.info(`Timeframe changed to ${newTimeframe}`);
+  };
+
+  const handleExportFullReport = async () => {
+    try {
+      toast.info('Generating comprehensive report...');
+      await analyticsService.generateComprehensiveReport('full', timeframe);
+      toast.success('Report downloaded successfully!');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to generate report');
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -154,8 +181,9 @@ const AnalyticsDashboard = () => {
             <FaCalendar />
             <select 
               value={timeframe} 
-              onChange={(e) => setTimeframe(e.target.value)}
+              onChange={(e) => handleTimeframeChange(e.target.value)}
               className="timeframe-select"
+              disabled={refreshing}
             >
               <option value="daily">Today</option>
               <option value="weekly">This Week</option>
@@ -165,8 +193,28 @@ const AnalyticsDashboard = () => {
             </select>
           </div>
           
-          <button className="refresh-btn" onClick={handleRefresh}>
-            <FaSync /> Refresh Data
+          <button 
+            className="refresh-btn" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <div className="spinner-small"></div> Refreshing...
+              </>
+            ) : (
+              <>
+                <FaSync /> Refresh Data
+              </>
+            )}
+          </button>
+
+          <button 
+            className="export-btn" 
+            onClick={handleExportFullReport}
+            title="Download comprehensive report"
+          >
+            <FaDownload /> Full Report
           </button>
         </div>
       </div>
@@ -282,8 +330,20 @@ const AnalyticsDashboard = () => {
           <button className="action-btn" onClick={() => navigate('/tenants')}>
             <FaUsers /> View Tenants
           </button>
-          <button className="action-btn" onClick={handleRefresh}>
-            <FaSync /> Update Analytics
+          <button 
+            className="action-btn" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <div className="spinner-small"></div> Updating...
+              </>
+            ) : (
+              <>
+                <FaSync /> Update Analytics
+              </>
+            )}
           </button>
         </div>
       </div>

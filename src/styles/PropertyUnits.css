@@ -277,7 +277,7 @@
 /* Units Grid */
 .units-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); /* Increased from 400px for dual status */
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -401,7 +401,7 @@
 .detail-label {
   color: #64748b;
   font-weight: 500;
-  min-width: 140px; /* Increased for longer labels */
+  min-width: 140px;
 }
 
 .detail-value {
@@ -760,6 +760,217 @@
 
 .submit-btn:hover {
   background: #2563eb;
+}
+
+/* Assign Tenant Modal - REFINED VERSION */
+.assign-tenant-modal {
+  max-width: 700px !important;
+  max-height: 85vh !important;
+}
+
+.assign-tenant-modal .modal-header {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  border-radius: 0.75rem 0.75rem 0 0;
+  margin: 0;
+}
+
+.assign-tenant-modal .modal-header h3 {
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.assign-tenant-modal .modal-header .close-modal {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.assign-tenant-modal .modal-header .close-modal:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.assign-tenant-modal .tenant-form {
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.assign-tenant-modal .form-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+}
+
+.assign-tenant-modal .form-section h4 {
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1.25rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.assign-tenant-modal .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.assign-tenant-modal .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #475569;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.assign-tenant-modal .form-group label.required::after {
+  content: " *";
+  color: #ef4444;
+}
+
+.assign-tenant-modal .form-group input,
+.assign-tenant-modal .form-group select,
+.assign-tenant-modal .form-group textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  background: white;
+  color: #1e293b;
+}
+
+.assign-tenant-modal .form-group input:focus,
+.assign-tenant-modal .form-group select:focus,
+.assign-tenant-modal .form-group textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.assign-tenant-modal .form-group input::placeholder,
+.assign-tenant-modal .form-group textarea::placeholder {
+  color: #94a3b8;
+}
+
+.assign-tenant-modal .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.assign-tenant-modal .form-row .form-group {
+  margin-bottom: 0;
+}
+
+.assign-tenant-modal .total-cost-display {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  padding: 1rem 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #93c5fd;
+  margin-top: 1.5rem;
+}
+
+.assign-tenant-modal .total-cost-display label {
+  display: block;
+  color: #1e40af;
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.assign-tenant-modal .total-cost-amount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  text-align: right;
+}
+
+.assign-tenant-modal textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.assign-tenant-modal select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+.assign-tenant-modal input[type="date"]::-webkit-calendar-picker-indicator {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'/%3e%3c/svg%3e");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 1.25em;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.assign-tenant-modal .form-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.375rem;
+  line-height: 1.4;
+}
+
+.assign-tenant-modal .modal-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.assign-tenant-modal .cancel-btn,
+.assign-tenant-modal .submit-btn {
+  flex: 1;
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.assign-tenant-modal .cancel-btn {
+  background: white;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+}
+
+.assign-tenant-modal .cancel-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.assign-tenant-modal .submit-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.assign-tenant-modal .submit-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
 }
 
 /* Quick Actions */

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, getDocs, updateDoc, deleteDoc } from "firebase/firestore";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, Timestamp } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import "../styles/PropertyUnits.css";
 import { 
@@ -43,16 +43,55 @@ const PropertyUnits = () => {
   const [unitToDeleteTenant, setUnitToDeleteTenant] = useState(null);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState(null);
   
-  // Tenant assignment form
+  // Tenant assignment form - UPDATED TO MATCH AddTenant.jsx
   const [tenantForm, setTenantForm] = useState({
-    name: "",
-    phone: "",
+    // Personal Information (SAME AS AddTenant.jsx)
+    fullName: "",
     email: "",
+    phone: "",
+    idNumber: "",
+    occupation: "",
+    employer: "",
+    
+    // Financial Information (SAME AS AddTenant.jsx)
+    monthlyRent: "",
+    securityDeposit: "",
+    applicationFee: "",
+    petDeposit: "",
+    totalMoveInCost: 0,
+    
+    // Lease Information (SAME AS AddTenant.jsx)
     leaseStart: "",
     leaseEnd: "",
-    rentAmount: "",
-    deposit: ""
+    leaseTerm: 12,
+    noticePeriod: 30,
+    
+    // Emergency Contact (SAME AS AddTenant.jsx)
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelation: "",
+    
+    // Additional Information (SAME AS AddTenant.jsx)
+    tenantNotes: "",
   });
+
+  // Calculate total move-in cost
+  const calculateTotalMoveInCost = () => {
+    const total = (parseFloat(tenantForm.monthlyRent) || 0) +
+                  (parseFloat(tenantForm.securityDeposit) || 0) +
+                  (parseFloat(tenantForm.applicationFee) || 0) +
+                  (parseFloat(tenantForm.petDeposit) || 0);
+    
+    setTenantForm(prev => ({
+      ...prev,
+      totalMoveInCost: total
+    }));
+  };
+
+  // Calculate total whenever financial fields change
+  useEffect(() => {
+    calculateTotalMoveInCost();
+  }, [tenantForm.monthlyRent, tenantForm.securityDeposit, tenantForm.applicationFee, tenantForm.petDeposit]);
 
   // Get unit statuses - DUAL STATUS VERSION
   const getUnitStatuses = (unitData) => {
@@ -471,6 +510,13 @@ const PropertyUnits = () => {
     }
   };
 
+  // Helper function to calculate lease end date
+  const calculateLeaseEndDate = (startDate, months) => {
+    const date = new Date(startDate);
+    date.setMonth(date.getMonth() + parseInt(months));
+    return date;
+  };
+
   // Handle assign tenant - DUAL STATUS VERSION
   const handleAssignTenant = (unitIndex) => {
     const unit = units[unitIndex];
@@ -486,24 +532,36 @@ const PropertyUnits = () => {
     
     // Pre-fill form with unit rent amount
     setTenantForm({
-      name: unit.tenantName || "",
-      phone: unit.tenantPhone || "",
-      email: unit.tenantEmail || "",
-      leaseStart: unit.leaseStart || "",
-      leaseEnd: unit.leaseEnd || "",
-      rentAmount: unit.rentAmount || property?.rentAmount || "",
-      deposit: unit.deposit || ""
+      fullName: "",
+      email: "",
+      phone: "",
+      idNumber: "",
+      occupation: "",
+      employer: "",
+      monthlyRent: unit.rentAmount || property?.rentAmount || "",
+      securityDeposit: property?.securityDeposit || 0,
+      applicationFee: property?.applicationFee || 0,
+      petDeposit: property?.petDeposit || 0,
+      totalMoveInCost: 0,
+      leaseStart: new Date().toISOString().split('T')[0],
+      leaseEnd: calculateLeaseEndDate(new Date(), 12).toISOString().split('T')[0],
+      leaseTerm: 12,
+      noticePeriod: 30,
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+      emergencyContactRelation: "",
+      tenantNotes: ""
     });
     
     setShowAssignForm(true);
   };
 
-  // Handle tenant form submit - DUAL STATUS VERSION
+  // Handle tenant form submit - UPDATED TO MATCH AddTenant.jsx
   const handleTenantSubmit = async (e) => {
     e.preventDefault();
     
-    if (!tenantForm.name || !tenantForm.phone) {
-      alert("Please fill in tenant name and phone number");
+    if (!tenantForm.fullName || !tenantForm.email || !tenantForm.phone) {
+      alert("Please fill in tenant name, email and phone number");
       return;
     }
     
@@ -511,69 +569,128 @@ const PropertyUnits = () => {
       const unit = units[selectedUnitIndex];
       let tenantDocId = null;
       
-      // Update unit document in subcollection
+      // CREATE TENANT DOCUMENT WITH EXACT SAME STRUCTURE AS AddTenant.jsx
+      const tenantData = {
+        // Personal Information (EXACT MATCH with AddTenant.jsx)
+        fullName: tenantForm.fullName.trim(),
+        email: tenantForm.email.toLowerCase().trim(),
+        phone: tenantForm.phone.trim(),
+        idNumber: tenantForm.idNumber.trim(),
+        occupation: tenantForm.occupation.trim(),
+        employer: tenantForm.employer.trim(),
+        
+        // Property & Unit Information (EXACT MATCH)
+        propertyId: id,
+        unitId: unit.unitId || unit.id,
+        propertyName: property?.name || "",
+        unitNumber: unit.unitNumber,
+        monthlyRent: parseFloat(tenantForm.monthlyRent) || 0,
+        propertyAddress: property?.address || "",
+        propertyCity: property?.city || "",
+        unitType: unit?.unitType || "",
+        unitBedrooms: unit?.bedrooms || unit?.unitBedrooms || 1,
+        unitBathrooms: unit?.bathrooms || unit?.unitBathrooms || 1,
+        unitSize: unit?.size || unit?.unitSize || "",
+        
+        // Financial Information (EXACT MATCH)
+        securityDeposit: parseFloat(tenantForm.securityDeposit) || 0,
+        applicationFee: parseFloat(tenantForm.applicationFee) || 0,
+        petDeposit: parseFloat(tenantForm.petDeposit) || 0,
+        totalMoveInCost: parseFloat(tenantForm.totalMoveInCost) || 0,
+        balance: parseFloat(tenantForm.monthlyRent) || 0,
+        paymentStatus: "initial_fees_pending",
+        
+        // Lease Information (EXACT MATCH)
+        leaseStart: Timestamp.fromDate(new Date(tenantForm.leaseStart || new Date())),
+        leaseEnd: Timestamp.fromDate(new Date(tenantForm.leaseEnd || calculateLeaseEndDate(new Date(), tenantForm.leaseTerm))),
+        leaseTerm: parseInt(tenantForm.leaseTerm) || 12,
+        noticePeriod: parseInt(tenantForm.noticePeriod) || 30,
+        
+        // Emergency Contact (EXACT MATCH)
+        emergencyContactName: tenantForm.emergencyContactName.trim(),
+        emergencyContactPhone: tenantForm.emergencyContactPhone.trim(),
+        emergencyContactRelation: tenantForm.emergencyContactRelation.trim(),
+        
+        // Additional Information (EXACT MATCH)
+        tenantNotes: tenantForm.tenantNotes.trim(),
+        applicationNotes: "Manually assigned from Property Units page",
+        
+        // Application Info (EXACT MATCH structure)
+        applicationId: `manual_${Date.now()}`,
+        applicationSource: "manual_assignment",
+        
+        // Status & Metadata (EXACT MATCH)
+        status: "approved_pending_payment",
+        hasPet: false,
+        petInfo: {},
+        petDetails: null,
+        
+        // Property Fees (EXACT MATCH)
+        propertyFees: {
+          latePaymentFee: property?.latePaymentFee || 0,
+          gracePeriod: property?.gracePeriod || 5,
+          feeDetails: property?.feeDetails || {}
+        },
+        
+        // Original Application (EXACT MATCH structure)
+        originalApplication: {
+          submittedAt: Timestamp.now(),
+          totalFees: parseFloat(tenantForm.totalMoveInCost) || 0,
+          otherFees: ""
+        },
+        
+        // Competing Applications (Set to 0 for manual assignment)
+        competingApplicationsRejected: 0,
+        
+        // Timestamps (EXACT MATCH)
+        createdAt: Timestamp.now(),
+        approvedAt: Timestamp.now(),
+        createdBy: "admin",
+        
+        // Additional fields for better querying
+        searchKeywords: [
+          tenantForm.fullName.toLowerCase(),
+          tenantForm.email.toLowerCase(),
+          tenantForm.phone,
+          tenantForm.idNumber,
+          property?.name?.toLowerCase() || "",
+          unit.unitNumber.toLowerCase(),
+          "active",
+          "tenant"
+        ]
+      };
+      
+      // 1️⃣ Create tenant document in tenants collection
+      const tenantsRef = collection(db, "tenants");
+      const tenantDocRef = await addDoc(tenantsRef, tenantData);
+      tenantDocId = tenantDocRef.id;
+      
+      // 2️⃣ Update unit document in subcollection
       const unitRef = doc(db, `properties/${id}/units`, unit.id);
       const unitUpdates = {
-        occupancyStatus: "leased", // Set to leased (LOCKED)
-        maintenanceStatus: unit.maintenanceStatus || "normal", // Keep current maintenance status
-        status: "leased", // Legacy field
-        tenantName: tenantForm.name,
+        occupancyStatus: "leased",
+        maintenanceStatus: unit.maintenanceStatus || "normal",
+        status: "leased",
+        tenantId: tenantDocId,
+        tenantName: tenantForm.fullName,
         tenantPhone: tenantForm.phone,
         tenantEmail: tenantForm.email,
         leaseStart: tenantForm.leaseStart,
         leaseEnd: tenantForm.leaseEnd,
-        rentAmount: Number(tenantForm.rentAmount) || unit.rentAmount,
-        deposit: Number(tenantForm.deposit) || 0,
+        rentAmount: parseFloat(tenantForm.monthlyRent) || 0,
+        deposit: parseFloat(tenantForm.securityDeposit) || 0,
         updatedAt: new Date().toISOString()
       };
       
       await updateDoc(unitRef, unitUpdates);
       
-      // Create tenant record in TENANTS collection only
-      try {
-        const tenantData = {
-          fullName: tenantForm.name,
-          phone: tenantForm.phone,
-          email: tenantForm.email || "",
-          role: "tenant",
-          propertyId: id,
-          propertyName: property?.name,
-          unitId: unit.unitId || unit.id,
-          unitNumber: unit.unitNumber,
-          monthlyRent: Number(tenantForm.rentAmount) || unit.rentAmount,
-          leaseStart: tenantForm.leaseStart || new Date().toISOString(),
-          leaseEnd: tenantForm.leaseEnd || "",
-          status: "active",
-          moveInDate: new Date().toISOString(),
-          securityDeposit: Number(tenantForm.deposit) || 0,
-          balance: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        const tenantsRef = collection(db, "tenants");
-        const tenantDocRef = await addDoc(tenantsRef, tenantData);
-        tenantDocId = tenantDocRef.id;
-        
-        // Update unit with tenant ID from tenants collection
-        await updateDoc(unitRef, { 
-          tenantId: tenantDocId,
-          ...unitUpdates
-        });
-        
-      } catch (tenantError) {
-        console.error("Error creating tenant record:", tenantError);
-      }
-      
-      // Update local state
+      // 3️⃣ Recalculate counts
       const updatedUnits = [...units];
       updatedUnits[selectedUnitIndex] = { 
         ...unit, 
-        ...unitUpdates, 
-        tenantId: tenantDocId || unit.id + "-tenant"
+        ...unitUpdates
       };
       
-      // Recalculate counts
       const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
       const totalUnits = updatedUnits.length;
       const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
@@ -586,7 +703,7 @@ const PropertyUnits = () => {
         })
         .reduce((total, u) => total + (u.rentAmount || 0), 0);
       
-      // Update property document with new counts
+      // 4️⃣ Update property document with new counts
       const propertyRef = doc(db, "properties", id);
       await updateDoc(propertyRef, {
         "unitDetails.vacantCount": vacantCount,
@@ -599,7 +716,7 @@ const PropertyUnits = () => {
         updatedAt: new Date()
       });
       
-      // Update local state
+      // 5️⃣ Update local state
       setUnits(updatedUnits);
       setProperty(prev => ({
         ...prev,
@@ -615,19 +732,31 @@ const PropertyUnits = () => {
         totalTenants: leasedCount
       }));
       
-      // Reset form
+      // 6️⃣ Reset form
       setShowAssignForm(false);
       setTenantForm({
-        name: "",
-        phone: "",
+        fullName: "",
         email: "",
+        phone: "",
+        idNumber: "",
+        occupation: "",
+        employer: "",
+        monthlyRent: "",
+        securityDeposit: "",
+        applicationFee: "",
+        petDeposit: "",
+        totalMoveInCost: 0,
         leaseStart: "",
         leaseEnd: "",
-        rentAmount: "",
-        deposit: ""
+        leaseTerm: 12,
+        noticePeriod: 30,
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+        emergencyContactRelation: "",
+        tenantNotes: ""
       });
       
-      alert(`✅ Tenant ${tenantForm.name} assigned to Unit ${unit.unitNumber}`);
+      alert(`✅ Tenant ${tenantForm.fullName} assigned to Unit ${unit.unitNumber}`);
       
     } catch (error) {
       console.error("Error assigning tenant:", error);
@@ -857,10 +986,10 @@ const PropertyUnits = () => {
         </div>
       </div>
 
-      {/* Tenant Assignment Modal */}
+      {/* Tenant Assignment Modal - UPDATED TO MATCH AddTenant.jsx */}
       {showAssignForm && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content assign-tenant-modal">
             <div className="modal-header">
               <h3>Assign Tenant to Unit {units[selectedUnitIndex]?.unitNumber}</h3>
               <button className="close-modal" onClick={() => setShowAssignForm(false)}>
@@ -868,75 +997,224 @@ const PropertyUnits = () => {
               </button>
             </div>
             <form onSubmit={handleTenantSubmit} className="tenant-form">
-              <div className="form-group">
-                <label>Tenant Name *</label>
-                <input
-                  type="text"
-                  value={tenantForm.name}
-                  onChange={(e) => setTenantForm({...tenantForm, name: e.target.value})}
-                  placeholder="Full name"
-                  required
-                />
-              </div>
               
-              <div className="form-row">
+              {/* Personal Information */}
+              <div className="form-section">
+                <h4>Personal Information</h4>
                 <div className="form-group">
-                  <label>Phone Number *</label>
+                  <label className="required">Full Name *</label>
                   <input
-                    type="tel"
-                    value={tenantForm.phone}
-                    onChange={(e) => setTenantForm({...tenantForm, phone: e.target.value})}
-                    placeholder="0712345678"
+                    type="text"
+                    value={tenantForm.fullName}
+                    onChange={(e) => setTenantForm({...tenantForm, fullName: e.target.value})}
+                    placeholder="John Doe"
                     required
                   />
                 </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="required">Email *</label>
+                    <input
+                      type="email"
+                      value={tenantForm.email}
+                      onChange={(e) => setTenantForm({...tenantForm, email: e.target.value})}
+                      placeholder="john@example.com"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="required">Phone *</label>
+                    <input
+                      type="tel"
+                      value={tenantForm.phone}
+                      onChange={(e) => setTenantForm({...tenantForm, phone: e.target.value})}
+                      placeholder="0712345678"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>ID/Passport Number</label>
+                    <input
+                      type="text"
+                      value={tenantForm.idNumber}
+                      onChange={(e) => setTenantForm({...tenantForm, idNumber: e.target.value})}
+                      placeholder="12345678"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Occupation</label>
+                    <input
+                      type="text"
+                      value={tenantForm.occupation}
+                      onChange={(e) => setTenantForm({...tenantForm, occupation: e.target.value})}
+                      placeholder="Software Developer"
+                    />
+                  </div>
+                </div>
+                
                 <div className="form-group">
-                  <label>Email</label>
+                  <label>Employer</label>
                   <input
-                    type="email"
-                    value={tenantForm.email}
-                    onChange={(e) => setTenantForm({...tenantForm, email: e.target.value})}
-                    placeholder="tenant@email.com"
+                    type="text"
+                    value={tenantForm.employer}
+                    onChange={(e) => setTenantForm({...tenantForm, employer: e.target.value})}
+                    placeholder="Company name"
                   />
                 </div>
               </div>
               
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Lease Start Date</label>
-                  <input
-                    type="date"
-                    value={tenantForm.leaseStart}
-                    onChange={(e) => setTenantForm({...tenantForm, leaseStart: e.target.value})}
-                  />
+              {/* Financial Details */}
+              <div className="form-section">
+                <h4>Financial Details</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="required">Monthly Rent (KES) *</label>
+                    <input
+                      type="number"
+                      value={tenantForm.monthlyRent}
+                      onChange={(e) => setTenantForm({...tenantForm, monthlyRent: e.target.value})}
+                      placeholder="15000"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Security Deposit (KES)</label>
+                    <input
+                      type="number"
+                      value={tenantForm.securityDeposit}
+                      onChange={(e) => setTenantForm({...tenantForm, securityDeposit: e.target.value})}
+                      placeholder="15000"
+                    />
+                  </div>
                 </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Application Fee (KES)</label>
+                    <input
+                      type="number"
+                      value={tenantForm.applicationFee}
+                      onChange={(e) => setTenantForm({...tenantForm, applicationFee: e.target.value})}
+                      placeholder="1000"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Pet Deposit (KES)</label>
+                    <input
+                      type="number"
+                      value={tenantForm.petDeposit}
+                      onChange={(e) => setTenantForm({...tenantForm, petDeposit: e.target.value})}
+                      placeholder="5000"
+                    />
+                  </div>
+                </div>
+                
+                <div className="total-cost-display">
+                  <label>Total Move-in Cost:</label>
+                  <div className="total-cost-amount">
+                    {formatCurrency(tenantForm.totalMoveInCost)}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Lease Information */}
+              <div className="form-section">
+                <h4>Lease Information</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="required">Lease Start Date *</label>
+                    <input
+                      type="date"
+                      value={tenantForm.leaseStart}
+                      onChange={(e) => setTenantForm({...tenantForm, leaseStart: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Lease End Date</label>
+                    <input
+                      type="date"
+                      value={tenantForm.leaseEnd}
+                      onChange={(e) => setTenantForm({...tenantForm, leaseEnd: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Lease Term (Months)</label>
+                    <select
+                      value={tenantForm.leaseTerm}
+                      onChange={(e) => setTenantForm({...tenantForm, leaseTerm: e.target.value})}
+                    >
+                      <option value="6">6 Months</option>
+                      <option value="12">12 Months</option>
+                      <option value="18">18 Months</option>
+                      <option value="24">24 Months</option>
+                      <option value="36">36 Months</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Notice Period (Days)</label>
+                    <input
+                      type="number"
+                      value={tenantForm.noticePeriod}
+                      onChange={(e) => setTenantForm({...tenantForm, noticePeriod: e.target.value})}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Emergency Contact */}
+              <div className="form-section">
+                <h4>Emergency Contact</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Contact Name</label>
+                    <input
+                      type="text"
+                      value={tenantForm.emergencyContactName}
+                      onChange={(e) => setTenantForm({...tenantForm, emergencyContactName: e.target.value})}
+                      placeholder="Jane Doe"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Contact Phone</label>
+                    <input
+                      type="tel"
+                      value={tenantForm.emergencyContactPhone}
+                      onChange={(e) => setTenantForm({...tenantForm, emergencyContactPhone: e.target.value})}
+                      placeholder="0712987654"
+                    />
+                  </div>
+                </div>
+                
                 <div className="form-group">
-                  <label>Lease End Date</label>
+                  <label>Relationship</label>
                   <input
-                    type="date"
-                    value={tenantForm.leaseEnd}
-                    onChange={(e) => setTenantForm({...tenantForm, leaseEnd: e.target.value})}
+                    type="text"
+                    value={tenantForm.emergencyContactRelation}
+                    onChange={(e) => setTenantForm({...tenantForm, emergencyContactRelation: e.target.value})}
+                    placeholder="Spouse, Parent, etc."
                   />
                 </div>
               </div>
               
-              <div className="form-row">
+              {/* Additional Information */}
+              <div className="form-section">
+                <h4>Additional Information</h4>
                 <div className="form-group">
-                  <label>Monthly Rent (KSh)</label>
-                  <input
-                    type="number"
-                    value={tenantForm.rentAmount}
-                    onChange={(e) => setTenantForm({...tenantForm, rentAmount: e.target.value})}
-                    placeholder="e.g., 15000"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Security Deposit (KSh)</label>
-                  <input
-                    type="number"
-                    value={tenantForm.deposit}
-                    onChange={(e) => setTenantForm({...tenantForm, deposit: e.target.value})}
-                    placeholder="e.g., 30000"
+                  <label>Tenant Notes</label>
+                  <textarea
+                    value={tenantForm.tenantNotes}
+                    onChange={(e) => setTenantForm({...tenantForm, tenantNotes: e.target.value})}
+                    placeholder="Any additional information about the tenant..."
+                    rows="3"
                   />
                 </div>
               </div>
@@ -950,7 +1228,7 @@ const PropertyUnits = () => {
                   Cancel
                 </button>
                 <button type="submit" className="submit-btn">
-                  <FaUserPlus /> Assign Tenant
+                  <FaUserPlus /> Create Tenant Account
                 </button>
               </div>
             </form>
