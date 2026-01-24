@@ -1,7 +1,7 @@
 // src/pages/AddLandlord.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../pages/firebase/firebase";
 import "../styles/AddLandlord.css";
@@ -57,26 +57,28 @@ const AddLandlord = () => {
     
     if (!validateForm()) return;
     
+    const adminPassword = prompt("Enter your ADMIN password to continue:");
+    if (!adminPassword) {
+      setError("Admin password required");
+      return;
+    }
+    
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      console.log("=== 🚀 Starting landlord registration ===");
-      
-      // Check if admin is logged in
       const adminUser = auth.currentUser;
       if (!adminUser) {
-        throw new Error("You must be logged in as admin to register landlords");
+        throw new Error("Admin login required");
       }
       
-      console.log("Admin logged in:", adminUser.email);
-      console.log("Creating landlord account for:", form.email);
+      const adminEmail = adminUser.email;
+      const adminUid = adminUser.uid;
       
-      // Create the combined name
       const fullName = `${form.firstName} ${form.lastName}`.trim();
       
-      // 1. Create auth account for landlord
+      // 1. Create landlord auth account
       const cred = await createUserWithEmailAndPassword(
         auth,
         form.email,
@@ -84,9 +86,11 @@ const AddLandlord = () => {
       );
 
       const landlordUid = cred.user.uid;
-      console.log("✅ Auth account created. UID:", landlordUid);
       
-      // 2. Create landlord profile in 'landlords' collection ONLY
+      // 2. Re-authenticate as admin (stay on admin account)
+      await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+      
+      // 3. Create landlord document
       const landlordData = {
         uid: landlordUid,
         firstName: form.firstName,
@@ -96,25 +100,22 @@ const AddLandlord = () => {
         phone: form.phone,
         address: form.address || "",
         company: form.company || "",
-        role: "landlord", // Add role field
+        role: "landlord",
         createdAt: serverTimestamp(),
-        createdBy: adminUser.uid,
+        createdBy: adminUid,
+        createdByEmail: adminEmail,
         properties: [],
         totalProperties: 0,
         activeProperties: 0,
         status: "active",
         lastLogin: null,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        passwordChangeable: true // Landlord can change password later
       };
       
-      console.log("📝 Creating landlord profile in 'landlords' collection...");
-      console.log("Landlord data being saved:", landlordData);
       await setDoc(doc(db, "landlords", landlordUid), landlordData);
-      console.log("✅ Landlord profile created in 'landlords' collection!");
       
-      console.log("=== 🎉 Registration complete ===");
-
-      // Reset form and show success
+      // Clear form
       setForm({
         firstName: "",
         lastName: "",
@@ -126,72 +127,38 @@ const AddLandlord = () => {
       });
       
       setSuccess(`
-        ✅ LANDLORD REGISTERED SUCCESSFULLY!
+        ✅ Landlord Registered Successfully!
         
-        Landlord Details:
-        • Name: ${fullName}
-        • Email: ${form.email}
-        • Phone: ${form.phone}
-        • Company: ${form.company || "Not provided"}
-        • Landlord ID: ${landlordUid}
-        
-        Login Credentials (For Mobile App):
+        Name: ${fullName}
         Email: ${form.email}
-        Password: ${form.password}
+        Phone: ${form.phone}
+        ID: ${landlordUid}
         
-        Document Created:
-        1. Firebase Auth account ✓
-        2. Landlords collection document ✓
-        
-        Next Steps:
-        1. Go to "Add Property" to assign properties to this landlord
-        2. The landlord can now login on the mobile app
-        3. They will see their assigned properties in the app
+        Landlord can:
+        1. Login with the password you set
+        2. Change password later in mobile app
+        3. Access assigned properties
         
         Redirecting to landlords list...
       `);
       
-      // Redirect after 5 seconds
       setTimeout(() => {
         navigate("/landlords");
-      }, 5000);
+      }, 4000);
       
     } catch (error) {
-      console.error("🔴 Registration error:", {
-        code: error.code,
-        message: error.message,
-        fullError: error
-      });
-      
-      let errorMessage = "Registration failed. Please try again.";
+      let errorMessage = "Registration failed";
       
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "This email is already registered.";
+        errorMessage = "Email already registered";
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "Invalid email address.";
+        errorMessage = "Invalid email";
       } else if (error.code === 'auth/weak-password') {
-        errorMessage = "Password is too weak.";
+        errorMessage = "Password too weak (min 6 chars)";
       } else if (error.code === 'permission-denied') {
-        errorMessage = `
-          🔒 PERMISSION DENIED!
-          
-          Firestore rules are blocking creation in 'landlords' collection.
-          
-          Use these SIMPLE rules temporarily:
-          
-          rules_version = '2';
-          service cloud.firestore {
-            match /databases/{database}/documents {
-              match /landlords/{document=**} {
-                allow read, write: if request.auth != null;
-              }
-            }
-          }
-          
-          Error details: ${error.message}
-        `;
-      } else if (error.message.includes("must be logged in")) {
-        errorMessage = "You must be logged in as admin. Please login first.";
+        errorMessage = "Permission denied. Check security rules.";
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = "Incorrect admin password";
       }
       
       setError(errorMessage);
@@ -229,9 +196,7 @@ const AddLandlord = () => {
           <div className="error-message">
             <span className="error-icon">⚠️</span>
             <div className="error-content">
-              {error.split('\n').map((line, index) => (
-                <div key={index}>{line}</div>
-              ))}
+              {error}
             </div>
           </div>
         )}
@@ -239,35 +204,31 @@ const AddLandlord = () => {
         {!success && (
           <>
             <h2>Landlord Details</h2>
-            <p className="form-subtitle">Fill in the details to register a new landlord</p>
+            <p>Fill in landlord information</p>
             
             <form onSubmit={handleSubmit} className="add-landlord-form">
               <div className="form-row">
                 <div className="form-group half">
-                  <label htmlFor="firstName" className="required">First Name</label>
+                  <label>First Name *</label>
                   <input
-                    id="firstName"
                     name="firstName"
                     type="text"
                     value={form.firstName}
                     onChange={handleChange}
                     placeholder="John"
-                    className="form-input"
                     required
                     disabled={loading}
                   />
                 </div>
                 
                 <div className="form-group half">
-                  <label htmlFor="lastName" className="required">Last Name</label>
+                  <label>Last Name *</label>
                   <input
-                    id="lastName"
                     name="lastName"
                     type="text"
                     value={form.lastName}
                     onChange={handleChange}
                     placeholder="Doe"
-                    className="form-input"
                     required
                     disabled={loading}
                   />
@@ -276,31 +237,26 @@ const AddLandlord = () => {
               
               <div className="form-row">
                 <div className="form-group half">
-                  <label htmlFor="email" className="required">Email</label>
+                  <label>Email *</label>
                   <input
-                    id="email"
                     name="email"
                     type="email"
                     value={form.email}
                     onChange={handleChange}
                     placeholder="landlord@example.com"
-                    className="form-input"
                     required
                     disabled={loading}
                   />
-                  <span className="helper-text">For login and notifications</span>
                 </div>
                 
                 <div className="form-group half">
-                  <label htmlFor="phone" className="required">Phone</label>
+                  <label>Phone *</label>
                   <input
-                    id="phone"
                     name="phone"
                     type="tel"
                     value={form.phone}
                     onChange={handleChange}
                     placeholder="+254 712 345 678"
-                    className="form-input"
                     required
                     disabled={loading}
                   />
@@ -309,45 +265,40 @@ const AddLandlord = () => {
               
               <div className="form-row">
                 <div className="form-group half">
-                  <label htmlFor="company">Company (Optional)</label>
+                  <label>Company</label>
                   <input
-                    id="company"
                     name="company"
                     type="text"
                     value={form.company}
                     onChange={handleChange}
                     placeholder="Company name"
-                    className="form-input"
                     disabled={loading}
                   />
                 </div>
                 
                 <div className="form-group half">
-                  <label htmlFor="password" className="required">Password</label>
+                  <label>Password *</label>
                   <input
-                    id="password"
                     name="password"
                     type="password"
                     value={form.password}
                     onChange={handleChange}
                     placeholder="Min. 6 characters"
-                    className="form-input"
                     required
                     disabled={loading}
                   />
+                  <small>Landlord can change this later</small>
                 </div>
               </div>
               
               <div className="form-group">
-                <label htmlFor="address">Address (Optional)</label>
+                <label>Address</label>
                 <input
-                  id="address"
                   name="address"
                   type="text"
                   value={form.address}
                   onChange={handleChange}
                   placeholder="Physical address"
-                  className="form-input"
                   disabled={loading}
                 />
               </div>
@@ -366,29 +317,18 @@ const AddLandlord = () => {
                   className="submit-button"
                   disabled={loading}
                 >
-                  {loading ? (
-                    <>
-                      <svg className="loading-spinner" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25"/>
-                        <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/>
-                      </svg>
-                      Registering...
-                    </>
-                  ) : 'Register Landlord'}
+                  {loading ? 'Registering...' : 'Register Landlord'}
                 </button>
               </div>
             </form>
             
             <div className="info-section">
-              <h3>Important Information</h3>
-              <p>
-                <strong>Landlord will be created in 'landlords' collection only.</strong>
-                The landlord can login on the mobile app using the email and password above.
-              </p>
+              <h3>Notes:</h3>
               <ul>
-                <li>First Name + Last Name = Full Name in database</li>
-                <li>The landlord will see their full name in the mobile app</li>
-                <li>All landlord data is stored in the 'landlords' collection</li>
+                <li>Admin sets initial password</li>
+                <li>Landlord can change password in mobile app</li>
+                <li>Data stored in 'landlords' collection</li>
+                <li>Admin password required for confirmation</li>
               </ul>
             </div>
           </>

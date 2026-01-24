@@ -14,30 +14,53 @@ const PropertyStatusChart = () => {
     try {
       setLoading(true);
       const propertiesSnapshot = await getDocs(collection(db, "properties"));
-      let leased = 0, vacant = 0, maint = 0;
+      let totalUnits = 0;
+      let leasedCount = 0;
+      let maintenanceCount = 0;
       
       for (const prop of propertiesSnapshot.docs) {
         const units = await getDocs(collection(db, `properties/${prop.id}/units`));
+        totalUnits += units.size;
+        
         units.forEach(u => {
-          const s = u.data().status?.toLowerCase();
-          if (s === "leased") leased++;
-          else if (s === "maintenance") maint++;
-          else vacant++;
+          const unitData = u.data();
+          const status = (unitData.status || 'vacant').toLowerCase();
+          
+          const isUnderMaintenance = status === 'maintenance' || status === 'repair';
+          const isLeased = status === 'leased' || status === 'occupied' || status === 'rented';
+          
+          if (isUnderMaintenance) {
+            maintenanceCount++;
+            if (isLeased || unitData.tenantId || unitData.leaseStatus === 'active') {
+              leasedCount++;  // Leased unit under maintenance
+            }
+          } else if (isLeased) {
+            leasedCount++;  // Regular leased unit
+          }
         });
       }
       
+      // Vacant = Total - Leased (includes vacant units under maintenance)
+      const vacantCount = Math.max(0, totalUnits - leasedCount);
+      
       setData([
-        { name: "Leased", value: leased, color: "#4361ee" },
-        { name: "Vacant", value: vacant, color: "#4cc9f0" },
-        { name: "Maint", value: maint, color: "#f72585" },
+        { name: "Leased", value: leasedCount, color: "#4361ee" },
+        { name: "Vacant", value: vacantCount, color: "#4cc9f0" },
+        { name: "Maint", value: maintenanceCount, color: "#f72585" },
       ].filter(d => d.value > 0));
       
-      setTotal(leased + vacant + maint);
+      setTotal(totalUnits);
       setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error(e); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { fetchLiveData(); }, []);
+  useEffect(() => { 
+    fetchLiveData(); 
+  }, []);
 
   return (
     <div className="property-status-card dashboard-card">

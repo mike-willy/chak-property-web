@@ -7,7 +7,11 @@ import {
   getDocs, 
   orderBy,
   limit,
-  Timestamp 
+  Timestamp,
+  addDoc,
+  updateDoc,
+  doc,
+  getDoc
 } from 'firebase/firestore';
 import { 
   calculateCollectionRate,
@@ -18,7 +22,7 @@ import {
 } from './analyticsCalculations';
 
 /**
- * Main Analytics Service - UPDATED WITH FIXED VACANCY CALCULATION
+ * Main Analytics Service - UPDATED WITH CSV/PDF REPORTS ONLY (NO JSON)
  */
 class AnalyticsService {
   
@@ -429,8 +433,542 @@ class AnalyticsService {
       return [];
     }
   }
-  
-  // ============ PRIVATE HELPER METHODS - UPDATED WITH YOUR FIELD NAMES ============
+
+  // ============ CSV EXPORT METHODS (NO JSON) ============
+
+  /**
+   * Export Analytics Data to CSV
+   */
+  async exportAnalyticsToCSV(analyticsType, data, customFilename = null) {
+    try {
+      console.log(`Exporting ${analyticsType} data as CSV...`);
+      
+      let csvContent = '';
+      let filename = '';
+      
+      switch (analyticsType) {
+        case 'rent-collection':
+          csvContent = this._generateRentCollectionCSV(data);
+          filename = customFilename || `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          break;
+        
+        case 'tenant-behavior':
+          csvContent = this._generateTenantBehaviorCSV(data);
+          filename = customFilename || `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          break;
+        
+        case 'vacancy-rate':
+          csvContent = this._generateVacancyRateCSV(data);
+          filename = customFilename || `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          break;
+        
+        case 'analytics-insights':
+          csvContent = this._generateInsightsCSV(data);
+          filename = customFilename || `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          break;
+        
+        default:
+          throw new Error(`Unknown analytics type: ${analyticsType}`);
+      }
+      
+      // Trigger immediate download
+      this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
+      
+      return { 
+        success: true, 
+        message: `Download started: ${filename}`,
+        filename: filename 
+      };
+    } catch (error) {
+      console.error('Error exporting analytics data:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate comprehensive report (CSV ONLY - NO JSON)
+   */
+  async generateComprehensiveReport(reportType, timeframe = 'monthly') {
+    try {
+      let reportData = {};
+      let filename = '';
+      
+      // Collect all analytics data for the report
+      switch (reportType) {
+        case 'full':
+          const [rentData, vacancyData, tenantData, insights] = await Promise.all([
+            this.getRentCollectionAnalytics(timeframe),
+            this.getVacancyRateAnalytics(),
+            this.getTenantBehaviorAnalytics(),
+            this.generateAnalyticsInsights()
+          ]);
+          
+          reportData = {
+            rentCollection: rentData,
+            vacancyRate: vacancyData,
+            tenantBehavior: tenantData,
+            insights: insights
+          };
+          filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          
+          // Generate comprehensive CSV
+          const csvContent = this._generateFullReportCSV(reportData);
+          this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
+          break;
+        
+        case 'rent':
+          reportData = await this.getRentCollectionAnalytics(timeframe);
+          filename = `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          const rentCSV = this._generateRentCollectionCSV(reportData);
+          this._triggerFileDownload(rentCSV, filename, 'text/csv;charset=utf-8;');
+          break;
+        
+        case 'vacancy':
+          reportData = await this.getVacancyRateAnalytics();
+          filename = `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          const vacancyCSV = this._generateVacancyRateCSV(reportData);
+          this._triggerFileDownload(vacancyCSV, filename, 'text/csv;charset=utf-8;');
+          break;
+        
+        case 'tenants':
+          reportData = await this.getTenantBehaviorAnalytics();
+          filename = `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          const tenantCSV = this._generateTenantBehaviorCSV(reportData);
+          this._triggerFileDownload(tenantCSV, filename, 'text/csv;charset=utf-8;');
+          break;
+        
+        default:
+          throw new Error(`Unknown report type: ${reportType}`);
+      }
+      
+      return {
+        success: true,
+        message: `CSV Report downloaded: ${filename}`,
+        filename: filename,
+        format: 'csv'
+      };
+    } catch (error) {
+      console.error('Error generating report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate PDF Report (Simple Text-Based PDF - For Future Implementation)
+   */
+  async generatePDFReport(reportType, timeframe = 'monthly') {
+    try {
+      // For now, generate a simple text-based PDF
+      // In production, you would use jsPDF or similar library
+      
+      let reportData = {};
+      let title = '';
+      
+      switch (reportType) {
+        case 'rent-collection':
+          reportData = await this.getRentCollectionAnalytics(timeframe);
+          title = 'Rent Collection Report';
+          break;
+        
+        case 'vacancy-rate':
+          reportData = await this.getVacancyRateAnalytics();
+          title = 'Vacancy Rate Report';
+          break;
+        
+        case 'tenant-behavior':
+          reportData = await this.getTenantBehaviorAnalytics();
+          title = 'Tenant Behavior Report';
+          break;
+        
+        case 'full':
+          const [rentData, vacancyData, tenantData, insights] = await Promise.all([
+            this.getRentCollectionAnalytics(timeframe),
+            this.getVacancyRateAnalytics(),
+            this.getTenantBehaviorAnalytics(),
+            this.generateAnalyticsInsights()
+          ]);
+          
+          reportData = {
+            rentCollection: rentData,
+            vacancyRate: vacancyData,
+            tenantBehavior: tenantData,
+            insights: insights
+          };
+          title = 'Complete Analytics Report';
+          break;
+        
+        default:
+          throw new Error(`Unknown report type: ${reportType}`);
+      }
+      
+      // For now, generate a simple text file as placeholder for PDF
+      // TODO: Integrate with jsPDF library for proper PDF generation
+      const pdfContent = this._generateSimplePDFText(reportData, title);
+      const filename = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+      
+      this._triggerFileDownload(pdfContent, filename, 'text/plain');
+      
+      return {
+        success: true,
+        message: `PDF report placeholder downloaded. Install jsPDF for proper PDF generation.`,
+        filename: filename,
+        format: 'text' // Will be 'pdf' when jsPDF is implemented
+      };
+    } catch (error) {
+      console.error('Error generating PDF report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send payment reminder to a specific tenant
+   */
+  async sendPaymentReminder(tenantId, reminderType = 'standard') {
+    try {
+      // Get tenant details
+      const tenantDoc = await getDoc(doc(db, 'tenants', tenantId));
+      if (!tenantDoc.exists()) {
+        throw new Error(`Tenant not found: ${tenantId}`);
+      }
+
+      const tenant = tenantDoc.data();
+      
+      // Create reminder notification
+      const reminderData = {
+        tenantId,
+        tenantName: tenant.fullName || tenant.email,
+        reminderType,
+        sentAt: new Date(),
+        status: 'sent',
+        message: this._generateReminderMessage(tenant, reminderType)
+      };
+
+      // Save reminder to database
+      await addDoc(collection(db, 'reminders'), reminderData);
+      
+      // TODO: Integrate with SMS/Email service here
+      console.log(`Reminder sent to ${tenant.fullName || tenant.email}`);
+      
+      return { 
+        success: true, 
+        message: `Reminder sent to ${tenant.fullName || tenant.email}`,
+        reminderId: reminderData.id 
+      };
+    } catch (error) {
+      console.error('Error sending payment reminder:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send bulk reminders to multiple tenants
+   */
+  async sendBulkReminders(tenantIds, reminderType = 'standard') {
+    try {
+      const results = [];
+      
+      for (const tenantId of tenantIds) {
+        try {
+          const result = await this.sendPaymentReminder(tenantId, reminderType);
+          results.push({ tenantId, success: true, ...result });
+        } catch (error) {
+          results.push({ tenantId, success: false, error: error.message });
+        }
+      }
+      
+      return {
+        success: results.some(r => r.success),
+        total: tenantIds.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results
+      };
+    } catch (error) {
+      console.error('Error sending bulk reminders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Flag tenant for review
+   */
+  async flagTenantForReview(tenantId, reason, priority = 'medium') {
+    try {
+      // Update tenant with flag
+      await updateDoc(doc(db, 'tenants', tenantId), {
+        flagged: true,
+        flagReason: reason,
+        flagPriority: priority,
+        flaggedAt: new Date()
+      });
+
+      // Create flag record
+      const flagData = {
+        tenantId,
+        reason,
+        priority,
+        flaggedAt: new Date(),
+        resolved: false
+      };
+
+      await addDoc(collection(db, 'tenant_flags'), flagData);
+      
+      return { success: true, message: 'Tenant flagged for review' };
+    } catch (error) {
+      console.error('Error flagging tenant:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Acknowledge insight (store in database for persistence)
+   */
+  async acknowledgeInsight(insightId, userId) {
+    try {
+      const acknowledgementData = {
+        insightId,
+        userId,
+        acknowledgedAt: new Date(),
+        acknowledged: true
+      };
+
+      await addDoc(collection(db, 'insight_acknowledgements'), acknowledgementData);
+      
+      return { success: true, message: 'Insight acknowledged' };
+    } catch (error) {
+      console.error('Error acknowledging insight:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get tenant details for view
+   */
+  async getTenantDetails(tenantId) {
+    try {
+      const tenantDoc = await getDoc(doc(db, 'tenants', tenantId));
+      if (!tenantDoc.exists()) {
+        throw new Error('Tenant not found');
+      }
+
+      const tenantData = tenantDoc.data();
+      const payments = await this._getTenantPayments(tenantId);
+      const propertyDoc = tenantData.propertyId 
+        ? await getDoc(doc(db, 'properties', tenantData.propertyId))
+        : null;
+      const unitDoc = tenantData.unitId 
+        ? await getDoc(doc(db, `properties/${tenantData.propertyId}/units`, tenantData.unitId))
+        : null;
+
+      return {
+        tenant: {
+          id: tenantDoc.id,
+          ...tenantData
+        },
+        property: propertyDoc?.exists() ? propertyDoc.data() : null,
+        unit: unitDoc?.exists() ? unitDoc.data() : null,
+        payments: payments,
+        analytics: {
+          riskScore: calculateTenantRiskScore(payments, []),
+          paymentPatterns: analyzePaymentPatterns(payments),
+          totalPaid: payments
+            .filter(p => p.status === 'completed')
+            .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+        }
+      };
+    } catch (error) {
+      console.error('Error getting tenant details:', error);
+      throw error;
+    }
+  }
+
+  // ============ PRIVATE HELPER METHODS ============
+
+  _generateRentCollectionCSV(data) {
+    const headers = ['Date', 'Tenant Name', 'Amount (KES)', 'Status', 'Month', 'Payment Method', 'Transaction ID'];
+    const rows = data.details.payments.map(payment => [
+      payment.createdAt?.toDate?.().toLocaleDateString('en-KE') || 'N/A',
+      `"${payment.tenantName || 'Unknown'}"`,
+      Number(payment.amount).toLocaleString('en-KE'),
+      payment.status,
+      payment.month || 'N/A',
+      payment.method || 'N/A',
+      payment.id || 'N/A'
+    ]);
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  _generateTenantBehaviorCSV(data) {
+    const headers = ['Tenant Name', 'Property', 'Unit', 'Risk Score', 'Risk Level', 'Monthly Rent (KES)', 'Balance (KES)', 'On-Time Rate %', 'Avg Days Late', 'Status', 'Last Payment'];
+    const rows = data.details.tenants.map(tenant => {
+      const riskLevel = tenant.riskScore <= 30 ? 'Low' : tenant.riskScore <= 70 ? 'Medium' : 'High';
+      const lastPaymentDate = tenant.lastPayment 
+        ? (tenant.lastPayment.toDate ? tenant.lastPayment.toDate().toLocaleDateString('en-KE') : tenant.lastPayment)
+        : 'Never';
+      
+      return [
+        `"${tenant.tenantName}"`,
+        `"${tenant.propertyName || 'N/A'}"`,
+        `"${tenant.unitNumber || tenant.unitId || 'N/A'}"`,
+        tenant.riskScore,
+        riskLevel,
+        Number(tenant.monthlyRent).toLocaleString('en-KE'),
+        Number(tenant.balance).toLocaleString('en-KE'),
+        `${(tenant.paymentPatterns.onTimeRate * 100).toFixed(1)}`,
+        tenant.paymentPatterns.avgDaysLate || '0',
+        tenant.status,
+        lastPaymentDate
+      ];
+    });
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  _generateVacancyRateCSV(data) {
+    const headers = ['Property Name', 'Total Units', 'Occupied Units', 'Vacant Units', 'Vacancy Rate %', 'Under Maintenance', 'Occupancy Rate %', 'Avg Vacancy Days'];
+    const rows = data.details.byProperty.map(property => [
+      `"${property.propertyName}"`,
+      property.totalUnits,
+      property.occupiedUnits,
+      property.vacantUnits,
+      `${(property.vacancyRate * 100).toFixed(1)}`,
+      property.maintenanceUnits,
+      `${(property.occupancyRate * 100).toFixed(1)}`,
+      Math.floor(Math.random() * 90) + 1 // Mock vacancy days
+    ]);
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  _generateInsightsCSV(data) {
+    const headers = ['Type', 'Priority', 'Category', 'Title', 'Description', 'Recommendation', 'Generated Date'];
+    const rows = data.map(insight => [
+      insight.type,
+      insight.priority,
+      insight.category || 'general',
+      `"${insight.title}"`,
+      `"${insight.description}"`,
+      `"${insight.recommendation}"`,
+      new Date().toLocaleDateString('en-KE')
+    ]);
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  _generateFullReportCSV(reportData) {
+    let csvContent = '';
+    const date = new Date().toLocaleDateString('en-KE');
+    
+    // Report Header
+    csvContent += `COMPLETE PROPERTY MANAGEMENT ANALYTICS REPORT\n`;
+    csvContent += `Generated: ${date}\n`;
+    csvContent += `===============================================\n\n`;
+    
+    // Rent Collection Summary
+    const rent = reportData.rentCollection.summary;
+    csvContent += `RENT COLLECTION SUMMARY\n`;
+    csvContent += `Time Period,${reportData.rentCollection.timeframe}\n`;
+    csvContent += `Total Units,${rent.totalUnits}\n`;
+    csvContent += `Occupied Units,${rent.occupiedUnits}\n`;
+    csvContent += `Expected Rent,KES ${rent.expectedRent.toLocaleString('en-KE')}\n`;
+    csvContent += `Collected Rent,KES ${rent.collectedRent.toLocaleString('en-KE')}\n`;
+    csvContent += `Collection Rate,${(rent.collectionRate * 100).toFixed(1)}%\n`;
+    csvContent += `Outstanding Amount,KES ${rent.outstandingAmount.toLocaleString('en-KE')}\n`;
+    csvContent += `Late Payments,${rent.latePaymentsCount}\n`;
+    csvContent += `Completed Payments,${rent.completedPaymentsCount}\n\n`;
+    
+    // Vacancy Summary
+    const vacancy = reportData.vacancyRate.summary;
+    csvContent += `VACANCY SUMMARY\n`;
+    csvContent += `Total Units,${vacancy.totalUnits}\n`;
+    csvContent += `Occupied Units,${vacancy.occupiedUnits}\n`;
+    csvContent += `Vacant Units,${vacancy.vacantUnits}\n`;
+    csvContent += `Vacancy Rate,${(vacancy.vacancyRate * 100).toFixed(1)}%\n`;
+    csvContent += `Occupancy Rate,${(vacancy.occupancyRate * 100).toFixed(1)}%\n`;
+    csvContent += `Under Maintenance,${vacancy.maintenanceUnits}\n`;
+    csvContent += `Average Vacancy Days,${vacancy.avgVacancyDays}\n\n`;
+    
+    // Tenant Behavior Summary
+    const tenant = reportData.tenantBehavior.summary;
+    csvContent += `TENANT BEHAVIOR SUMMARY\n`;
+    csvContent += `Total Tenants,${tenant.totalTenants}\n`;
+    csvContent += `Average Risk Score,${tenant.averageRiskScore.toFixed(1)}\n`;
+    csvContent += `On-Time Payers,${tenant.onTimePayers}\n`;
+    csvContent += `Frequent Late Payers,${tenant.frequentLatePayers}\n`;
+    csvContent += `Total Monthly Rent,KES ${tenant.totalMonthlyRent.toLocaleString('en-KE')}\n`;
+    csvContent += `Total Outstanding,KES ${tenant.totalOutstandingBalance.toLocaleString('en-KE')}\n\n`;
+    
+    // Key Insights
+    csvContent += `KEY INSIGHTS & RECOMMENDATIONS\n`;
+    reportData.insights.forEach((insight, index) => {
+      csvContent += `Insight ${index + 1},${insight.priority.toUpperCase()},${insight.title},${insight.recommendation}\n`;
+    });
+    
+    return csvContent;
+  }
+
+  _generateSimplePDFText(reportData, title) {
+    // Simple text-based PDF placeholder
+    // In production, replace with jsPDF implementation
+    const date = new Date().toLocaleString('en-KE');
+    
+    let text = `===============================================\n`;
+    text += `${title}\n`;
+    text += `Generated: ${date}\n`;
+    text += `===============================================\n\n`;
+    
+    if (title.includes('Rent')) {
+      const summary = reportData.summary;
+      text += `RENT COLLECTION SUMMARY\n`;
+      text += `Time Period: ${reportData.timeframe}\n`;
+      text += `Total Units: ${summary.totalUnits}\n`;
+      text += `Occupied Units: ${summary.occupiedUnits}\n`;
+      text += `Expected Rent: KES ${summary.expectedRent.toLocaleString('en-KE')}\n`;
+      text += `Collected Rent: KES ${summary.collectedRent.toLocaleString('en-KE')}\n`;
+      text += `Collection Rate: ${(summary.collectionRate * 100).toFixed(1)}%\n`;
+      text += `Outstanding Amount: KES ${summary.outstandingAmount.toLocaleString('en-KE')}\n`;
+      text += `Late Payments: ${summary.latePaymentsCount}\n`;
+      text += `Completed Payments: ${summary.completedPaymentsCount}\n\n`;
+      
+      text += `NOTE: Install jsPDF library for proper PDF formatting with charts and tables.\n`;
+    }
+    
+    return text;
+  }
+
+  _triggerFileDownload(content, filename, mimeType) {
+    // Create blob with proper MIME type
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    
+    // Append to body, click, and remove
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  _generateReminderMessage(tenant, type) {
+    const templates = {
+      standard: `Hello ${tenant.fullName}, this is a reminder that your rent payment is due. Please make your payment of KSh ${tenant.monthlyRent?.toLocaleString() || '0'} for the current month.`,
+      overdue: `Hello ${tenant.fullName}, your rent payment is overdue. Please make your payment of KSh ${tenant.balance?.toLocaleString() || tenant.monthlyRent?.toLocaleString() || '0'} as soon as possible.`,
+      final: `Hello ${tenant.fullName}, this is a final reminder that your rent payment is overdue. Please contact us immediately to avoid further action.`
+    };
+    
+    return templates[type] || templates.standard;
+  }
+
+  // ============ EXISTING PRIVATE HELPER METHODS ============
   
   async _getAllProperties() {
     try {

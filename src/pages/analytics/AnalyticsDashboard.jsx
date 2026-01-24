@@ -273,7 +273,7 @@ const AnalyticsDashboard = () => {
       <div className="quick-actions">
         <h3><FaFilter /> Quick Actions</h3>
         <div className="action-buttons">
-          <button className="action-btn" onClick={() => navigate('/payments')}>
+          <button className="action-btn" onClick={() => navigate('/finance')}>
             <FaDollarSign /> View All Payments
           </button>
           <button className="action-btn" onClick={() => navigate('/units')}>

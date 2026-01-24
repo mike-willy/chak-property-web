@@ -1,4 +1,4 @@
-// src/pages/Properties.jsx - FIXED BEDROOM/BATHROOM DISPLAY
+// src/pages/Properties.jsx - COMPLETE FIXED VACANT/MAINTENANCE LOGIC
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -36,7 +36,8 @@ import {
   FaWifi,
   FaWrench,
   FaTrash,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaInfoCircle
 } from "react-icons/fa";
 
 const Properties = () => {
@@ -52,31 +53,26 @@ const Properties = () => {
   const [deleting, setDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState("");
 
-  // Helper function to get unit counts consistently - FIXED
+  // Helper function to get unit counts - FIXED LOGIC
   const getUnitCounts = (property) => {
     const unitDetails = property.unitDetails || {};
     
-    // Get actual counts from unitDetails, NOT defaulting to totalUnits
     const totalUnits = property.units || unitDetails.totalUnits || 1;
-    const vacantCount = unitDetails.vacantCount || 0;  // CHANGED: Don't default to totalUnits!
     const leasedCount = unitDetails.leasedCount || 0;
     const maintenanceCount = unitDetails.maintenanceCount || 0;
+    const vacantUnderMaintenance = unitDetails.vacantUnderMaintenance || 0;
+    const leasedUnderMaintenance = unitDetails.leasedUnderMaintenance || 0;
     
-    // Validate counts add up correctly
-    const calculatedTotal = vacantCount + leasedCount + maintenanceCount;
-    
-    // If counts don't match, adjust vacant count
-    let adjustedVacantCount = vacantCount;
-    if (calculatedTotal !== totalUnits) {
-      console.warn(`Count mismatch for ${property.name}: ${calculatedTotal} vs ${totalUnits}. Adjusting...`);
-      adjustedVacantCount = Math.max(0, totalUnits - leasedCount - maintenanceCount);
-    }
+    // ⭐ CORE LOGIC: Vacant = Total - Leased (ALWAYS!)
+    const vacantCount = Math.max(0, totalUnits - leasedCount);
     
     return {
       totalUnits,
-      vacantCount: adjustedVacantCount,
-      leasedCount,
-      maintenanceCount
+      vacantCount,  // Always = Total - Leased
+      leasedCount,  // Includes leased units under maintenance
+      maintenanceCount,  // Total maintenance (leased + vacant)
+      vacantUnderMaintenance,  // Vacant units that need maintenance
+      leasedUnderMaintenance   // Leased units that need maintenance
     };
   };
 
@@ -86,46 +82,40 @@ const Properties = () => {
     return totalUnits > 1;
   };
 
-  // Calculate occupancy rate consistently
+  // Calculate occupancy rate
   const calculateOccupancyRate = (property) => {
     const { totalUnits, leasedCount } = getUnitCounts(property);
     if (!totalUnits || totalUnits === 0) return 0;
     return Math.round((leasedCount / totalUnits) * 100);
   };
 
-  // NEW: Get proper bedroom display text
+  // Get proper bedroom display text
   const getBedroomDisplayText = (property) => {
     const bedrooms = property.bedrooms || 0;
     
-    // Handle special cases
     if (property.propertyType === "single" || property.propertyType === "bedsitter") {
-      return "Studio";  // Single room and bedsitter are studio style
+      return "Studio";
     }
     
-    // For commercial properties with 0 bedrooms
     if (property.propertyType === "commercial" && bedrooms === 0) {
       return "Commercial";
     }
     
-    // Normal bedroom count display
     return `${bedrooms} Bed${bedrooms !== 1 ? 's' : ''}`;
   };
 
-  // NEW: Get proper bathroom display text
+  // Get proper bathroom display text
   const getBathroomDisplayText = (property) => {
     const bathrooms = property.bathrooms || 0;
     
-    // Handle commercial properties
     if (property.propertyType === "commercial") {
       return bathrooms > 0 ? `${bathrooms} Bath${bathrooms !== 1 ? 's' : ''}` : "Shared";
     }
     
-    // For single room and bedsitter (they have 1 bathroom but not separate)
     if (property.propertyType === "single" || property.propertyType === "bedsitter") {
       return "1 Bath";
     }
     
-    // Normal bathroom count display
     return `${bathrooms} Bath${bathrooms !== 1 ? 's' : ''}`;
   };
 
@@ -164,7 +154,6 @@ const Properties = () => {
       groupedByLandlord[landlordName].push(property);
     });
     
-    // Sort properties within each landlord group by createdAt (newest first)
     Object.keys(groupedByLandlord).forEach(landlord => {
       groupedByLandlord[landlord].sort((a, b) => {
         const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -173,7 +162,6 @@ const Properties = () => {
       });
     });
     
-    // Get an array of landlords with their newest property date
     const landlordsWithDates = Object.keys(groupedByLandlord).map(landlord => {
       const newestProperty = groupedByLandlord[landlord].reduce((newest, current) => {
         const currentDate = current.createdAt ? new Date(current.createdAt).getTime() : 0;
@@ -188,10 +176,8 @@ const Properties = () => {
       };
     });
     
-    // Sort landlords by newest property date (new landlords first)
     landlordsWithDates.sort((a, b) => b.newestDate - a.newestDate);
     
-    // If newest dates are equal, sort alphabetically by landlord name
     landlordsWithDates.sort((a, b) => {
       if (b.newestDate === a.newestDate) {
         return a.name.localeCompare(b.name);
@@ -229,26 +215,50 @@ const Properties = () => {
     }
   }, [properties]);
 
-  // FIXED: Better unit count calculation
+  // FIXED: Calculate unit counts with maintenance as sub-status
   const calculateUnitCountsFromSubcollection = (unitsSnapshot) => {
-    let vacantCount = 0;
+    let totalUnits = unitsSnapshot.size;
     let leasedCount = 0;
     let maintenanceCount = 0;
+    let leasedUnderMaintenance = 0;
+    let vacantUnderMaintenance = 0;
     
     unitsSnapshot.forEach((unitDoc) => {
       const unitData = unitDoc.data();
       const status = (unitData.status || 'vacant').toLowerCase();
       
-      if (status === 'vacant' || status === 'available') {
-        vacantCount++;
-      } else if (status === 'leased' || status === 'occupied' || status === 'rented') {
-        leasedCount++;
-      } else if (status === 'maintenance' || status === 'repair') {
-        maintenanceCount++;
+      // Check if unit is under maintenance
+      const isUnderMaintenance = status === 'maintenance' || status === 'repair';
+      const isLeased = status === 'leased' || status === 'occupied' || status === 'rented';
+      
+      if (isUnderMaintenance) {
+        maintenanceCount++;  // TOTAL maintenance count (leased + vacant)
+        
+        // Determine if it's a LEASED or VACANT unit under maintenance
+        if (isLeased || unitData.tenantId || unitData.leaseStatus === 'active') {
+          leasedUnderMaintenance++;
+          leasedCount++;  // Count as leased
+        } else {
+          vacantUnderMaintenance++;
+          // Vacant under maintenance - doesn't affect leased count
+        }
+      } else if (isLeased) {
+        leasedCount++;  // Regular leased unit (not under maintenance)
       }
+      // Vacant units (not under maintenance) - don't need to count here
     });
     
-    return { vacantCount, leasedCount, maintenanceCount };
+    // Vacant count = Total - Leased (ALWAYS!)
+    const vacantCount = totalUnits - leasedCount;
+    
+    return { 
+      totalUnits, 
+      vacantCount,  // Total - Leased (ALWAYS!)
+      leasedCount,  // Includes leased units under maintenance
+      maintenanceCount,  // TOTAL maintenance (leased + vacant)
+      leasedUnderMaintenance,  // How many leased units are under maintenance
+      vacantUnderMaintenance   // How many vacant units are under maintenance
+    };
   };
 
   const fetchProperties = async () => {
@@ -266,56 +276,53 @@ const Properties = () => {
           const unitsRef = collection(db, `properties/${propertyId}/units`);
           const unitsSnapshot = await getDocs(unitsRef);
           
-          // Calculate actual counts from subcollection
-          const { vacantCount, leasedCount, maintenanceCount } = 
-            calculateUnitCountsFromSubcollection(unitsSnapshot);
+          // Calculate counts with FIXED logic
+          const { 
+            totalUnits, 
+            vacantCount, 
+            leasedCount, 
+            maintenanceCount,
+            leasedUnderMaintenance,
+            vacantUnderMaintenance
+          } = calculateUnitCountsFromSubcollection(unitsSnapshot);
           
-          const totalUnits = unitsSnapshot.size || data.units || 1;
-          
-          // Debug logging to see actual counts
+          // Debug logging
           console.log(`Property: ${data.name || propertyId}`);
-          console.log(`  Units in subcollection: ${unitsSnapshot.size}`);
-          console.log(`  Vacant: ${vacantCount}, Leased: ${leasedCount}, Maintenance: ${maintenanceCount}`);
+          console.log(`  Total Units: ${totalUnits}`);
+          console.log(`  Leased: ${leasedCount} (${leasedUnderMaintenance} under maintenance)`);
+          console.log(`  Vacant: ${vacantCount} (${vacantUnderMaintenance} under maintenance)`);
+          console.log(`  TOTAL Under Maintenance: ${maintenanceCount}`);
           
-          // Normalize unit details with actual counts
+          // Create normalized unit details
           const unitDetails = data.unitDetails || {};
-          
-          // Ensure counts are valid
-          const validatedVacantCount = Math.max(0, totalUnits - leasedCount - maintenanceCount);
           
           const normalizedUnitDetails = {
             totalUnits: totalUnits,
-            vacantCount: validatedVacantCount,
-            leasedCount: leasedCount,
-            maintenanceCount: maintenanceCount,
+            vacantCount: vacantCount,  // Total - Leased
+            leasedCount: leasedCount,  // Includes leased under maintenance
+            maintenanceCount: maintenanceCount,  // TOTAL maintenance
+            leasedUnderMaintenance: leasedUnderMaintenance,
+            vacantUnderMaintenance: vacantUnderMaintenance,
             occupancyRate: totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0,
             units: unitDetails.units || []
           };
           
-          // Determine overall property status based on unit statuses
+          // Determine overall property status
           let overallStatus = data.status || 'available';
           
-          // If all units are leased, property is leased
-          if (leasedCount > 0 && vacantCount === 0 && maintenanceCount === 0) {
+          if (leasedCount === totalUnits) {
             overallStatus = 'leased';
-          }
-          // If all units are vacant, property is vacant
-          else if (vacantCount > 0 && leasedCount === 0 && maintenanceCount === 0) {
+          } else if (leasedCount === 0) {
             overallStatus = 'vacant';
-          }
-          // If any units need maintenance, property is in maintenance
-          else if (maintenanceCount > 0) {
+          } else if (maintenanceCount > 0) {
             overallStatus = 'maintenance';
           }
           
           const property = {
             id: propertyId,
             ...data,
-            // Always store units count at root level for consistency
             units: totalUnits,
-            // Always have unitDetails with consistent structure
             unitDetails: normalizedUnitDetails,
-            // Ensure fee-related fields exist
             applicationFee: data.applicationFee || 0,
             securityDeposit: data.securityDeposit || 0,
             petDeposit: data.petDeposit || 0,
@@ -332,7 +339,6 @@ const Properties = () => {
             },
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
-            // Use calculated overall status
             status: overallStatus.toLowerCase()
           };
           
@@ -345,16 +351,19 @@ const Properties = () => {
           const totalUnits = data.units || data.unitDetails?.totalUnits || 1;
           const unitDetails = data.unitDetails || {};
           
-          // FIXED: Don't default vacant count to totalUnits
-          const vacantCount = unitDetails.vacantCount || 0;
           const leasedCount = unitDetails.leasedCount || 0;
           const maintenanceCount = unitDetails.maintenanceCount || 0;
+          
+          // Apply new logic
+          const vacantCount = Math.max(0, totalUnits - leasedCount);
           
           const normalizedUnitDetails = {
             totalUnits: totalUnits,
             vacantCount: vacantCount,
             leasedCount: leasedCount,
             maintenanceCount: maintenanceCount,
+            leasedUnderMaintenance: unitDetails.leasedUnderMaintenance || 0,
+            vacantUnderMaintenance: unitDetails.vacantUnderMaintenance || 0,
             occupancyRate: totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0,
             units: unitDetails.units || []
           };
@@ -460,7 +469,7 @@ const Properties = () => {
     setShowDeleteModal(true);
   };
 
-  // Handle confirm delete property - FIXED VERSION
+  // Handle confirm delete property
   const handleConfirmDelete = async () => {
     if (!propertyToDelete) return;
     
@@ -471,23 +480,19 @@ const Properties = () => {
       const propertyId = propertyToDelete.id;
       const propertyName = propertyToDelete.name || "Unnamed Property";
       
-      // Method: Get ALL documents and filter locally (bypasses security rule issues)
       setDeleteProgress(`Finding all related data for ${propertyName}...`);
       
-      // Get ALL documents from each collection
       const [tenantsSnapshot, usersSnapshot, unitsSnapshot] = await Promise.all([
         getDocs(collection(db, "tenants")),
         getDocs(collection(db, "users")),
         getDocs(collection(db, `properties/${propertyId}/units`))
       ]);
       
-      // Collect all deletions
       const deletions = [];
       let tenantsDeleted = 0;
       let usersDeleted = 0;
       let unitsDeleted = 0;
       
-      // Delete tenants that belong to this property
       tenantsSnapshot.forEach((tenantDoc) => {
         const tenantData = tenantDoc.data();
         if (tenantData.propertyId === propertyId) {
@@ -496,7 +501,6 @@ const Properties = () => {
         }
       });
       
-      // Delete users that belong to this property
       usersSnapshot.forEach((userDoc) => {
         const userData = userDoc.data();
         if (userData.propertyId === propertyId) {
@@ -505,13 +509,11 @@ const Properties = () => {
         }
       });
       
-      // Also check by unitId (in case tenant/user has unitId but not propertyId)
       const unitIds = [];
       unitsSnapshot.forEach((unitDoc) => {
         unitIds.push(unitDoc.id);
       });
       
-      // Check tenants by unitId
       tenantsSnapshot.forEach((tenantDoc) => {
         const tenantData = tenantDoc.data();
         if (tenantData.unitId && unitIds.includes(tenantData.unitId) && !deletions.some(d => d.id === tenantDoc.id)) {
@@ -520,7 +522,6 @@ const Properties = () => {
         }
       });
       
-      // Check users by unitId
       usersSnapshot.forEach((userDoc) => {
         const userData = userDoc.data();
         if (userData.unitId && unitIds.includes(userData.unitId) && !deletions.some(d => d.id === userDoc.id)) {
@@ -529,27 +530,22 @@ const Properties = () => {
         }
       });
       
-      // Delete all units from this property
       unitsSnapshot.forEach((unitDoc) => {
         deletions.push(deleteDoc(doc(db, `properties/${propertyId}/units`, unitDoc.id)));
         unitsDeleted++;
       });
       
-      // Delete the property itself
       deletions.push(deleteDoc(doc(db, "properties", propertyId)));
       
-      // Execute all deletions
       if (deletions.length > 0) {
         setDeleteProgress(`Deleting ${deletions.length} items (${tenantsDeleted} tenants, ${usersDeleted} users, ${unitsDeleted} units)...`);
         await Promise.all(deletions);
         console.log(`Deleted ${deletions.length} items: ${tenantsDeleted} tenants, ${usersDeleted} users, ${unitsDeleted} units, 1 property`);
       }
       
-      // Update local state
       setProperties(prev => prev.filter(prop => prop.id !== propertyId));
       setSortedProperties(prev => prev.filter(prop => prop.id !== propertyId));
       
-      // Close modal and show success
       setShowDeleteModal(false);
       setPropertyToDelete(null);
       setDeleting(false);
@@ -818,7 +814,14 @@ const Properties = () => {
                 {/* Properties Grid for this Landlord */}
                 <div className={`landlord-group ${getGridClass(landlordGroup.properties.length)}`}>
                   {landlordGroup.properties.map((property) => {
-                    const { totalUnits, vacantCount, leasedCount, maintenanceCount } = getUnitCounts(property);
+                    const { 
+                      totalUnits, 
+                      vacantCount, 
+                      leasedCount, 
+                      maintenanceCount,
+                      vacantUnderMaintenance,
+                      leasedUnderMaintenance 
+                    } = getUnitCounts(property);
                     const occupancyRate = calculateOccupancyRate(property);
                     
                     return (
@@ -837,7 +840,7 @@ const Properties = () => {
                             {getStatusText(property.status)}
                           </div>
                           
-                          {/* Occupancy Badge - Show only for multi-unit properties */}
+                          {/* Occupancy Badge */}
                           {isMultiUnitProperty(property) && (
                             <div className="properties-occupancy-badge">
                               {occupancyRate}% Occupied
@@ -859,7 +862,7 @@ const Properties = () => {
                             <span>{property.address || "No address"}, {property.city || "Unknown city"}</span>
                           </div>
                           
-                          {/* ✅ FIXED: Bedroom/Bathroom Display */}
+                          {/* Bedroom/Bathroom Display */}
                           <div className="properties-specs">
                             <div className="properties-spec">
                               <FaBed />
@@ -883,7 +886,7 @@ const Properties = () => {
                             )}
                           </div>
                           
-                          {/* Fee Information Section */}
+                          {/* Fee Information */}
                           <div className="properties-card-info properties-fees-info">
                             <div className="properties-info-row">
                               <span className="properties-label">
@@ -979,18 +982,22 @@ const Properties = () => {
                             </div>
                           )}
 
-                          {/* Unit Statistics - Unified Approach */}
+                          {/* Unit Statistics - FIXED DISPLAY */}
                           {isMultiUnitProperty(property) ? (
-                            // Multi-unit properties: Show detailed statistics
                             <div className="properties-unit-stats">
                               <div className="properties-unit-stats-header">
                                 <span className="properties-unit-stats-title">Unit Status:</span>
                                 <div className="properties-unit-stats-container">
-                                  {/* Vacant Units - Always show */}
+                                  {/* Vacant Units - ALWAYS show */}
                                   <div className="properties-unit-stat-item vacant">
                                     <FaDoorClosed className="properties-unit-stat-icon" />
                                     <span className="properties-unit-stat-count">{vacantCount}</span>
                                     <span className="properties-unit-stat-label">Vacant</span>
+                                    {vacantUnderMaintenance > 0 && (
+                                      <div className="properties-unit-stat-note">
+                                        ({vacantUnderMaintenance} under maintenance)
+                                      </div>
+                                    )}
                                   </div>
                                   
                                   {/* Leased Units - Show if any */}
@@ -999,31 +1006,37 @@ const Properties = () => {
                                       <FaCheckCircle className="properties-unit-stat-icon" />
                                       <span className="properties-unit-stat-count">{leasedCount}</span>
                                       <span className="properties-unit-stat-label">Leased</span>
+                                      {leasedUnderMaintenance > 0 && (
+                                        <div className="properties-unit-stat-note">
+                                          ({leasedUnderMaintenance} under maintenance)
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   
-                                  {/* Maintenance Units - Show if any */}
+                                  {/* Total Maintenance Counter */}
                                   {maintenanceCount > 0 && (
-                                    <div className="properties-unit-stat-item maintenance">
+                                    <div className="properties-unit-stat-item maintenance-total">
                                       <FaTools className="properties-unit-stat-icon" />
                                       <span className="properties-unit-stat-count">{maintenanceCount}</span>
-                                      <span className="properties-unit-stat-label">Maintenance</span>
+                                      <span className="properties-unit-stat-label">Total Under Maintenance</span>
                                     </div>
                                   )}
                                 </div>
                               </div>
                               
-                              {/* Vacancy Alert - Show if there are vacant units */}
-                              {vacantCount > 0 && (
-                                <div className="properties-vacancy-alert">
-                                  <div className="properties-vacancy-alert-content">
-                                    <FaDoorClosed className="properties-vacancy-icon" />
-                                    <div className="properties-vacancy-text">
-                                      <strong>{vacantCount} units available</strong> for rent
-                                    </div>
+                              {/* Summary Box */}
+                              <div className="properties-unit-summary">
+                                <FaInfoCircle className="properties-summary-icon" />
+                                <div className="properties-summary-content">
+                                  <strong>Summary:</strong>
+                                  <div className="properties-summary-details">
+                                    • {leasedCount} leased ({leasedUnderMaintenance} in maintenance)<br/>
+                                    • {vacantCount} vacant ({vacantUnderMaintenance} in maintenance)<br/>
+                                    • <strong>Total under maintenance: {maintenanceCount}</strong>
                                   </div>
                                 </div>
-                              )}
+                              </div>
                               
                               {/* Occupancy Summary */}
                               <div className="properties-occupancy-summary">
@@ -1044,7 +1057,7 @@ const Properties = () => {
                               </div>
                             </div>
                           ) : (
-                            // Single-unit properties: Show simplified status
+                            // Single-unit properties
                             <div className="properties-single-unit-status">
                               <div className="properties-single-unit-badge">
                                 <span className="properties-single-unit-label">Single Unit Property</span>

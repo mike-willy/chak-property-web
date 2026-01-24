@@ -22,6 +22,8 @@ const AnalyticsInsights = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [acknowledgedInsights, setAcknowledgedInsights] = useState([]);
+  const [selectedInsight, setSelectedInsight] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     loadInsights();
@@ -39,8 +41,18 @@ const AnalyticsInsights = () => {
     }
   };
 
-  const handleAcknowledge = (insightId) => {
-    setAcknowledgedInsights(prev => [...prev, insightId]);
+  const handleAcknowledge = async (insightId) => {
+    try {
+      // Get current user ID - replace with your auth system
+      const userId = localStorage.getItem('userId') || 'current-user-id';
+      await analyticsService.acknowledgeInsight(insightId, userId);
+      
+      setAcknowledgedInsights(prev => [...prev, insightId]);
+      alert('Insight acknowledged!');
+    } catch (error) {
+      console.error('Error acknowledging insight:', error);
+      alert('Failed to acknowledge insight');
+    }
   };
 
   const handleDismiss = (insightId) => {
@@ -49,6 +61,67 @@ const AnalyticsInsights = () => {
 
   const handleRefresh = () => {
     loadInsights();
+  };
+
+  const handleExport = async () => {
+    try {
+      await analyticsService.exportAnalyticsToCSV(
+        'analytics-insights', 
+        insights,
+        `insights_report_${new Date().toISOString().split('T')[0]}.csv`
+      );
+      alert('Insights exported successfully! Check your downloads.');
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export insights');
+    }
+  };
+
+  const handleViewDetails = (insight) => {
+    setSelectedInsight(insight);
+    setShowDetailsModal(true);
+  };
+
+  const handleDownloadReport = async () => {
+    try {
+      const result = await analyticsService.generateComprehensiveReport('full');
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = result.downloadUrl;
+      link.download = `full_analytics_report_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      alert('Full report downloaded successfully!');
+    } catch (error) {
+      console.error('Report generation failed:', error);
+      alert('Failed to generate report');
+    }
+  };
+
+  const handleTakeAction = async (insight) => {
+    // Implement specific action based on insight type
+    switch(insight.type) {
+      case 'warning':
+        if (insight.category === 'rent_collection') {
+          window.location.href = '/analytics/rent-collection';
+        } else if (insight.category === 'vacancy') {
+          window.location.href = '/analytics/vacancy-rate';
+        }
+        break;
+      case 'alert':
+        window.location.href = '/analytics/tenant-behavior';
+        break;
+      default:
+        alert(`Action triggered for: ${insight.title}`);
+    }
+  };
+
+  const handleScheduleForLater = (insight) => {
+    // You can implement calendar integration here
+    alert(`Insight "${insight.title}" scheduled for later review.`);
   };
 
   const getPriorityIcon = (priority) => {
@@ -113,7 +186,7 @@ const AnalyticsInsights = () => {
           <button className="refresh-btn" onClick={handleRefresh}>
             <FaCalendar /> Regenerate
           </button>
-          <button className="export-btn">
+          <button className="export-btn" onClick={handleExport}>
             <FaDownload /> Export
           </button>
         </div>
@@ -248,7 +321,10 @@ const AnalyticsInsights = () => {
                       <FaThumbsDown /> Dismiss
                     </button>
                     
-                    <button className="action-btn view">
+                    <button 
+                      className="action-btn view"
+                      onClick={() => handleViewDetails(insight)}
+                    >
                       <FaEye /> View Details
                     </button>
                   </div>
@@ -334,8 +410,18 @@ const AnalyticsInsights = () => {
                   <h4>{insight.title}</h4>
                   <p>{insight.recommendation || insight.action}</p>
                   <div className="step-actions">
-                    <button className="action-btn primary">Take Action</button>
-                    <button className="action-btn">Schedule for Later</button>
+                    <button 
+                      className="action-btn primary" 
+                      onClick={() => handleTakeAction(insight)}
+                    >
+                      Take Action
+                    </button>
+                    <button 
+                      className="action-btn"
+                      onClick={() => handleScheduleForLater(insight)}
+                    >
+                      Schedule for Later
+                    </button>
                   </div>
                 </div>
               </div>
@@ -381,14 +467,78 @@ const AnalyticsInsights = () => {
           <button className="action-btn primary" onClick={handleRefresh}>
             <FaCalendar /> Update Insights
           </button>
-          <button className="action-btn">
+          <button className="action-btn" onClick={handleDownloadReport}>
             <FaDownload /> Download Report
           </button>
-          <button className="action-btn">
+          <button 
+            className="action-btn"
+            onClick={() => window.location.href = '/analytics'}
+          >
             <FaEye /> View Analytics Dashboard
           </button>
         </div>
       </div>
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedInsight && (
+        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{selectedInsight.title}</h3>
+              <button className="modal-close" onClick={() => setShowDetailsModal(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="insight-detail-section">
+                <h4>Description</h4>
+                <p>{selectedInsight.description}</p>
+              </div>
+              <div className="insight-detail-section">
+                <h4>Recommendation</h4>
+                <p>{selectedInsight.recommendation || selectedInsight.action}</p>
+              </div>
+              {selectedInsight.data && Object.keys(selectedInsight.data).length > 0 && (
+                <div className="insight-detail-section">
+                  <h4>Detailed Data</h4>
+                  <table className="detail-table">
+                    <tbody>
+                      {Object.entries(selectedInsight.data).map(([key, value], idx) => (
+                        <tr key={idx}>
+                          <td><strong>{key.replace(/([A-Z])/g, ' $1').trim()}:</strong></td>
+                          <td>
+                            {typeof value === 'number' 
+                              ? (key.includes('Rate') || key.includes('rate')
+                                ? `${(value * 100).toFixed(1)}%`
+                                : key.includes('Amount') || key.includes('amount')
+                                ? `KSh ${value.toLocaleString()}`
+                                : value)
+                              : value}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="action-btn" onClick={() => setShowDetailsModal(false)}>
+                Close
+              </button>
+              <button 
+                className="action-btn primary"
+                onClick={() => {
+                  handleTakeAction(selectedInsight);
+                  setShowDetailsModal(false);
+                }}
+              >
+                Take Action
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
