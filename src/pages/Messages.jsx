@@ -259,6 +259,34 @@ const Messages = () => {
         console.log("Sending reply to:", selectedSender.senderName);
         setSendingReply(true);
 
+        // OPTIMISTIC UPDATE: Create temporary message for immediate UI display
+        const tempMessageId = `temp-${Date.now()}`;
+        const optimisticMessage = {
+            id: tempMessageId,
+            recipientId: selectedSender.senderId,
+            recipientName: selectedSender.senderName,
+            recipientType: 'tenant',
+            recipientEmail: '',
+            subject: selectedSender.lastMessage.subject ? `Re: ${selectedSender.lastMessage.subject}` : 'Reply',
+            message: replyText.trim(),
+            sender: 'Admin',
+            senderId: 'admin',
+            status: 'sending', // Temporary status
+            createdAt: new Date(), // Use client timestamp for immediate display
+            read: false,
+            direction: 'outgoing', // Explicitly set direction for optimistic update
+            isOptimistic: true // Flag to identify optimistic messages
+        };
+
+        // Add to conversation immediately for instant UI update
+        setConversation(prev => [...prev, optimisticMessage]);
+        
+        // Save the message text before clearing
+        const messageToSend = replyText;
+        
+        // Clear reply text immediately
+        setReplyText("");
+
         try {
             const newMessage = {
                 recipientId: selectedSender.senderId,
@@ -266,13 +294,12 @@ const Messages = () => {
                 recipientType: 'tenant',
                 recipientEmail: '',
                 subject: selectedSender.lastMessage.subject ? `Re: ${selectedSender.lastMessage.subject}` : 'Reply',
-                message: replyText.trim(),
+                message: messageToSend.trim(),
                 sender: 'Admin',
                 senderId: 'admin',
                 status: 'sent',
                 createdAt: serverTimestamp(),
-                read: false,
-                originalMessageId: selectedSender.lastMessage.id
+                read: false
             };
 
             console.log("Saving message to Firestore:", newMessage);
@@ -281,7 +308,20 @@ const Messages = () => {
             const docRef = await addDoc(collection(db, 'messages'), newMessage);
             console.log("Message saved with ID:", docRef.id);
 
-            // Also save to recipient's subcollection
+            // When Firestore save succeeds, replace optimistic message with real one
+            setConversation(prev => prev.map(msg => 
+                msg.id === tempMessageId 
+                    ? {
+                        ...msg,
+                        id: docRef.id,
+                        status: 'sent',
+                        isOptimistic: false,
+                        createdAt: newMessage.createdAt // Keep server timestamp
+                    }
+                    : msg
+            ));
+
+            // Also save to recipient's subcollection (optional)
             try {
                 await addDoc(
                     collection(db, 'users', selectedSender.senderId, 'messages'),
@@ -296,10 +336,7 @@ const Messages = () => {
                 console.warn("Could not save to user subcollection:", subcollectionError);
             }
 
-            // Clear reply text
-            setReplyText("");
-
-            console.log("Message sent successfully. Waiting for listener update...");
+            console.log("Message sent successfully.");
 
             // Focus textarea for next message
             setTimeout(() => {
@@ -310,6 +347,17 @@ const Messages = () => {
 
         } catch (error) {
             console.error("Error sending reply:", error);
+            
+            // Mark optimistic message as failed
+            setConversation(prev => prev.map(msg => 
+                msg.id === tempMessageId 
+                    ? { ...msg, status: 'failed', error: error.message }
+                    : msg
+            ));
+            
+            // Restore the message text for retry
+            setReplyText(messageToSend);
+            
             alert(`Failed to send reply: ${error.message}`);
         } finally {
             setSendingReply(false);
@@ -346,6 +394,25 @@ const Messages = () => {
             return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
         return 'Recently';
+    };
+
+    // Format time for chat bubbles
+    const formatChatTime = (timestamp) => {
+        if (!timestamp) return '';
+        
+        let date;
+        if (timestamp.toDate) {
+            date = timestamp.toDate();
+        } else if (timestamp instanceof Date) {
+            date = timestamp;
+        } else {
+            return '';
+        }
+        
+        return date.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     };
 
     return (
@@ -468,27 +535,37 @@ const Messages = () => {
                                     <div className="chat-messages">
                                         {conversation.map((msg, index) => {
                                             const isAdmin = msg.senderId === 'admin';
-                                            const messageTime = msg.createdAt?.toDate
-                                                ? msg.createdAt.toDate()
-                                                : new Date();
+                                            const isOptimistic = msg.isOptimistic;
+                                            const isSending = msg.status === 'sending';
+                                            const isFailed = msg.status === 'failed';
+                                            const messageTime = msg.createdAt;
 
                                             return (
                                                 <div
                                                     key={msg.id || index}
-                                                    className={`chat-bubble ${isAdmin ? 'admin-bubble' : 'user-bubble'}`}
+                                                    className={`chat-bubble ${isAdmin ? 'admin-bubble' : 'user-bubble'} 
+                                                        ${isOptimistic ? 'optimistic-bubble' : ''}
+                                                        ${isSending ? 'sending-bubble' : ''}
+                                                        ${isFailed ? 'failed-bubble' : ''}`}
                                                 >
                                                     <div className="bubble-content">
                                                         {msg.message}
+                                                        {isSending && (
+                                                            <span className="sending-indicator">
+                                                                <FaSpinner className="spin-small" />
+                                                            </span>
+                                                        )}
+                                                        {isFailed && (
+                                                            <span className="failed-indicator">Failed to send</span>
+                                                        )}
                                                     </div>
                                                     <div className="bubble-meta">
                                                         <span className="sender">
                                                             {isAdmin ? 'You' : msg.sender || 'User'}
+                                                            {isOptimistic && ' (Sending...)'}
                                                         </span>
                                                         <span className="time">
-                                                            {messageTime.toLocaleTimeString([], {
-                                                                hour: '2-digit',
-                                                                minute: '2-digit'
-                                                            })}
+                                                            {formatChatTime(messageTime)}
                                                         </span>
                                                     </div>
                                                 </div>
