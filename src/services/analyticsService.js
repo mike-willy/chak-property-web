@@ -1,4 +1,4 @@
-// src/services/analyticsService.js - UPDATED WITH PROPER PDF EXPORT
+// src/services/analyticsService.js - FIXED VERSION
 import { db } from "../pages/firebase/firebase";
 import { 
   collection, 
@@ -26,7 +26,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 /**
- * Main Analytics Service - UPDATED WITH CSV & PDF REPORTS
+ * Main Analytics Service - FIXED WITH SINGLE PDF DOWNLOAD
  */
 class AnalyticsService {
   
@@ -523,6 +523,7 @@ class AnalyticsService {
             this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'pdf') {
             filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            // FIXED: Use the corrected method that doesn't call save multiple times
             await this._generateFullReportPDF(reportData, filename);
           }
           break;
@@ -860,258 +861,665 @@ class AnalyticsService {
   // ============ PDF GENERATION METHODS ============
 
   _generateRentCollectionPDF(data, filename) {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RENT COLLECTION REPORT', pageWidth / 2, yPosition, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      yPosition += 10;
+      doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
+      
+      yPosition += 8;
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+      
+      yPosition += 15;
+      
+      // Summary Section
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SUMMARY', 20, yPosition);
+      
+      yPosition += 10;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      
+      const summaryData = [
+        ['Total Units', data.summary.totalUnits],
+        ['Occupied Units', data.summary.occupiedUnits],
+        ['Expected Rent', `KES ${this._formatNumber(data.summary.expectedRent)}`],
+        ['Collected Rent', `KES ${this._formatNumber(data.summary.collectedRent)}`],
+        ['Collection Rate', `${(data.summary.collectionRate * 100).toFixed(1)}%`],
+        ['Outstanding Amount', `KES ${this._formatNumber(data.summary.outstandingAmount)}`],
+        ['Late Payments', data.summary.latePaymentsCount],
+        ['Completed Payments', data.summary.completedPaymentsCount]
+      ];
+      
+      // Check if autoTable is available
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Metric', 'Value']],
+          body: summaryData,
+          theme: 'grid',
+          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      } else {
+        // Fallback: Simple table without autoTable
+        summaryData.forEach((row, index) => {
+          doc.text(`${row[0]}:`, 25, yPosition);
+          doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
+          yPosition += 8;
+        });
+        yPosition += 10;
+      }
+      
+      // Overdue Payments Section (if any)
+      if (data.details.overduePayments.length > 0) {
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('OVERDUE PAYMENTS', 20, yPosition);
+        
+        yPosition += 10;
+        
+        const overdueTableData = data.details.overduePayments.slice(0, 10).map(payment => [
+          payment.tenantName || 'Unknown',
+          `KES ${this._formatNumber(payment.amount)}`,
+          payment.month || 'N/A',
+          payment.status || 'pending'
+        ]);
+        
+        if (typeof doc.autoTable === 'function') {
+          doc.autoTable({
+            startY: yPosition,
+            head: [['Tenant', 'Amount', 'Month', 'Status']],
+            body: overdueTableData,
+            theme: 'grid',
+            headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+            margin: { left: 20, right: 20 }
+          });
+        } else {
+          // Fallback
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'normal');
+          overdueTableData.forEach((row, index) => {
+            if (yPosition > pageHeight - 30) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(`${index + 1}. ${row[0]}`, 25, yPosition);
+            yPosition += 6;
+            doc.text(`   Amount: ${row[1]}`, 30, yPosition);
+            yPosition += 6;
+            doc.text(`   Status: ${row[3]}`, 30, yPosition);
+            yPosition += 10;
+          });
+        }
+      }
+      
+      // Footer
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+        doc.text('Property Management System', 20, pageHeight - 10);
+      }
+      
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error in _generateRentCollectionPDF:', error);
+      throw error;
+    }
+  }
+
+  _generateTenantBehaviorPDF(data, filename) {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TENANT BEHAVIOR REPORT', pageWidth / 2, yPosition, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      yPosition += 10;
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+      
+      yPosition += 15;
+      
+      // Summary Section
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SUMMARY', 20, yPosition);
+      
+      yPosition += 10;
+      
+      const summaryData = [
+        ['Total Tenants', data.summary.totalTenants],
+        ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
+        ['On-Time Payers', data.summary.onTimePayers],
+        ['Frequent Late Payers', data.summary.frequentLatePayers],
+        ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
+        ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
+      ];
+      
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Metric', 'Value']],
+          body: summaryData,
+          theme: 'grid',
+          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      } else {
+        summaryData.forEach((row, index) => {
+          doc.text(`${row[0]}:`, 25, yPosition);
+          doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
+          yPosition += 8;
+        });
+        yPosition += 10;
+      }
+      
+      // High-Risk Tenants Section
+      if (data.details.topTenants.length > 0) {
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('HIGH-RISK TENANTS', 20, yPosition);
+        
+        yPosition += 10;
+        
+        const highRiskData = data.details.topTenants.slice(0, 5).map(tenant => [
+          tenant.tenantName || 'Unknown',
+          tenant.riskScore.toFixed(1),
+          `KES ${this._formatNumber(tenant.monthlyRent)}`,
+          `KES ${this._formatNumber(tenant.balance)}`,
+          tenant.overduePayments?.length || 0
+        ]);
+        
+        if (typeof doc.autoTable === 'function') {
+          doc.autoTable({
+            startY: yPosition,
+            head: [['Tenant Name', 'Risk Score', 'Monthly Rent', 'Balance', 'Overdue']],
+            body: highRiskData,
+            theme: 'grid',
+            headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+            margin: { left: 20, right: 20 }
+          });
+        } else {
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'normal');
+          highRiskData.forEach((row, index) => {
+            if (yPosition > pageHeight - 30) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(`${index + 1}. ${row[0]}`, 25, yPosition);
+            doc.text(`Risk: ${row[1]}`, 30, yPosition + 6);
+            yPosition += 15;
+          });
+        }
+      }
+      
+      // Footer
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+        doc.text('Property Management System', 20, pageHeight - 10);
+      }
+      
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error in _generateTenantBehaviorPDF:', error);
+      throw error;
+    }
+  }
+
+  _generateVacancyRatePDF(data, filename) {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('VACANCY RATE REPORT', pageWidth / 2, yPosition, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      yPosition += 10;
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+      
+      yPosition += 15;
+      
+      // Summary Section
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SUMMARY', 20, yPosition);
+      
+      yPosition += 10;
+      
+      const summaryData = [
+        ['Total Units', data.summary.totalUnits],
+        ['Occupied Units', data.summary.occupiedUnits],
+        ['Vacant Units', data.summary.vacantUnits],
+        ['Under Maintenance', data.summary.maintenanceUnits],
+        ['Vacancy Rate', `${(data.summary.vacancyRate * 100).toFixed(1)}%`],
+        ['Occupancy Rate', `${(data.summary.occupancyRate * 100).toFixed(1)}%`],
+        ['Avg Vacancy Days', data.summary.avgVacancyDays],
+        ['Longest Vacancy', data.summary.longestVacancy]
+      ];
+      
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Metric', 'Value']],
+          body: summaryData,
+          theme: 'grid',
+          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+          margin: { left: 20, right: 20 }
+        });
+      } else {
+        summaryData.forEach((row, index) => {
+          doc.text(`${row[0]}:`, 25, yPosition);
+          doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
+          yPosition += 8;
+        });
+      }
+      
+      // Footer
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+        doc.text('Property Management System', 20, pageHeight - 10);
+      }
+      
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error in _generateVacancyRatePDF:', error);
+      throw error;
+    }
+  }
+
+  _generateInsightsPDF(data, filename) {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ANALYTICS INSIGHTS REPORT', pageWidth / 2, yPosition, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      yPosition += 10;
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 8;
+      doc.text(`Total Insights: ${data.length}`, pageWidth / 2, yPosition, { align: 'center' });
+      
+      yPosition += 15;
+      
+      if (data.length === 0) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'italic');
+        doc.text('No insights generated. All systems are performing optimally.', pageWidth / 2, yPosition, { align: 'center' });
+      } else {
+        // Show all insights
+        data.forEach((insight, index) => {
+          if (yPosition > pageHeight - 50) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          // Set color based on priority
+          const colors = {
+            high: [231, 76, 60],
+            medium: [243, 156, 18],
+            low: [46, 204, 113]
+          };
+          
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...colors[insight.priority] || [0, 0, 0]);
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+          doc.setTextColor(0, 0, 0);
+          
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+          
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+      }
+      
+      // Footer
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+        doc.text('Property Management System', 20, pageHeight - 10);
+      }
+      
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error in _generateInsightsPDF:', error);
+      throw error;
+    }
+  }
+
+ // FIXED: Full report now uses same structure and styling as individual reports
+_generateFullReportPDF(reportData, filename) {
+  try {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
-
-    // Header
-    doc.setFontSize(20);
+    
+    // Title Page (same as before but better styling)
+    doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text('RENT COLLECTION REPORT', pageWidth / 2, yPosition, { align: 'center' });
+    doc.setTextColor(33, 150, 243); // Blue color
+    doc.text('COMPLETE ANALYTICS REPORT', pageWidth / 2, 80, { align: 'center' });
     
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    yPosition += 10;
-    doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 8;
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 15;
-    
-    // Summary Section
     doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SUMMARY', 20, yPosition);
-    
-    yPosition += 10;
-    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Property Management System', pageWidth / 2, 100, { align: 'center' });
     
-    const summaryData = [
-      ['Total Units', data.summary.totalUnits],
-      ['Occupied Units', data.summary.occupiedUnits],
-      ['Expected Rent', `KES ${this._formatNumber(data.summary.expectedRent)}`],
-      ['Collected Rent', `KES ${this._formatNumber(data.summary.collectedRent)}`],
-      ['Collection Rate', `${(data.summary.collectionRate * 100).toFixed(1)}%`],
-      ['Outstanding Amount', `KES ${this._formatNumber(data.summary.outstandingAmount)}`],
-      ['Late Payments', data.summary.latePaymentsCount],
-      ['Completed Payments', data.summary.completedPaymentsCount]
-    ];
+    doc.setFontSize(14);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Time Period: ${reportData.timeframe}`, pageWidth / 2, 120, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, 130, { align: 'center' });
     
+    // Add decorative line
+    doc.setDrawColor(33, 150, 243);
+    doc.setLineWidth(1);
+    doc.line(50, 145, pageWidth - 50, 145);
+    
+    // Add page numbers to title page
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Page 1', pageWidth - 20, pageHeight - 10, { align: 'right' });
+    doc.text('Property Management System', 20, pageHeight - 10);
+    
+    // Table of Contents Page
+    doc.addPage();
+    this._addTableOfContents(doc, reportData);
+    
+    // Rent Collection Section - WITH TABLES AND STYLING
+    doc.addPage();
+    this._addRentCollectionSectionWithTables(doc, reportData.rentCollection);
+    
+    // Vacancy Rate Section - WITH TABLES AND STYLING
+    doc.addPage();
+    this._addVacancyRateSectionWithTables(doc, reportData.vacancyRate);
+    
+    // Tenant Behavior Section - WITH TABLES AND STYLING
+    doc.addPage();
+    this._addTenantBehaviorSectionWithTables(doc, reportData.tenantBehavior);
+    
+    // Insights Section - WITH STYLING
+    doc.addPage();
+    this._addInsightsSectionWithStyling(doc, reportData.insights);
+    
+    // Update all page numbers
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      if (i !== 1) {
+        doc.text('Property Management System', 20, pageHeight - 10);
+      }
+    }
+    
+    // Save only once
+    doc.save(filename);
+  } catch (error) {
+    console.error('Error in _generateFullReportPDF:', error);
+    throw error;
+  }
+}
+
+// Table of Contents
+_addTableOfContents(doc, reportData) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let yPosition = 40;
+
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(33, 150, 243);
+  doc.text('TABLE OF CONTENTS', pageWidth / 2, yPosition, { align: 'center' });
+  
+  yPosition += 20;
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  
+  const sections = [
+    '1. Rent Collection Analysis',
+    '2. Vacancy Rate Analysis',
+    '3. Tenant Behavior Analysis',
+    '4. Insights & Recommendations'
+  ];
+  
+  sections.forEach((section, index) => {
+    doc.text(section, 60, yPosition);
+    doc.text(`...... Page ${index + 3}`, pageWidth - 60, yPosition, { align: 'right' });
+    yPosition += 15;
+  });
+}
+
+// Rent Collection with tables and styling (matches individual report)
+_addRentCollectionSectionWithTables(doc, data) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let yPosition = 30;
+
+  // Section Header
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(33, 150, 243);
+  doc.text('1. RENT COLLECTION ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
+  
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  yPosition += 10;
+  doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
+  
+  yPosition += 15;
+  
+  // Summary Section with table
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('SUMMARY', 20, yPosition);
+  
+  yPosition += 10;
+  
+  const summaryData = [
+    ['Total Units', data.summary.totalUnits],
+    ['Occupied Units', data.summary.occupiedUnits],
+    ['Expected Rent', `KES ${this._formatNumber(data.summary.expectedRent)}`],
+    ['Collected Rent', `KES ${this._formatNumber(data.summary.collectedRent)}`],
+    ['Collection Rate', `${(data.summary.collectionRate * 100).toFixed(1)}%`],
+    ['Outstanding Amount', `KES ${this._formatNumber(data.summary.outstandingAmount)}`],
+    ['Late Payments', data.summary.latePaymentsCount],
+    ['Completed Payments', data.summary.completedPaymentsCount]
+  ];
+  
+  if (typeof doc.autoTable === 'function') {
     doc.autoTable({
       startY: yPosition,
       head: [['Metric', 'Value']],
       body: summaryData,
       theme: 'grid',
-      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+      headStyles: { 
+        fillColor: [41, 128, 185], 
+        textColor: 255, 
+        fontStyle: 'bold',
+        fontSize: 11
+      },
+      bodyStyles: { fontSize: 10 },
       margin: { left: 20, right: 20 }
     });
     
     yPosition = doc.lastAutoTable.finalY + 15;
+  } else {
+    // Fallback
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    summaryData.forEach((row) => {
+      doc.text(`${row[0]}:`, 25, yPosition);
+      doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
+      yPosition += 8;
+    });
+    yPosition += 10;
+  }
+  
+  // Overdue Payments Section (if any)
+  if (data.details.overduePayments.length > 0 && yPosition < pageHeight - 100) {
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OVERDUE PAYMENTS', 20, yPosition);
     
-    // Overdue Payments Section (if any)
-    if (data.details.overduePayments.length > 0) {
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('OVERDUE PAYMENTS', 20, yPosition);
-      
-      yPosition += 10;
-      
-      const overdueTableData = data.details.overduePayments.slice(0, 15).map(payment => [
-        payment.tenantName || 'Unknown',
-        `KES ${this._formatNumber(payment.amount)}`,
-        payment.month || 'N/A',
-        payment.status || 'pending'
-      ]);
-      
+    yPosition += 10;
+    
+    const overdueTableData = data.details.overduePayments.slice(0, 8).map(payment => [
+      payment.tenantName || 'Unknown',
+      `KES ${this._formatNumber(payment.amount)}`,
+      payment.month || 'N/A',
+      payment.status || 'pending'
+    ]);
+    
+    if (typeof doc.autoTable === 'function') {
       doc.autoTable({
         startY: yPosition,
         head: [['Tenant', 'Amount', 'Month', 'Status']],
         body: overdueTableData,
         theme: 'grid',
-        headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+        headStyles: { 
+          fillColor: [231, 76, 60], 
+          textColor: 255, 
+          fontStyle: 'bold',
+          fontSize: 11
+        },
+        bodyStyles: { fontSize: 9 },
         margin: { left: 20, right: 20 }
       });
     }
-    
-    // Footer
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-      doc.text('Property Management System', 20, pageHeight - 10);
-    }
-    
-    doc.save(filename);
   }
+}
 
-  _generateTenantBehaviorPDF(data, filename) {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
+// Vacancy Rate with tables and styling
+_addVacancyRateSectionWithTables(doc, data) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let yPosition = 30;
 
-    // Header
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TENANT BEHAVIOR REPORT', pageWidth / 2, yPosition, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    yPosition += 10;
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 15;
-    
-    // Summary Section
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SUMMARY', 20, yPosition);
-    
-    yPosition += 10;
-    
-    const summaryData = [
-      ['Total Tenants', data.summary.totalTenants],
-      ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
-      ['On-Time Payers', data.summary.onTimePayers],
-      ['Frequent Late Payers', data.summary.frequentLatePayers],
-      ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
-      ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
-    ];
-    
+  // Section Header
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(76, 175, 80); // Green color
+  doc.text('2. VACANCY RATE ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
+  
+  yPosition += 15;
+  
+  // Summary Section with table
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('SUMMARY', 20, yPosition);
+  
+  yPosition += 10;
+  
+  const summaryData = [
+    ['Total Units', data.summary.totalUnits],
+    ['Occupied Units', data.summary.occupiedUnits],
+    ['Vacant Units', data.summary.vacantUnits],
+    ['Under Maintenance', data.summary.maintenanceUnits],
+    ['Vacancy Rate', `${(data.summary.vacancyRate * 100).toFixed(1)}%`],
+    ['Occupancy Rate', `${(data.summary.occupancyRate * 100).toFixed(1)}%`],
+    ['Avg Vacancy Days', data.summary.avgVacancyDays],
+    ['Longest Vacancy', data.summary.longestVacancy]
+  ];
+  
+  if (typeof doc.autoTable === 'function') {
     doc.autoTable({
       startY: yPosition,
       head: [['Metric', 'Value']],
       body: summaryData,
       theme: 'grid',
-      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+      headStyles: { 
+        fillColor: [76, 175, 80], 
+        textColor: 255, 
+        fontStyle: 'bold',
+        fontSize: 11
+      },
+      bodyStyles: { fontSize: 10 },
       margin: { left: 20, right: 20 }
     });
     
     yPosition = doc.lastAutoTable.finalY + 15;
-    
-    // Risk Distribution Section
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RISK DISTRIBUTION', 20, yPosition);
-    
-    yPosition += 10;
-    
-    const riskData = Object.entries(data.details.riskDistribution).map(([category, catData]) => [
-      category.charAt(0).toUpperCase() + category.slice(1) + ' Risk',
-      catData.count,
-      `${Math.round((catData.count / data.summary.totalTenants) * 100)}%`
-    ]);
-    
-    doc.autoTable({
-      startY: yPosition,
-      head: [['Risk Level', 'Count', 'Percentage']],
-      body: riskData,
-      theme: 'grid',
-      headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
-      margin: { left: 20, right: 20 }
-    });
-    
-    yPosition = doc.lastAutoTable.finalY + 15;
-    
-    // Top High-Risk Tenants
-    if (data.details.topTenants.length > 0) {
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('HIGH-RISK TENANTS', 20, yPosition);
-      
-      yPosition += 10;
-      
-      const highRiskData = data.details.topTenants.slice(0, 10).map(tenant => [
-        tenant.tenantName || 'Unknown',
-        tenant.riskScore,
-        `KES ${this._formatNumber(tenant.monthlyRent)}`,
-        `KES ${this._formatNumber(tenant.balance)}`,
-        tenant.overduePayments?.length || 0
-      ]);
-      
-      doc.autoTable({
-        startY: yPosition,
-        head: [['Tenant Name', 'Risk Score', 'Monthly Rent', 'Balance', 'Overdue']],
-        body: highRiskData,
-        theme: 'grid',
-        headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
-        margin: { left: 20, right: 20 }
-      });
-    }
-    
-    // Footer
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-      doc.text('Property Management System', 20, pageHeight - 10);
-    }
-    
-    doc.save(filename);
   }
-
-  _generateVacancyRatePDF(data, filename) {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
-
-    // Header
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('VACANCY RATE REPORT', pageWidth / 2, yPosition, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    yPosition += 10;
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 15;
-    
-    // Summary Section
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SUMMARY', 20, yPosition);
-    
-    yPosition += 10;
-    
-    const summaryData = [
-      ['Total Units', data.summary.totalUnits],
-      ['Occupied Units', data.summary.occupiedUnits],
-      ['Vacant Units', data.summary.vacantUnits],
-      ['Under Maintenance', data.summary.maintenanceUnits],
-      ['Vacancy Rate', `${(data.summary.vacancyRate * 100).toFixed(1)}%`],
-      ['Occupancy Rate', `${(data.summary.occupancyRate * 100).toFixed(1)}%`],
-      ['Avg Vacancy Days', data.summary.avgVacancyDays],
-      ['Longest Vacancy', data.summary.longestVacancy]
-    ];
-    
-    doc.autoTable({
-      startY: yPosition,
-      head: [['Metric', 'Value']],
-      body: summaryData,
-      theme: 'grid',
-      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-      margin: { left: 20, right: 20 }
-    });
-    
-    yPosition = doc.lastAutoTable.finalY + 15;
-    
-    // Property Breakdown
+  
+  // Property Breakdown (if space)
+  if (data.details.byProperty.length > 0 && yPosition < pageHeight - 100) {
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('PROPERTY BREAKDOWN', 20, yPosition);
     
     yPosition += 10;
     
-    const propertyData = data.details.byProperty.map(property => [
+    const propertyData = data.details.byProperty.slice(0, 5).map(property => [
       property.propertyName,
       property.totalUnits,
       property.occupiedUnits,
@@ -1120,233 +1528,259 @@ class AnalyticsService {
       `${(property.occupancyRate * 100).toFixed(1)}%`
     ]);
     
+    if (typeof doc.autoTable === 'function') {
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Property', 'Total', 'Occupied', 'Vacant', 'Vacancy %', 'Occupancy %']],
+        body: propertyData,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [52, 152, 219], 
+          textColor: 255, 
+          fontStyle: 'bold',
+          fontSize: 10
+        },
+        bodyStyles: { fontSize: 9 },
+        margin: { left: 20, right: 20 }
+      });
+    }
+  }
+}
+
+// Tenant Behavior with tables and styling
+_addTenantBehaviorSectionWithTables(doc, data) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let yPosition = 30;
+
+  // Section Header
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(156, 39, 176); // Purple color
+  doc.text('3. TENANT BEHAVIOR ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
+  
+  yPosition += 15;
+  
+  // Summary Section with table
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('SUMMARY', 20, yPosition);
+  
+  yPosition += 10;
+  
+  const summaryData = [
+    ['Total Tenants', data.summary.totalTenants],
+    ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
+    ['On-Time Payers', data.summary.onTimePayers],
+    ['Frequent Late Payers', data.summary.frequentLatePayers],
+    ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
+    ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
+  ];
+  
+  if (typeof doc.autoTable === 'function') {
     doc.autoTable({
       startY: yPosition,
-      head: [['Property', 'Total', 'Occupied', 'Vacant', 'Vacancy %', 'Occupancy %']],
-      body: propertyData,
+      head: [['Metric', 'Value']],
+      body: summaryData,
       theme: 'grid',
-      headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+      headStyles: { 
+        fillColor: [156, 39, 176], 
+        textColor: 255, 
+        fontStyle: 'bold',
+        fontSize: 11
+      },
+      bodyStyles: { fontSize: 10 },
       margin: { left: 20, right: 20 }
     });
     
-    // Footer
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-      doc.text('Property Management System', 20, pageHeight - 10);
-    }
-    
-    doc.save(filename);
+    yPosition = doc.lastAutoTable.finalY + 15;
   }
-
-  _generateInsightsPDF(data, filename) {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
-
-    // Header
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ANALYTICS INSIGHTS REPORT', pageWidth / 2, yPosition, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    yPosition += 10;
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 8;
-    doc.text(`Total Insights: ${data.length}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 15;
-    
-    if (data.length === 0) {
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'italic');
-      doc.text('No insights generated. All systems are performing optimally.', pageWidth / 2, yPosition, { align: 'center' });
-    } else {
-      // Group insights by priority
-      const highPriority = data.filter(i => i.priority === 'high');
-      const mediumPriority = data.filter(i => i.priority === 'medium');
-      const lowPriority = data.filter(i => i.priority === 'low');
-      
-      // High Priority Insights
-      if (highPriority.length > 0) {
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(231, 76, 60); // Red for high priority
-        doc.text(`HIGH PRIORITY INSIGHTS (${highPriority.length})`, 20, yPosition);
-        doc.setTextColor(0, 0, 0);
-        
-        yPosition += 10;
-        
-        highPriority.forEach((insight, index) => {
-          if (yPosition > pageHeight - 50) {
-            doc.addPage();
-            yPosition = 20;
-          }
-          
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
-          
-          yPosition += 7;
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
-          doc.text(descriptionLines, 25, yPosition);
-          yPosition += (descriptionLines.length * 5) + 5;
-          
-          doc.setFont('helvetica', 'italic');
-          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
-          yPosition += 10;
-        });
-        
-        yPosition += 5;
-      }
-      
-      // Medium Priority Insights
-      if (mediumPriority.length > 0) {
-        if (yPosition > pageHeight - 50) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(243, 156, 18); // Orange for medium priority
-        doc.text(`MEDIUM PRIORITY INSIGHTS (${mediumPriority.length})`, 20, yPosition);
-        doc.setTextColor(0, 0, 0);
-        
-        yPosition += 10;
-        
-        mediumPriority.forEach((insight, index) => {
-          if (yPosition > pageHeight - 50) {
-            doc.addPage();
-            yPosition = 20;
-          }
-          
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
-          
-          yPosition += 7;
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
-          doc.text(descriptionLines, 25, yPosition);
-          yPosition += (descriptionLines.length * 5) + 5;
-          
-          doc.setFont('helvetica', 'italic');
-          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
-          yPosition += 10;
-        });
-        
-        yPosition += 5;
-      }
-      
-      // Low Priority Insights
-      if (lowPriority.length > 0) {
-        if (yPosition > pageHeight - 50) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(46, 204, 113); // Green for low priority
-        doc.text(`LOW PRIORITY INSIGHTS (${lowPriority.length})`, 20, yPosition);
-        doc.setTextColor(0, 0, 0);
-        
-        yPosition += 10;
-        
-        lowPriority.forEach((insight, index) => {
-          if (yPosition > pageHeight - 50) {
-            doc.addPage();
-            yPosition = 20;
-          }
-          
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
-          
-          yPosition += 7;
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
-          doc.text(descriptionLines, 25, yPosition);
-          yPosition += (descriptionLines.length * 5) + 5;
-          
-          doc.setFont('helvetica', 'italic');
-          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
-          yPosition += 10;
-        });
-      }
-    }
-    
-    // Footer
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-      doc.text('Property Management System', 20, pageHeight - 10);
-    }
-    
-    doc.save(filename);
-  }
-
-  _generateFullReportPDF(reportData, filename) {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // Title Page
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('COMPLETE ANALYTICS REPORT', pageWidth / 2, 80, { align: 'center' });
-    
+  
+  // Top High-Risk Tenants (if space)
+  if (data.details.topTenants.length > 0 && yPosition < pageHeight - 100) {
     doc.setFontSize(16);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Property Management System', pageWidth / 2, 100, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(231, 76, 60); // Red for high risk
+    doc.text('TOP HIGH-RISK TENANTS', 20, yPosition);
+    doc.setTextColor(0, 0, 0);
     
+    yPosition += 10;
+    
+    const highRiskData = data.details.topTenants.slice(0, 5).map(tenant => [
+      tenant.tenantName || 'Unknown',
+      tenant.riskScore.toFixed(1),
+      `KES ${this._formatNumber(tenant.monthlyRent)}`,
+      `KES ${this._formatNumber(tenant.balance)}`,
+      tenant.overduePayments?.length || 0
+    ]);
+    
+    if (typeof doc.autoTable === 'function') {
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Tenant Name', 'Risk Score', 'Monthly Rent', 'Balance', 'Overdue']],
+        body: highRiskData,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [231, 76, 60], 
+          textColor: 255, 
+          fontStyle: 'bold',
+          fontSize: 10
+        },
+        bodyStyles: { fontSize: 9 },
+        margin: { left: 20, right: 20 }
+      });
+    }
+  }
+}
+
+// Insights with styling
+_addInsightsSectionWithStyling(doc, insights) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let yPosition = 30;
+
+  // Section Header
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(243, 156, 18); // Orange color
+  doc.text('4. INSIGHTS & RECOMMENDATIONS', pageWidth / 2, yPosition, { align: 'center' });
+  
+  yPosition += 15;
+  
+  if (insights.length === 0) {
     doc.setFontSize(14);
-    doc.text(`Time Period: ${reportData.timeframe}`, pageWidth / 2, 120, { align: 'center' });
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, 130, { align: 'center' });
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('No insights generated. All systems are performing optimally.', pageWidth / 2, yPosition, { align: 'center' });
+  } else {
+    // Group by priority for better organization
+    const highPriority = insights.filter(i => i.priority === 'high');
+    const mediumPriority = insights.filter(i => i.priority === 'medium');
+    const lowPriority = insights.filter(i => i.priority === 'low');
     
-    // Add sections for each report type
-    let currentPage = 2;
-    
-    // Rent Collection
-    doc.addPage();
-    this._generateRentCollectionPDF(reportData.rentCollection, filename, true);
-    
-    // Vacancy Rate
-    doc.addPage();
-    this._generateVacancyRatePDF(reportData.vacancyRate, filename, true);
-    
-    // Tenant Behavior
-    doc.addPage();
-    this._generateTenantBehaviorPDF(reportData.tenantBehavior, filename, true);
-    
-    // Insights
-    doc.addPage();
-    this._generateInsightsPDF(reportData.insights, filename, true);
-    
-    // Update page numbers
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+    // High Priority Insights
+    if (highPriority.length > 0) {
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = 30;
+      }
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(231, 76, 60); // Red
+      doc.text(`HIGH PRIORITY (${highPriority.length})`, 20, yPosition);
+      
+      yPosition += 10;
+      
+      highPriority.forEach((insight, index) => {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 30;
+        }
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(231, 76, 60);
+        doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+        
+        yPosition += 7;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
+        const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+        doc.text(descriptionLines, 25, yPosition);
+        yPosition += (descriptionLines.length * 5) + 5;
+        
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+        yPosition += 10;
+      });
+      
+      yPosition += 5;
     }
     
-    doc.save(filename);
+    // Medium Priority Insights
+    if (mediumPriority.length > 0) {
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = 30;
+      }
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(243, 156, 18); // Orange
+      doc.text(`MEDIUM PRIORITY (${mediumPriority.length})`, 20, yPosition);
+      
+      yPosition += 10;
+      
+      mediumPriority.forEach((insight, index) => {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 30;
+        }
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(243, 156, 18);
+        doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+        
+        yPosition += 7;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
+        const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+        doc.text(descriptionLines, 25, yPosition);
+        yPosition += (descriptionLines.length * 5) + 5;
+        
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+        yPosition += 10;
+      });
+      
+      yPosition += 5;
+    }
+    
+    // Low Priority Insights
+    if (lowPriority.length > 0) {
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = 30;
+      }
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(46, 204, 113); // Green
+      doc.text(`LOW PRIORITY (${lowPriority.length})`, 20, yPosition);
+      
+      yPosition += 10;
+      
+      lowPriority.forEach((insight, index) => {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 30;
+        }
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(46, 204, 113);
+        doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+        
+        yPosition += 7;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
+        const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+        doc.text(descriptionLines, 25, yPosition);
+        yPosition += (descriptionLines.length * 5) + 5;
+        
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+        yPosition += 10;
+      });
+    }
   }
+}
 
   // ============ CSV GENERATION METHODS (UNCHANGED) ============
 

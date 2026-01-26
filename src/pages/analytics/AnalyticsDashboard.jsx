@@ -1,5 +1,5 @@
-// src/pages/analytics/AnalyticsDashboard.jsx - FIXED VERSION
-import React, { useState, useEffect } from 'react';
+// src/pages/analytics/AnalyticsDashboard.jsx - UPDATED WITH PDF DROPDOWN
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { analyticsService } from '../../services/analyticsService';
 import RentCollectionAnalysis from './RentCollectionAnalysis';
@@ -19,9 +19,12 @@ import {
   FaDoorClosed,
   FaDownload,
   FaUserCheck,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaFileExcel,
+  FaFilePdf,
+  FaChevronDown
 } from 'react-icons/fa';
-import { toast } from 'react-toastify'; // Add toast notifications
+import { toast } from 'react-toastify';
 import '../../styles/analytics.css';
 
 const AnalyticsDashboard = () => {
@@ -32,6 +35,8 @@ const AnalyticsDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [timeframe, setTimeframe] = useState('monthly');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const exportDropdownRef = useRef(null);
   const [overviewMetrics, setOverviewMetrics] = useState({
     collectionRate: 0,
     vacancyRate: 0,
@@ -41,24 +46,33 @@ const AnalyticsDashboard = () => {
     vacantUnits: 0
   });
 
-  // Get active tab from URL hash - FIXED VERSION
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
+        setExportDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Get active tab from URL hash
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
       if (hash && ['rent-collection', 'vacancy-rates', 'tenant-behavior', 'insights'].includes(hash)) {
         setActiveTab(hash);
-        // Scroll to top when hash changes
         window.scrollTo(0, 0);
       } else {
-        // Default to rent-collection if no valid hash
         setActiveTab('rent-collection');
       }
     };
 
-    // Initial check
     handleHashChange();
-
-    // Listen for hash changes
     window.addEventListener('hashchange', handleHashChange);
     
     return () => {
@@ -66,7 +80,7 @@ const AnalyticsDashboard = () => {
     };
   }, []);
 
-  // Also check when location changes (for React Router navigation)
+  // Also check when location changes
   useEffect(() => {
     const hash = location.hash.replace('#', '');
     if (hash && ['rent-collection', 'vacancy-rates', 'tenant-behavior', 'insights'].includes(hash)) {
@@ -84,7 +98,6 @@ const AnalyticsDashboard = () => {
     try {
       setLoading(true);
       
-      // Load all analytics data in parallel for overview
       const [rentData, vacancyData, tenantData] = await Promise.all([
         analyticsService.getRentCollectionAnalytics(timeframe),
         analyticsService.getVacancyRateAnalytics(),
@@ -121,9 +134,7 @@ const AnalyticsDashboard = () => {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    // FIXED: Use React Router navigation instead of window.location
     navigate(`#${tab}`, { replace: true });
-    // Force scroll to top
     window.scrollTo(0, 0);
   };
 
@@ -132,14 +143,44 @@ const AnalyticsDashboard = () => {
     toast.info(`Timeframe changed to ${newTimeframe}`);
   };
 
-  const handleExportFullReport = async () => {
+  // UPDATED: Export function with format parameter
+  const handleExportReport = async (format = 'csv', reportType = 'full') => {
     try {
-      toast.info('Generating comprehensive report...');
-      await analyticsService.generateComprehensiveReport('full', timeframe);
-      toast.success('Report downloaded successfully!');
+      setExportDropdownOpen(false);
+      toast.info(`Generating ${format.toUpperCase()} report...`);
+      
+      // Map reportType to match service expectations
+      let serviceReportType = 'full';
+      if (reportType === 'current') {
+        // Export current tab
+        const tabMap = {
+          'rent-collection': 'rent',
+          'vacancy-rates': 'vacancy',
+          'tenant-behavior': 'tenants',
+          'insights': 'insights'
+        };
+        serviceReportType = tabMap[activeTab] || 'full';
+      }
+      
+      await analyticsService.generateComprehensiveReport(serviceReportType, timeframe, format);
+      toast.success(`${format.toUpperCase()} report downloaded successfully!`);
     } catch (error) {
       console.error('Export failed:', error);
-      toast.error('Failed to generate report');
+      toast.error(`Failed to generate ${format} report: ${error.message}`);
+    }
+  };
+
+  // Export individual section
+  const handleExportSection = async (sectionType, format = 'pdf') => {
+    try {
+      setExportDropdownOpen(false);
+      toast.info(`Exporting ${sectionType} as ${format.toUpperCase()}...`);
+      
+      await analyticsService.generatePDFReport(sectionType, timeframe);
+      toast.success(`${sectionType} exported as ${format.toUpperCase()}!`);
+    } catch (error) {
+      console.error('Section export failed:', error);
+      toast.error(`Failed to export ${sectionType}: ${error.message}`);
     }
   };
 
@@ -209,13 +250,83 @@ const AnalyticsDashboard = () => {
             )}
           </button>
 
-          <button 
-            className="export-btn" 
-            onClick={handleExportFullReport}
-            title="Download comprehensive report"
-          >
-            <FaDownload /> Full Report
-          </button>
+          {/* UPDATED: Export Dropdown */}
+          <div className="export-dropdown-container" ref={exportDropdownRef}>
+            <button 
+              className="export-btn"
+              onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+            >
+              <FaDownload /> Export <FaChevronDown className="dropdown-arrow" />
+            </button>
+            
+            {exportDropdownOpen && (
+              <div className="export-dropdown-menu">
+                <div className="dropdown-section">
+                  <div className="dropdown-section-title">Full Report</div>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportReport('csv', 'full')}
+                  >
+                    <FaFileExcel className="excel-icon" /> Excel (Full Report)
+                  </button>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportReport('pdf', 'full')}
+                  >
+                    <FaFilePdf className="pdf-icon" /> PDF (Full Report)
+                  </button>
+                </div>
+
+                <div className="dropdown-separator"></div>
+
+                <div className="dropdown-section">
+                  <div className="dropdown-section-title">Current Tab</div>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportReport('csv', 'current')}
+                  >
+                    <FaFileExcel /> Export Current Tab (Excel)
+                  </button>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportReport('pdf', 'current')}
+                  >
+                    <FaFilePdf /> Export Current Tab (PDF)
+                  </button>
+                </div>
+
+                <div className="dropdown-separator"></div>
+
+                <div className="dropdown-section">
+                  <div className="dropdown-section-title">Individual Reports (PDF)</div>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportSection('rent-collection')}
+                  >
+                    <FaDollarSign /> Rent Collection
+                  </button>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportSection('vacancy-rate')}
+                  >
+                    <FaHome /> Vacancy Rate
+                  </button>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportSection('tenant-behavior')}
+                  >
+                    <FaUsers /> Tenant Behavior
+                  </button>
+                  <button 
+                    className="export-option"
+                    onClick={() => handleExportSection('analytics-insights')}
+                  >
+                    <FaLightbulb /> Insights
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
