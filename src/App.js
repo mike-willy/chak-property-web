@@ -1,11 +1,10 @@
-// App.js - Updated
+// App.js - UPDATED WITH SEARCH ROUTE
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import DashboardLayout from "./components/DashboardLayout";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRoute from "./routes/AdminRoute";
 import MetricCard from "./components/analytics/MetricCard";
-
 
 // Admin pages
 import Dashboard from "./pages/Dashboard";
@@ -31,6 +30,10 @@ import ApprovedTenants from './pages/ApprovedTenants';
 import AllActivities from './pages/AllActivities'; 
 import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard';
 import AnalyticsTest from './components/analytics/AnalyticsTest';
+
+// NEW: Import SearchResultsPage
+import SearchResultsPage from "./pages/SearchResultsPage";
+
 // Wrapper component for admin pages with layout
 const AdminPage = ({ children }) => {
   return (
@@ -58,20 +61,29 @@ function App() {
         }
       />
 
-<Route
-  path="/analytics"
-  element={
-    <AdminPage>
-      <AnalyticsDashboard />
-    </AdminPage>
-  }
-/>
+      {/* NEW: Search Results Page */}
+      <Route
+        path="/search"
+        element={
+          <AdminPage>
+            <SearchResultsPage />
+          </AdminPage>
+        }
+      />
 
+      <Route
+        path="/analytics"
+        element={
+          <AdminPage>
+            <AnalyticsDashboard />
+          </AdminPage>
+        }
+      />
 
-<Route path="/activities" element={<AllActivities />} />
+      <Route path="/activities" element={<AllActivities />} />
 
-<Route path="/test-analytics" element={<AnalyticsTest />} />
-<Route path="/metric-card" element={<MetricCard />} />
+      <Route path="/test-analytics" element={<AnalyticsTest />} />
+      <Route path="/metric-card" element={<MetricCard />} />
 
       <Route
         path="/properties/add"

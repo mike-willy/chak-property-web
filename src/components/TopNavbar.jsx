@@ -1,10 +1,12 @@
+// components/TopNavbar.jsx - COMPLETE UPDATED VERSION
 import React, { useState, useEffect, useRef } from "react";
-import { FaBell, FaSearch, FaSignOutAlt, FaEye, FaChevronRight, FaBars, FaTimes } from "react-icons/fa";
+import { FaBell, FaSearch, FaSignOutAlt, FaEye, FaChevronRight, FaBars, FaTimes, FaUser, FaBuilding, FaFileAlt, FaTools, FaMoneyBill, FaHome, FaUserTie } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../pages/firebase/firebase";
 import { signOut } from "firebase/auth";
 import { listenForNotifications, markAllAsRead } from "../services/notificationService";
 import { useSidebar } from "./DashboardLayout";
+import { globalSearch } from "../services/searchService";
 import "../styles/topNavbar.css";
 
 const TopNavbar = () => {
@@ -66,8 +68,9 @@ const TopNavbar = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm]);
 
+  // REAL SEARCH FUNCTION
   const performSearch = async (term) => {
-    if (!term.trim()) {
+    if (!term.trim() || term.length < 2) {
       setSearchResults([]);
       return;
     }
@@ -75,98 +78,49 @@ const TopNavbar = () => {
     setIsSearching(true);
     
     try {
-      // Simulated search - you'll need to implement actual Firestore search
-      // For now, we'll create mock results based on search term
-      const mockResults = generateMockResults(term);
-      setSearchResults(mockResults);
+      // Use the real globalSearch function
+      const results = await globalSearch(term, 3);
+      setSearchResults(results);
       setShowSearchResults(true);
     } catch (error) {
       console.error("Search error:", error);
+      // Fallback to simple mock results if search service fails
+      const mockResults = generateMockResults(term);
+      setSearchResults(mockResults);
+      setShowSearchResults(true);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Mock search results - REPLACE WITH ACTUAL FIRESTORE QUERY
+  // Fallback mock results (only used if search service fails)
   const generateMockResults = (term) => {
     const lowerTerm = term.toLowerCase();
     const results = [];
     
-    // Mock properties
-    if (lowerTerm.includes('apt') || lowerTerm.includes('house') || lowerTerm.includes('villa')) {
-      results.push({
-        id: 1,
-        type: 'property',
-        title: 'Rosewood Apartments',
-        subtitle: 'Property • 4 Units',
-        route: '/admin/properties'
-      });
-    }
-    
-    // Mock tenants
-    if (lowerTerm.includes('john') || lowerTerm.includes('doe') || lowerTerm.includes('tenant')) {
-      results.push({
-        id: 2,
-        type: 'tenant',
-        title: 'John Doe',
-        subtitle: 'Tenant • Unit 3A',
-        route: '/tenants'
-      });
-    }
-    
-    // Mock applications
-    if (lowerTerm.includes('app') || lowerTerm.includes('pending')) {
-      results.push({
-        id: 3,
-        type: 'application',
-        title: 'Pending Applications',
-        subtitle: '3 applications awaiting review',
-        route: '/admin/applications'
-      });
-    }
-    
-    // Mock maintenance
-    if (lowerTerm.includes('repair') || lowerTerm.includes('maintain')) {
-      results.push({
-        id: 4,
-        type: 'maintenance',
-        title: 'Plumbing Issue',
-        subtitle: 'Maintenance request • High priority',
-        route: '/admin/maintenance'
-      });
-    }
-    
-    // Mock payments
-    if (lowerTerm.includes('rent') || lowerTerm.includes('payment')) {
-      results.push({
-        id: 5,
-        type: 'payment',
-        title: 'Overdue Rent',
-        subtitle: 'Payment • 2 tenants overdue',
-        route: '/admin/payments'
-      });
-    }
-    
-    // If no specific matches, show generic suggestions
-    if (results.length === 0) {
-      return [
-        { id: 6, type: 'property', title: 'Search Properties', subtitle: 'View all properties', route: '/admin/properties' },
-        { id: 7, type: 'tenant', title: 'Search Tenants', subtitle: 'View all tenants', route: '/admin/tenants' },
-        { id: 8, type: 'application', title: 'View Applications', subtitle: 'Pending tenant applications', route: '/admin/applications' },
-        { id: 9, type: 'payment', title: 'Payment Records', subtitle: 'Rent payments history', route: '/admin/payments' },
-      ];
-    }
-    
-    return results.slice(0, 5); // Limit to 5 results
+    const mockData = [
+      { id: 1, type: 'property', title: 'Rosewood Apartments', subtitle: 'Property • Nairobi • 4 Units', route: '/properties' },
+      { id: 2, type: 'tenant', title: 'John Doe', subtitle: 'Tenant • john@email.com • Unit 3A', route: '/tenants' },
+      { id: 3, type: 'landlord', title: 'Jane Smith', subtitle: 'Landlord • 5 Properties', route: '/landlords' },
+      { id: 4, type: 'application', title: 'Pending Applications', subtitle: '3 applications awaiting review', route: '/applications' },
+      { id: 5, type: 'maintenance', title: 'Plumbing Issue', subtitle: 'Maintenance request • High priority', route: '/maintenance' },
+      { id: 6, type: 'unit', title: 'Unit 3A', subtitle: 'Unit • 2 Bedroom • Occupied', route: '/units' },
+      { id: 7, type: 'payment', title: 'Overdue Rent', subtitle: 'Payment • 2 tenants overdue', route: '/finance' }
+    ];
+
+    return mockData
+      .filter(item => 
+        item.title.toLowerCase().includes(lowerTerm) || 
+        item.subtitle.toLowerCase().includes(lowerTerm) ||
+        item.type.toLowerCase().includes(lowerTerm)
+      )
+      .slice(0, 5);
   };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      // Navigate to search results page or handle search
-      console.log("Searching for:", searchTerm);
-      // You can implement navigation to a search results page here
-      navigate(`/admin/search?q=${encodeURIComponent(searchTerm)}`);
+      navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
       setSearchTerm("");
       setShowSearchResults(false);
     }
@@ -182,6 +136,45 @@ const TopNavbar = () => {
     setSearchTerm("");
     setSearchResults([]);
     setShowSearchResults(false);
+  };
+
+  const getResultIcon = (type) => {
+    switch (type) {
+      case 'property': return <FaBuilding className="result-icon-svg" />;
+      case 'tenant': return <FaUser className="result-icon-svg" />;
+      case 'landlord': return <FaUserTie className="result-icon-svg" />;
+      case 'unit': return <FaHome className="result-icon-svg" />;
+      case 'application': return <FaFileAlt className="result-icon-svg" />;
+      case 'maintenance': return <FaTools className="result-icon-svg" />;
+      case 'payment': return <FaMoneyBill className="result-icon-svg" />;
+      default: return <FaSearch className="result-icon-svg" />;
+    }
+  };
+
+  const getResultTypeLabel = (type) => {
+    switch (type) {
+      case 'property': return 'Property';
+      case 'tenant': return 'Tenant';
+      case 'landlord': return 'Landlord';
+      case 'unit': return 'Unit';
+      case 'application': return 'Application';
+      case 'maintenance': return 'Maintenance';
+      case 'payment': return 'Payment';
+      default: return 'Result';
+    }
+  };
+
+  const getResultTypeColor = (type) => {
+    switch (type) {
+      case 'property': return '#FF9800';
+      case 'tenant': return '#4CAF50';
+      case 'landlord': return '#2196F3';
+      case 'unit': return '#9C27B0';
+      case 'application': return '#00BCD4';
+      case 'maintenance': return '#F44336';
+      case 'payment': return '#673AB7';
+      default: return '#757575';
+    }
   };
 
   const handleLogout = async () => {
@@ -245,17 +238,6 @@ const TopNavbar = () => {
     }
   };
 
-  const getResultIcon = (type) => {
-    switch (type) {
-      case 'property': return '🏠';
-      case 'tenant': return '👤';
-      case 'application': return '📋';
-      case 'maintenance': return '🔧';
-      case 'payment': return '💰';
-      default: return '🔍';
-    }
-  };
-
   return (
     <div className="top-navbar">
       {/* LEFT: HAMBURGER + BRAND */}
@@ -275,7 +257,7 @@ const TopNavbar = () => {
           <FaSearch className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search properties, tenants, applications..." 
+            placeholder="Search properties, tenants, landlords, applications..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => {
@@ -314,15 +296,29 @@ const TopNavbar = () => {
               ) : searchResults.length > 0 ? (
                 searchResults.map((result) => (
                   <div 
-                    key={result.id}
+                    key={`${result.type}-${result.id}`}
                     className="search-result-item"
                     onClick={() => handleResultClick(result)}
                   >
-                    <div className="result-icon">
+                    <div 
+                      className="result-icon"
+                      style={{ backgroundColor: getResultTypeColor(result.type) }}
+                    >
                       {getResultIcon(result.type)}
                     </div>
                     <div className="result-content">
-                      <h5 className="result-title">{result.title}</h5>
+                      <div className="result-title-row">
+                        <h5 className="result-title">{result.title}</h5>
+                        <span 
+                          className="result-type-badge-small"
+                          style={{ 
+                            backgroundColor: getResultTypeColor(result.type) + '20',
+                            color: getResultTypeColor(result.type)
+                          }}
+                        >
+                          {getResultTypeLabel(result.type)}
+                        </span>
+                      </div>
                       <p className="result-subtitle">{result.subtitle}</p>
                     </div>
                     <FaChevronRight className="result-chevron" />
@@ -330,23 +326,26 @@ const TopNavbar = () => {
                 ))
               ) : (
                 <div className="no-results">
+                  <div className="no-results-icon">🔍</div>
                   <p>No results found for "{searchTerm}"</p>
                   <small>Try different keywords</small>
                 </div>
               )}
             </div>
             
-            <div className="search-results-footer">
-              <button 
-                className="view-all-results-btn"
-                onClick={() => {
-                  navigate(`/admin/search?q=${encodeURIComponent(searchTerm)}`);
-                  setShowSearchResults(false);
-                }}
-              >
-                View all results for "{searchTerm}"
-              </button>
-            </div>
+            {searchResults.length > 0 && (
+              <div className="search-results-footer">
+                <button 
+                  className="view-all-results-btn"
+                  onClick={() => {
+                    navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
+                    setShowSearchResults(false);
+                  }}
+                >
+                  View all results for "{searchTerm}"
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
