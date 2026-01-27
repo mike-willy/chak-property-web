@@ -34,10 +34,6 @@ const Messages = () => {
     const [incomingMsgsList, setIncomingMsgsList] = useState([]);
     const [outgoingMsgsList, setOutgoingMsgsList] = useState([]);
 
-    // State for Conversation Detail
-    const [chatIncoming, setChatIncoming] = useState([]);
-    const [chatOutgoing, setChatOutgoing] = useState([]);
-
     // 1. Listeners for Sidebar (Global Inbox/Outbox)
     useEffect(() => {
         const qIncoming = query(
@@ -142,90 +138,92 @@ const Messages = () => {
         mergeAndGroup();
     }, [incomingMsgsList, outgoingMsgsList]);
 
-    // 2. Listeners for Conversation Detail
+    // 2. SINGLE REAL-TIME LISTENER FOR CONVERSATION (FIXED VERSION)
     useEffect(() => {
-        // CLEANUP: Reset conversation state immediately when switching users
-        setChatIncoming([]);
-        setChatOutgoing([]);
+        // Reset conversation state immediately
         setConversation([]);
+        setLoadingConversation(true);
 
         if (!selectedSender) {
+            setLoadingConversation(false);
             return;
         }
 
-        console.log("Setting up conversation listener for:", selectedSender.senderId);
-        setLoadingConversation(true);
-
+        console.log("Setting up REAL-TIME conversation listener for:", selectedSender.senderId);
+        
         const relatedUserId = selectedSender.senderId;
 
-        const q1 = query(
+        // Create a single query that gets ALL messages between admin and this user
+        const conversationQuery = query(
             collection(db, 'messages'),
-            where('senderId', '==', relatedUserId),
-            where('recipientId', '==', 'admin'),
-            where('recipientType', '==', 'admin'),
             orderBy('createdAt', 'asc')
         );
 
-        const q2 = query(
-            collection(db, 'messages'),
-            where('senderId', '==', 'admin'),
-            where('recipientId', '==', relatedUserId),
-            orderBy('createdAt', 'asc')
-        );
-
-        const unsub1 = onSnapshot(q1, (snapshot) => {
-            const incomingMsgs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                direction: 'incoming'
-            }));
-
-            // Mark as read
+        const unsubscribe = onSnapshot(conversationQuery, (snapshot) => {
+            console.log("🔥 Conversation listener triggered, total docs:", snapshot.docs.length);
+            
+            const allMessages = [];
+            
             snapshot.docs.forEach(doc => {
-                if (!doc.data().read && doc.data().recipientId === 'admin') {
-                    updateDoc(doc.ref, { read: true }).catch(console.error);
+                const messageData = doc.data();
+                
+                // Filter messages to only show conversation between admin and this user
+                const isFromUserToAdmin = messageData.senderId === relatedUserId && 
+                                          messageData.recipientId === 'admin';
+                const isFromAdminToUser = messageData.senderId === 'admin' && 
+                                          messageData.recipientId === relatedUserId;
+                
+                if (isFromUserToAdmin || isFromAdminToUser) {
+                    console.log("📨 Adding message to conversation:", {
+                        id: doc.id,
+                        senderId: messageData.senderId,
+                        message: messageData.message?.substring(0, 50),
+                        timestamp: messageData.createdAt
+                    });
+                    
+                    allMessages.push({
+                        id: doc.id,
+                        ...messageData,
+                        direction: messageData.senderId === 'admin' ? 'outgoing' : 'incoming'
+                    });
+
+                    // Mark incoming messages as read
+                    if (isFromUserToAdmin && !messageData.read) {
+                        console.log("📖 Marking message as read:", doc.id);
+                        updateDoc(doc.ref, { read: true }).catch(console.error);
+                    }
                 }
             });
 
-            setChatIncoming(incomingMsgs);
+            // Sort by timestamp
+            allMessages.sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+                return dateA - dateB;
+            });
+
+            console.log("✅ Final conversation messages:", allMessages.length);
+            setConversation(allMessages);
+            setLoadingConversation(false);
+            
+            // Scroll to bottom
+            setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }, (error) => {
+            console.error("❌ Error in conversation listener:", error);
+            setLoadingConversation(false);
         });
 
-        const unsub2 = onSnapshot(q2, (snapshot) => {
-            const outgoingMsgs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                direction: 'outgoing'
-            }));
-            setChatOutgoing(outgoingMsgs);
-        });
-
-        // Set loading false once listeners attach
-        setLoadingConversation(false);
-
+        // Cleanup function
         return () => {
-            unsub1();
-            unsub2();
+            console.log("🧹 Cleaning up conversation listener");
+            unsubscribe();
         };
     }, [selectedSender]);
 
-    // 2b. Merge Conversation Lists
-    useEffect(() => {
-        if (!selectedSender) return;
-
-        const allChats = [...chatIncoming, ...chatOutgoing].sort((a, b) => {
-            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date();
-            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date();
-            return dateA - dateB;
-        });
-
-        setConversation(allChats);
-
-        // Scroll on update
-        setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-
-    }, [chatIncoming, chatOutgoing, selectedSender]);
+    // Remove the old 2b useEffect entirely since we don't need it anymore
+    // (The single listener above handles everything)
 
     // Auto-scroll to bottom when conversation updates
     useEffect(() => {

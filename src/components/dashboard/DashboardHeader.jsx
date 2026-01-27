@@ -10,12 +10,6 @@ const DashboardHeader = () => {
         <p>Here’s an overview of your property management system.</p>
       </div>
 
-      <div className="dashboard-actions">
-        <button className="btn-outline">
-          <FaDownload /> Export Report
-        </button>
-      
-      </div>
     </div>
   );
 };
