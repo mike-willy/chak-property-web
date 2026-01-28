@@ -247,7 +247,7 @@ const TopNavbar = () => {
         </div>
         
         <div className="navbar-brand">
-          <h2>CHAK Estates</h2>
+          <h2>Jesma Investments</h2>
         </div>
       </div>
 
