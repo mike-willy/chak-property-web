@@ -1,5 +1,5 @@
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../pages/firebase/firebase";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +33,29 @@ export default function AdminLogin() {
       if (userDoc.data().role !== "admin") {
         await auth.signOut();
         throw new Error("Access denied. Admins only.");
+      }
+
+      // CRITICAL: Verify/Create admin in admins collection
+      const adminDoc = await getDoc(doc(db, "admins", cred.user.uid));
+      
+      // If admin doesn't exist in admins collection, create it
+      if (!adminDoc.exists()) {
+        // Create admin entry in admins collection
+        await setDoc(doc(db, "admins", cred.user.uid), {
+          userId: cred.user.uid,
+          email: userDoc.data().email || email,
+          adminLevel: "super",
+          permissions: ["all"],
+          createdAt: new Date(),
+          lastLogin: new Date(),
+          displayName: userDoc.data().displayName || "Administrator",
+          role: "admin" // Keep role field for consistency
+        });
+      } else {
+        // Update last login
+        await updateDoc(doc(db, "admins", cred.user.uid), {
+          lastLogin: new Date()
+        });
       }
 
       navigate("/");
