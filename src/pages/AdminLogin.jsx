@@ -172,7 +172,7 @@ export default function AdminLogin() {
                 </label>
                 <input
                   type="email"
-                  placeholder="admin@chakestates.com"
+                  placeholder="agent@jesma.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="form-input"
