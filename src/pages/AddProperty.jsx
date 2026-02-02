@@ -1,4 +1,4 @@
-// src/pages/AddProperty.jsx - FIXED VERSION
+// src/pages/AddProperty.jsx - UPDATED WITH CLOUDINARY SERVICE
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -10,8 +10,8 @@ import {
   doc,
   arrayUnion 
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../pages/firebase/firebase";
+import { db } from "../pages/firebase/firebase"; 
+import { uploadMultipleImages } from "../services/cloudinary"; // Import from your service
 import "../styles/Addproperty.css";
 import { 
   FaImage, 
@@ -51,8 +51,8 @@ const AddProperty = () => {
       icon: "🏠", 
       description: "Single self-contained room", 
       hasBedrooms: false,
-      autoBedrooms: 0,    // Single room doesn't have separate bedroom count
-      autoBathrooms: 1    // Usually has 1 bathroom
+      autoBedrooms: 0,
+      autoBathrooms: 1
     },
     { 
       value: "bedsitter", 
@@ -60,8 +60,8 @@ const AddProperty = () => {
       icon: "🛌", 
       description: "Bed-sitting room with kitchenette", 
       hasBedrooms: false,
-      autoBedrooms: 0,    // Studio style
-      autoBathrooms: 1    // Usually has 1 bathroom
+      autoBedrooms: 0,
+      autoBathrooms: 1
     },
     { 
       value: "one-bedroom", 
@@ -69,8 +69,8 @@ const AddProperty = () => {
       icon: "1️⃣", 
       description: "One bedroom apartment", 
       hasBedrooms: true,
-      autoBedrooms: 1,    // 1 bedroom
-      autoBathrooms: 1    // 1 bathroom
+      autoBedrooms: 1,
+      autoBathrooms: 1
     },
     { 
       value: "two-bedroom", 
@@ -78,8 +78,8 @@ const AddProperty = () => {
       icon: "2️⃣", 
       description: "Two bedroom apartment", 
       hasBedrooms: true,
-      autoBedrooms: 2,    // 2 bedrooms
-      autoBathrooms: 2    // 2 bathrooms
+      autoBedrooms: 2,
+      autoBathrooms: 2
     },
     { 
       value: "three-bedroom", 
@@ -87,8 +87,8 @@ const AddProperty = () => {
       icon: "3️⃣", 
       description: "Three bedroom apartment", 
       hasBedrooms: true,
-      autoBedrooms: 3,    // 3 bedrooms
-      autoBathrooms: 3    // 3 bathrooms
+      autoBedrooms: 3,
+      autoBathrooms: 3
     },
     { 
       value: "one-two-bedroom", 
@@ -96,8 +96,8 @@ const AddProperty = () => {
       icon: "🏘️", 
       description: "Mix of 1BR and 2BR units", 
       hasBedrooms: true,
-      autoBedrooms: 0,    // Mixed - will be set per unit
-      autoBathrooms: 0    // Mixed - will be set per unit
+      autoBedrooms: 0,
+      autoBathrooms: 0
     },
     { 
       value: "apartment", 
@@ -105,8 +105,8 @@ const AddProperty = () => {
       icon: "🏢", 
       description: "Multi-unit apartment building", 
       hasBedrooms: false,
-      autoBedrooms: 1,    // Default 1 bedroom for apartment units
-      autoBathrooms: 1    // Default 1 bathroom for apartment units
+      autoBedrooms: 1,
+      autoBathrooms: 1
     },
     { 
       value: "commercial", 
@@ -114,8 +114,8 @@ const AddProperty = () => {
       icon: "🏪", 
       description: "Commercial property", 
       hasBedrooms: false,
-      autoBedrooms: 0,    // No bedrooms for commercial
-      autoBathrooms: 1    // Usually has bathrooms
+      autoBedrooms: 0,
+      autoBathrooms: 1
     },
   ];
   
@@ -148,8 +148,8 @@ const AddProperty = () => {
     country: "Kenya",
     amenities: [],
     propertyType: "apartment",
-    bedrooms: 1,  // Will be auto-updated when property type changes
-    bathrooms: 1, // Will be auto-updated when property type changes
+    bedrooms: 1,
+    bathrooms: 1,
     size: "",
     images: [],
     pricing: {
@@ -159,22 +159,20 @@ const AddProperty = () => {
       twoBedroom: "",
       threeBedroom: ""
     },
-    // FEE FIELDS - Fixed: Using strings to prevent number bugs
     applicationFee: "",
     securityDeposit: "",
     petDeposit: "",
     otherFees: "",
-    leaseTerm: "12", // Keep as string
-    noticePeriod: "30", // Keep as string
+    leaseTerm: "12",
+    noticePeriod: "30",
     latePaymentFee: "",
-    gracePeriod: "5", // Keep as string
+    gracePeriod: "5",
     feeDetails: {
       includesWater: false,
       includesElectricity: false,
       includesInternet: false,
       includesMaintenance: false
     },
-    // Unit tracking fields
     unitDetails: {
       totalUnits: 1,
       vacantCount: 1,
@@ -194,7 +192,6 @@ const AddProperty = () => {
   useEffect(() => {
     const currentType = propertyTypes.find(t => t.value === form.propertyType);
     if (currentType) {
-      // For property types with auto values, update them
       if (form.propertyType !== "one-two-bedroom" && form.propertyType !== "apartment" && form.propertyType !== "commercial") {
         setForm(prev => ({
           ...prev,
@@ -202,7 +199,6 @@ const AddProperty = () => {
           bathrooms: currentType.autoBathrooms
         }));
       }
-      // For apartment, set default values if not already set
       else if (form.propertyType === "apartment") {
         if (form.bedrooms === 0) {
           setForm(prev => ({ ...prev, bedrooms: 1 }));
@@ -211,7 +207,6 @@ const AddProperty = () => {
           setForm(prev => ({ ...prev, bathrooms: 1 }));
         }
       }
-      // For commercial, set default values
       else if (form.propertyType === "commercial") {
         setForm(prev => ({
           ...prev,
@@ -246,7 +241,7 @@ const AddProperty = () => {
         const unitNumber = i.toString().padStart(3, '0');
         
         // Alternate between 1BR and 2BR units
-        const isOneBedroom = i % 2 === 1; // Odd numbers = 1BR, Even = 2BR
+        const isOneBedroom = i % 2 === 1;
         
         const unitBedrooms = isOneBedroom ? 1 : 2;
         const unitBathrooms = isOneBedroom ? 1 : 2;
@@ -262,23 +257,18 @@ const AddProperty = () => {
           rentAmount: unitRent,
           size: form.size || "",
           amenities: [...form.amenities],
-          // Unit-specific bedroom/bathroom for mixed type
           bedrooms: unitBedrooms,
           bathrooms: unitBathrooms,
-          // Tenant info
           tenantId: null,
           tenantName: "",
           tenantPhone: "",
           tenantEmail: "",
-          // Lease info
           leaseStart: null,
           leaseEnd: null,
           rentPaidUntil: null,
-          // Maintenance info
           maintenanceRequests: 0,
           lastMaintenanceDate: null,
           currentMaintenance: false,
-          // Notes
           notes: "",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -287,7 +277,6 @@ const AddProperty = () => {
     } 
     // REGULAR PROPERTY TYPES
     else {
-      // Get bedroom/bathroom counts for this property type
       const currentType = propertyTypes.find(t => t.value === propertyType);
       const unitBedrooms = currentType?.hasBedrooms ? currentType.autoBedrooms : form.bedrooms;
       const unitBathrooms = currentType?.hasBedrooms ? currentType.autoBathrooms : form.bathrooms;
@@ -303,23 +292,18 @@ const AddProperty = () => {
           rentAmount: baseRent,
           size: form.size || "",
           amenities: [...form.amenities],
-          // Unit-specific bedroom/bathroom
           bedrooms: unitBedrooms,
           bathrooms: unitBathrooms,
-          // Tenant info
           tenantId: null,
           tenantName: "",
           tenantPhone: "",
           tenantEmail: "",
-          // Lease info
           leaseStart: null,
           leaseEnd: null,
           rentPaidUntil: null,
-          // Maintenance info
           maintenanceRequests: 0,
           lastMaintenanceDate: null,
           currentMaintenance: false,
-          // Notes
           notes: "",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -362,9 +346,8 @@ const AddProperty = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     
-    // Handle all inputs normally - FIXED: No blocking logic
     if (name === "landlordId") {
       const selectedLandlord = landlords.find(l => l.id === value);
       setForm({
@@ -398,48 +381,52 @@ const AddProperty = () => {
         }
       }));
     } else if (name === "bedrooms" || name === "bathrooms") {
-      // Allow manual input for bedroom/bathroom
       setForm(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
     } else {
-      // Handle all other inputs normally
       setForm({ ...form, [name]: value });
     }
   };
 
-  // Handle image upload
+  // Handle image upload - UPDATED TO USE CLOUDINARY
   const handleImageUpload = async (files) => {
     if (files.length === 0) return;
     
     setUploadingImages(true);
-    const uploadedUrls = [];
     
     try {
-      for (let i = 0; i < Math.min(files.length, 10); i++) {
-        const file = files[i];
-        if (!file.type.startsWith('image/')) continue;
-        
-        // Create a unique filename
-        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name}`;
-        const storageRef = ref(storage, `properties/${fileName}`);
-        
-        // Upload file
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
-        uploadedUrls.push(downloadURL);
-        
-        // Update preview
-        setPropertyImages(prev => [...prev, { url: downloadURL, name: file.name }]);
-      }
+      // Use Cloudinary service to upload images
+      const uploadResults = await uploadMultipleImages(files, {
+        folder: form.name ? `properties/${form.name.replace(/\s+/g, '_')}` : 'properties'
+      });
       
-      // Update form with image URLs
+      // Filter successful uploads
+      const successfulUploads = uploadResults.filter(result => result.success);
+      const uploadedUrls = successfulUploads.map(result => result.url);
+      
+      // Update preview
+      successfulUploads.forEach((result, index) => {
+        setPropertyImages(prev => [...prev, {
+          url: result.url,
+          name: `Property Image ${index + 1}`,
+          size: result.bytes
+        }]);
+      });
+      
+      // Update form with Cloudinary URLs
       setForm(prev => ({
         ...prev,
         images: [...prev.images, ...uploadedUrls]
       }));
       
+      // Show warning for failed uploads
+      const failedUploads = uploadResults.filter(result => !result.success);
+      if (failedUploads.length > 0) {
+        console.warn(`${failedUploads.length} image(s) failed to upload`);
+      }
+      
     } catch (error) {
-      console.error("Error uploading images:", error);
-      alert("Failed to upload some images. Please try again.");
+      console.error("Image upload error:", error);
+      alert("Failed to upload images. Please try again.");
     } finally {
       setUploadingImages(false);
     }
@@ -471,7 +458,6 @@ const AddProperty = () => {
   const handlePropertyTypeSelect = (type) => {
     const selectedType = propertyTypes.find(t => t.value === type);
     
-    // Auto-set bedrooms/bathrooms based on property type
     let newBedrooms = form.bedrooms;
     let newBathrooms = form.bathrooms;
     
@@ -482,7 +468,6 @@ const AddProperty = () => {
       newBedrooms = 0;
       newBathrooms = 1;
     } else if (type === "apartment") {
-      // Keep existing or default to 1
       newBedrooms = form.bedrooms || 1;
       newBathrooms = form.bathrooms || 1;
     }
@@ -513,7 +498,6 @@ const AddProperty = () => {
       ? form.amenities.filter(id => id !== amenityId)
       : [...form.amenities, amenityId];
     
-    // Update amenities in all units if they exist
     const updatedUnits = form.unitDetails.units.map(unit => ({
       ...unit,
       amenities: newAmenities
@@ -549,7 +533,7 @@ const AddProperty = () => {
     return !noPricingTypes.includes(form.propertyType);
   };
 
-  // FIXED: Proper number handling for fees
+  // Proper number handling for fees
   const parseFeeValue = (value) => {
     if (!value || value === "") return 0;
     const num = parseFloat(value);
@@ -573,7 +557,6 @@ const AddProperty = () => {
         return;
       }
     } else if (form.propertyType === 'apartment' || form.propertyType === 'commercial') {
-      // For apartment complex and commercial, use rentAmount field
       const rentAmount = parseFloat(form.rentAmount) || 0;
       if (!rentAmount || rentAmount <= 0) {
         alert("Please enter a valid monthly rent amount");
@@ -593,30 +576,28 @@ const AddProperty = () => {
       // Get current property type details
       const currentPropertyType = propertyTypes.find(t => t.value === form.propertyType);
       
-      // FIXED: Create property data with proper number conversion
+      // Create property data
       const propertyData = {
         // Basic info
         name: form.name,
         address: form.address,
         city: form.city,
         country: form.country,
-        // FIXED: Proper number conversion - no division bug
         rentAmount: parseFloat(priceForUnits) || 0,
         units: parseInt(form.units) || 1,
         propertyType: form.propertyType,
-        // Auto-set bedrooms/bathrooms based on property type
         bedrooms: currentPropertyType?.hasBedrooms ? currentPropertyType.autoBedrooms : parseInt(form.bedrooms) || 0,
         bathrooms: currentPropertyType?.hasBedrooms ? currentPropertyType.autoBathrooms : parseInt(form.bathrooms) || 0,
         size: form.size,
         description: form.description,
         amenities: form.amenities,
-        images: form.images,
+        images: form.images, // Now contains Cloudinary URLs
         
         // Landlord info
         landlordId: form.landlordId,
         landlordName: form.landlordName,
         
-        // FIXED: Application and fee-related fields - NO DIVISION BUG
+        // Fee-related fields
         applicationFee: parseFeeValue(form.applicationFee),
         securityDeposit: parseFeeValue(form.securityDeposit),
         petDeposit: parseFeeValue(form.petDeposit),
@@ -655,9 +636,7 @@ const AddProperty = () => {
         propertyData.pricing = pricingNumbers;
       }
       
-      console.log("Saving property data:", propertyData);
-      console.log("Bedrooms:", propertyData.bedrooms, "Bathrooms:", propertyData.bathrooms);
-      console.log("Fees - Application:", propertyData.applicationFee, "Security:", propertyData.securityDeposit);
+      console.log("Saving property data with Cloudinary images:", propertyData);
       
       // Save the main property document to Firestore
       const propertyRef = await addDoc(collection(db, "properties"), propertyData);
@@ -682,7 +661,7 @@ const AddProperty = () => {
           size: form.size || "",
           amenities: [...form.amenities],
           
-          // Pricing - FIXED: No division bug
+          // Pricing
           rentAmount: parseFloat(unitData.rentAmount) || 0,
           applicationFee: parseFeeValue(form.applicationFee),
           securityDeposit: parseFeeValue(form.securityDeposit),
@@ -838,7 +817,7 @@ const AddProperty = () => {
               {uploadingImages && (
                 <div className="uploading-status">
                   <div className="spinner"></div>
-                  <p>Uploading images...</p>
+                  <p>Uploading images to Cloudinary...</p>
                 </div>
               )}
               
@@ -878,7 +857,6 @@ const AddProperty = () => {
                   <span className="property-icon">{type.icon}</span>
                   <span className="property-label">{type.label}</span>
                   <span className="property-desc">{type.description}</span>
-                  {/* Show auto bedroom/bathroom info */}
                   {type.autoBedrooms > 0 && (
                     <span className="property-auto-info">
                       🛏️ {type.autoBedrooms} BR | 🚿 {type.autoBathrooms} BA
@@ -1075,7 +1053,7 @@ const AddProperty = () => {
             </div>
           )}
           
-          {/* FEES AND DEPOSITS SECTION - FIXED */}
+          {/* FEES AND DEPOSITS SECTION */}
           <div className="form-section">
             <h3>Fees & Deposits</h3>
             <p className="form-subtitle">Set application fees, deposits, and other charges</p>
@@ -1339,7 +1317,7 @@ const AddProperty = () => {
               </div>
             </div>
             
-            {/* Bedroom/Bathroom Section - Only show for types that allow user input */}
+            {/* Bedroom/Bathroom Section */}
             {(form.propertyType === "apartment" || form.propertyType === "commercial" || form.propertyType === "one-two-bedroom") && (
               <div className="form-row">
                 {form.propertyType !== "commercial" && (

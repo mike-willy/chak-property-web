@@ -1,4 +1,4 @@
-// src/pages/EditProperty.jsx - UPDATED TO MATCH AddProperty.jsx STRUCTURE
+// src/pages/EditProperty.jsx - UPDATED WITH CLOUDINARY
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { 
@@ -7,8 +7,8 @@ import {
   updateDoc,
   Timestamp
 } from "firebase/firestore";
-import { db, storage } from "../pages/firebase/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db } from "../pages/firebase/firebase";
+import { uploadMultipleImages } from "../services/cloudinary"; // Import Cloudinary service
 import "../styles/EditProperty.css";
 import { 
   FaSave, 
@@ -266,48 +266,77 @@ const EditProperty = () => {
     }));
   };
 
-  // Handle image upload - MUST MATCH AddProperty.jsx
+  // Handle image upload - UPDATED TO USE CLOUDINARY
   const handleImageUpload = async (files) => {
     if (files.length === 0) return;
     
     setUploadingImages(true);
-    const uploadedUrls = [];
     
     try {
-      for (let i = 0; i < Math.min(files.length, 10); i++) {
-        const file = files[i];
-        if (!file.type.startsWith('image/')) continue;
-        
-        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name}`;
-        const storageRef = ref(storage, `properties/${fileName}`);
-        
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
-        uploadedUrls.push(downloadURL);
-        
-        setPropertyImages(prev => [...prev, { url: downloadURL, name: file.name }]);
-      }
+      // Use Cloudinary service to upload images
+      const uploadResults = await uploadMultipleImages(files, {
+        folder: 'properties' // Use the same folder as AddProperty.jsx
+      });
       
+      console.log("Cloudinary upload results:", uploadResults);
+      
+      // Filter successful uploads
+      const successfulUploads = uploadResults.filter(result => result.success);
+      const uploadedUrls = successfulUploads.map(result => result.url);
+      
+      // Update preview
+      successfulUploads.forEach((result, index) => {
+        setPropertyImages(prev => [...prev, {
+          url: result.url,
+          name: `Property Image ${index + 1}`,
+          size: result.bytes
+        }]);
+      });
+      
+      // Update form with Cloudinary URLs
       setForm(prev => ({
         ...prev,
         images: [...prev.images, ...uploadedUrls]
       }));
       
+      // Show warning for failed uploads
+      const failedUploads = uploadResults.filter(result => !result.success);
+      if (failedUploads.length > 0) {
+        console.warn(`${failedUploads.length} image(s) failed to upload`);
+      }
+      
+      if (successfulUploads.length > 0) {
+        alert(`✅ ${successfulUploads.length} image(s) uploaded successfully to Cloudinary!`);
+      }
+      
     } catch (error) {
-      console.error("Error uploading images:", error);
-      alert("Failed to upload some images");
+      console.error("Image upload error:", error);
+      alert(`Failed to upload images: ${error.message}`);
     } finally {
       setUploadingImages(false);
     }
   };
 
-  // Remove image - MUST MATCH AddProperty.jsx
+  // Remove image
   const removeImage = (index) => {
     setPropertyImages(prev => prev.filter((_, i) => i !== index));
     setForm(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
     }));
+  };
+
+  // Handle drag and drop
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files);
+    handleImageUpload(files);
   };
 
   // Check if property type requires pricing input - MUST MATCH AddProperty.jsx
@@ -458,16 +487,18 @@ const EditProperty = () => {
         
         <form onSubmit={handleSubmit} className="add-property-form">
           
-          {/* IMAGE UPLOAD SECTION */}
+          {/* IMAGE UPLOAD SECTION - UPDATED FOR CLOUDINARY */}
           <div className="form-section">
             <h3>Property Images</h3>
             <div className="image-upload-section">
               <div 
                 className="drop-zone"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
                 onClick={() => document.getElementById('image-upload-input').click()}
               >
                 <FaUpload className="upload-icon" />
-                <p>Click to add more images or drag & drop</p>
+                <p>Drag & drop images here or click to browse</p>
                 <p className="upload-hint">Recommended: 5-10 images, max 5MB each</p>
                 <input
                   id="image-upload-input"
@@ -482,7 +513,7 @@ const EditProperty = () => {
               {uploadingImages && (
                 <div className="uploading-status">
                   <div className="spinner"></div>
-                  <p>Uploading images...</p>
+                  <p>Uploading images to Cloudinary...</p>
                 </div>
               )}
               
