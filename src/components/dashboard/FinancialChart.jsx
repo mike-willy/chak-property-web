@@ -48,11 +48,14 @@ const FinancialChart = () => {
       const endTimestamp = Timestamp.fromDate(now);
 
       const paymentsRef = collection(db, "payments");
+      
+      // 🔥 FIX: Use "createdAt" instead of "completedAt" since payments have createdAt
       const q = query(
         paymentsRef,
         where("status", "==", "completed"),
-        where("completedAt", ">=", startTimestamp),
-        where("completedAt", "<=", endTimestamp)
+        where("createdAt", ">=", startTimestamp),  // CHANGED
+        where("createdAt", "<=", endTimestamp),    // CHANGED
+        orderBy("createdAt", "asc")                // ADDED for better performance
       );
 
       const snapshot = await getDocs(q);
@@ -62,26 +65,23 @@ const FinancialChart = () => {
       snapshot.forEach((doc) => {
         const payment = doc.data();
         
-        let completedAt;
-        if (payment.completedAt && payment.completedAt.toDate) {
-          completedAt = payment.completedAt.toDate();
-        } else if (payment.completedAt) {
-          completedAt = new Date(payment.completedAt);
-        } else if (payment.createdAt && payment.createdAt.toDate) {
-          completedAt = payment.createdAt.toDate();
+        // 🔥 FIX: Always use createdAt as the primary date
+        let paymentDate;
+        if (payment.createdAt && payment.createdAt.toDate) {
+          paymentDate = payment.createdAt.toDate();
         } else if (payment.createdAt) {
-          completedAt = new Date(payment.createdAt);
+          paymentDate = new Date(payment.createdAt);
         } else {
-          return;
+          return; // Skip if no createdAt
         }
         
-        if (completedAt >= startDate && completedAt <= now) {
+        if (paymentDate >= startDate && paymentDate <= now) {
           const amount = Number(payment.amount) || 0;
           payments.push({
             id: doc.id,
             ...payment,
             amount: amount,
-            completedAt: completedAt
+            paymentDate: paymentDate  // Store as paymentDate
           });
           total += amount;
         }
@@ -96,7 +96,7 @@ const FinancialChart = () => {
       
       if (error.code === 'failed-precondition') {
         console.error("Firebase index error. You need to create a composite index in Firebase Console.");
-        console.error("Index fields: status (asc), completedAt (asc)");
+        console.error("Index fields: status (asc), createdAt (asc)"); // CHANGED
       }
       
       setChartData([]);
@@ -111,8 +111,9 @@ const FinancialChart = () => {
     const monthlyData = {};
     
     payments.forEach(payment => {
-      if (payment.completedAt) {
-        const date = new Date(payment.completedAt);
+      // 🔥 FIX: Use paymentDate instead of completedAt
+      if (payment.paymentDate) {
+        const date = new Date(payment.paymentDate);
         const monthYear = date.toLocaleString('en-US', { 
           month: 'short', 
           year: 'numeric' 
@@ -186,20 +187,20 @@ const FinancialChart = () => {
   };
 
   return (
-    <div className="fc-container"> {/* Unique class */}
-      <div className="fc-card"> {/* Unique class */}
-        <div className="fc-header"> {/* Unique class */}
+    <div className="fc-container">
+      <div className="fc-card">
+        <div className="fc-header">
           <div className="fc-header-left">
             <h3 className="fc-title">Financial Performance</h3>
             <p className="fc-subtitle">{getPeriodLabel()}</p>
           </div>
-          <div className="fc-stats"> {/* Unique class */}
+          <div className="fc-stats">
             <div className="fc-total-revenue">
               <span className="fc-revenue-label">Total Revenue:</span>
               <span className="fc-revenue-amount">{formatCurrency(totalRevenue)}</span>
             </div>
           </div>
-          <div className="fc-filter"> {/* Unique class */}
+          <div className="fc-filter">
             <button 
               className={`fc-filter-btn ${selectedPeriod === "3months" ? "fc-active" : ""}`}
               onClick={() => setSelectedPeriod("3months")}
@@ -221,7 +222,7 @@ const FinancialChart = () => {
           </div>
         </div>
         
-        <div className="fc-chart-wrapper"> {/* Unique class */}
+        <div className="fc-chart-wrapper">
           {loading ? (
             <div className="fc-chart-loading">
               <div className="fc-spinner"></div>
@@ -283,7 +284,7 @@ const FinancialChart = () => {
         </div>
 
         {chartData.length > 0 && (
-          <div className="fc-summary"> {/* Unique class */}
+          <div className="fc-summary">
             <div className="fc-summary-item">
               <span className="fc-summary-label">Average Monthly:</span>
               <span className="fc-summary-value">
