@@ -1,4 +1,4 @@
-// src/pages/AddTenant.jsx - ENHANCED VERSION
+// src/pages/AddTenant.jsx - ENHANCED VERSION WITH PET FEE HANDLING
 import React, { useState, useEffect, useCallback } from "react";
 import { db } from "../pages/firebase/firebase";
 import { 
@@ -33,7 +33,8 @@ import {
   FaArrowRight,
   FaInfoCircle,
   FaExclamationCircle,
-  FaTrash
+  FaTrash,
+  FaPaw
 } from "react-icons/fa";
 import "../styles/addTenant.css";
 
@@ -66,6 +67,9 @@ const AddTenant = () => {
   const [showRejectionForm, setShowRejectionForm] = useState(false);
   const [competingApplications, setCompetingApplications] = useState([]);
   const [showCompetingWarning, setShowCompetingWarning] = useState(false);
+  const [petFee, setPetFee] = useState(0);
+  const [hasPet, setHasPet] = useState(false);
+  const [petDetails, setPetDetails] = useState(null);
 
   // Initial state for tenant data
   const initialTenantData = {
@@ -105,15 +109,16 @@ const AddTenant = () => {
     const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
     const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
     const applicationFee = parseFloat(tenantData.applicationFee) || 0;
-    const petDeposit = parseFloat(tenantData.petDeposit) || 0;
+    const petDeposit = hasPet ? (parseFloat(petFee) || 0) : (parseFloat(tenantData.petDeposit) || 0);
 
     const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
 
     setTenantData(prev => ({
       ...prev,
-      totalMoveInCost: total
+      totalMoveInCost: total,
+      petDeposit: hasPet ? petDeposit : 0
     }));
-  }, [tenantData.monthlyRent, tenantData.securityDeposit, tenantData.applicationFee, tenantData.petDeposit]);
+  }, [tenantData.monthlyRent, tenantData.securityDeposit, tenantData.applicationFee, hasPet, petFee]);
 
   // Calculate total whenever financial fields change
   useEffect(() => {
@@ -135,6 +140,9 @@ const AddTenant = () => {
     setLoading(false);
     setCompetingApplications([]);
     setShowCompetingWarning(false);
+    setPetFee(0);
+    setHasPet(false);
+    setPetDetails(null);
     
     localStorage.removeItem('prefillTenantData');
     localStorage.removeItem('currentApplication');
@@ -215,6 +223,56 @@ const AddTenant = () => {
       return null;
     }
   }, [tenantData.unitNumber]);
+
+  // Fetch pet fee from property settings
+  const fetchPetFee = useCallback(async (propertyId) => {
+    if (!propertyId) return 0;
+    
+    try {
+      const propertyRef = doc(db, "properties", propertyId);
+      const propertyDoc = await getDoc(propertyRef);
+      
+      if (propertyDoc.exists()) {
+        const propertyData = propertyDoc.data();
+        
+        // Check for pet fee in property data
+        const petFeeFromProperty = propertyData.petDeposit || 
+                                   propertyData.petFee || 
+                                   propertyData.petSecurityDeposit || 
+                                   0;
+        
+        return petFeeFromProperty;
+      }
+    } catch (error) {
+      console.error("Error fetching pet fee:", error);
+    }
+    
+    return 0;
+  }, []);
+
+  // Check if applicant has pet and get pet details
+  const checkPetInformation = useCallback((appData) => {
+    const hasPetFlag = appData.hasPet || 
+                      appData.petInfo || 
+                      appData.petDetails || 
+                      appData.hasPets || 
+                      false;
+    
+    let petDetailsInfo = null;
+    
+    if (appData.petDetails) {
+      petDetailsInfo = appData.petDetails;
+    } else if (appData.petInfo) {
+      petDetailsInfo = appData.petInfo;
+    } else if (appData.additionalInfo && appData.additionalInfo.includes("pet")) {
+      petDetailsInfo = { notes: appData.additionalInfo };
+    }
+    
+    return {
+      hasPet: hasPetFlag,
+      petDetails: petDetailsInfo
+    };
+  }, []);
 
   // Fetch competing applications for the same unit
   const fetchCompetingApplications = useCallback(async (propertyId, unitId, excludeAppId) => {
@@ -305,6 +363,11 @@ const AddTenant = () => {
       const appData = applicationDoc.data();
       setApplicationData(appData);
       
+      // Check for pet information
+      const petInfo = checkPetInformation(appData);
+      setHasPet(petInfo.hasPet);
+      setPetDetails(petInfo.petDetails);
+      
       localStorage.setItem('currentApplication', appId);
       
       const tenantInfo = {
@@ -338,6 +401,23 @@ const AddTenant = () => {
         ...tenantInfo
       }));
 
+      // Load property details and pet fee
+      if (tenantInfo.propertyId) {
+        await loadPropertyDetails(tenantInfo.propertyId);
+        
+        // Fetch pet fee
+        const propertyPetFee = await fetchPetFee(tenantInfo.propertyId);
+        setPetFee(propertyPetFee);
+        
+        // If applicant has pet, update pet deposit with property's pet fee
+        if (petInfo.hasPet && propertyPetFee > 0) {
+          setTenantData(prev => ({
+            ...prev,
+            petDeposit: propertyPetFee
+          }));
+        }
+      }
+
       // Load competing applications
       if (tenantInfo.propertyId && tenantInfo.unitId) {
         const competingApps = await fetchCompetingApplications(
@@ -347,10 +427,6 @@ const AddTenant = () => {
         );
         setCompetingApplications(competingApps);
         setShowCompetingWarning(competingApps.length > 0);
-      }
-
-      if (tenantInfo.propertyId) {
-        await loadPropertyDetails(tenantInfo.propertyId);
       }
 
       if (tenantInfo.unitId && tenantInfo.propertyId) {
@@ -381,7 +457,7 @@ const AddTenant = () => {
     } finally {
       setLoading(false);
     }
-  }, [findUnitDocument, fetchCompetingApplications]);
+  }, [findUnitDocument, fetchCompetingApplications, checkPetInformation, fetchPetFee]);
 
   // Load property details
   const loadPropertyDetails = useCallback(async (propertyId) => {
@@ -398,7 +474,9 @@ const AddTenant = () => {
           securityDeposit: propertyData.securityDeposit || prev.securityDeposit || "",
           applicationFee: propertyData.applicationFee || prev.applicationFee || "",
           leaseTerm: propertyData.leaseTerm || prev.leaseTerm || 12,
-          noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30
+          noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30,
+          // Set pet deposit if property has pet fee setting
+          petDeposit: propertyData.petDeposit || prev.petDeposit || 0
         }));
       }
     } catch (error) {
@@ -456,6 +534,11 @@ const AddTenant = () => {
       const prefill = location.state.prefillData;
       setApplicationData(prefill);
       
+      // Check for pet information
+      const petInfo = checkPetInformation(prefill);
+      setHasPet(petInfo.hasPet);
+      setPetDetails(petInfo.petDetails);
+      
       setTenantData(prev => ({
         ...prev,
         ...prefill,
@@ -463,7 +546,19 @@ const AddTenant = () => {
       }));
       
       if (prefill.propertyId) {
-        loadPropertyDetails(prefill.propertyId);
+        loadPropertyDetails(prefill.propertyId).then(async () => {
+          // Fetch pet fee
+          const propertyPetFee = await fetchPetFee(prefill.propertyId);
+          setPetFee(propertyPetFee);
+          
+          // If applicant has pet, update pet deposit
+          if (petInfo.hasPet && propertyPetFee > 0) {
+            setTenantData(prev => ({
+              ...prev,
+              petDeposit: propertyPetFee
+            }));
+          }
+        });
       }
       if (prefill.unitId && prefill.propertyId) {
         findUnitDocument(prefill.unitId, prefill.propertyId).then(unitDocInfo => {
@@ -485,6 +580,12 @@ const AddTenant = () => {
       if (stored) {
         const prefill = JSON.parse(stored);
         setApplicationData(prefill);
+        
+        // Check for pet information
+        const petInfo = checkPetInformation(prefill);
+        setHasPet(petInfo.hasPet);
+        setPetDetails(petInfo.petDetails);
+        
         setTenantData(prev => ({
           ...prev,
           ...prefill,
@@ -493,7 +594,19 @@ const AddTenant = () => {
         localStorage.removeItem('prefillTenantData');
         
         if (prefill.propertyId) {
-          loadPropertyDetails(prefill.propertyId);
+          loadPropertyDetails(prefill.propertyId).then(async () => {
+            // Fetch pet fee
+            const propertyPetFee = await fetchPetFee(prefill.propertyId);
+            setPetFee(propertyPetFee);
+            
+            // If applicant has pet, update pet deposit
+            if (petInfo.hasPet && propertyPetFee > 0) {
+              setTenantData(prev => ({
+                ...prev,
+                petDeposit: propertyPetFee
+              }));
+            }
+          });
         }
         if (prefill.unitId && prefill.propertyId) {
           findUnitDocument(prefill.unitId, prefill.propertyId).then(unitDocInfo => {
@@ -512,7 +625,7 @@ const AddTenant = () => {
         }
       }
     }
-  }, [applicationId, location.state, fetchApplicationData, loadPropertyDetails, findUnitDocument]);
+  }, [applicationId, location.state, fetchApplicationData, loadPropertyDetails, findUnitDocument, checkPetInformation, fetchPetFee]);
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -623,7 +736,7 @@ const AddTenant = () => {
     }
   };
 
-  // Handle approve tenant - ENHANCED VERSION
+  // Handle approve tenant - ENHANCED VERSION WITH PET FEE
   const handleApproveTenant = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -702,7 +815,7 @@ const AddTenant = () => {
         monthlyRent: parseFloat(tenantData.monthlyRent) || 0,
         securityDeposit: parseFloat(tenantData.securityDeposit) || 0,
         applicationFee: parseFloat(tenantData.applicationFee) || 0,
-        petDeposit: parseFloat(tenantData.petDeposit) || 0,
+        petDeposit: hasPet ? (parseFloat(petFee) || 0) : 0, // Use fetched pet fee if has pet
         totalMoveInCost: tenantData.totalMoveInCost || 0,
         leaseStart: leaseStartDate,
         leaseEnd: leaseEndDate,
@@ -713,9 +826,11 @@ const AddTenant = () => {
         emergencyContactRelation: tenantData.emergencyContactRelation,
         tenantNotes: tenantData.tenantNotes,
         applicationNotes: applicationData?.description || applicationData?.notes || "",
-        hasPet: applicationData?.hasPet || false,
-        petInfo: applicationData?.petInfo || {},
-        petDetails: applicationData?.petDetails || null,
+        hasPet: hasPet,
+        petInfo: petDetails || {},
+        petDetails: petDetails,
+        petFee: hasPet ? petFee : 0,
+        petFeeApplied: hasPet,
         status: "approved_pending_payment",
         balance: parseFloat(tenantData.monthlyRent) || 0,
         paymentStatus: "initial_fees_pending",
@@ -727,6 +842,7 @@ const AddTenant = () => {
         propertyFees: {
           latePaymentFee: propertyDetails?.latePaymentFee || 0,
           gracePeriod: propertyDetails?.gracePeriod || 5,
+          petDeposit: petFee, // Include pet deposit in property fees
           feeDetails: propertyDetails?.feeDetails || {}
         },
         propertyAddress: applicationData?.propertyAddress || "",
@@ -738,7 +854,9 @@ const AddTenant = () => {
         originalApplication: {
           submittedAt: applicationData?.submittedAt || Timestamp.now(),
           totalFees: tenantData.totalMoveInCost,
-          otherFees: applicationData?.otherFees || ""
+          otherFees: applicationData?.otherFees || "",
+          petIncluded: hasPet,
+          petFee: hasPet ? petFee : 0
         },
         competingApplicationsRejected: competingApplications.length
       };
@@ -768,7 +886,9 @@ const AddTenant = () => {
             occupiedAt: Timestamp.now(),
             rentAmount: parseFloat(tenantData.monthlyRent) || 0,
             lastRentIncrease: Timestamp.now(),
-            updatedAt: Timestamp.now()
+            updatedAt: Timestamp.now(),
+            hasPet: hasPet,
+            petDeposit: hasPet ? petFee : 0
           });
           
           // Update property unit counts
@@ -791,13 +911,16 @@ const AddTenant = () => {
           tenantId: tenantRef.id,
           approvedBy: "admin",
           approvedDate: Timestamp.now(),
-          competingApplicationsRejected: autoRejectedCount
+          competingApplicationsRejected: autoRejectedCount,
+          petFeeApplied: hasPet ? petFee : 0,
+          totalApprovedAmount: tenantData.totalMoveInCost
         });
       }
 
       // Show success message with details
       const successMessage = `✅ Tenant application approved!\n\n` +
                            `• ${tenantData.fullName} added to approved tenants\n` +
+                           (hasPet ? `• Pet deposit of ${formatCurrency(petFee)} applied\n` : '') +
                            (autoRejectedCount > 0 
                              ? `• Auto-rejected ${autoRejectedCount} other applicant(s) for this unit\n` 
                              : '') +
@@ -925,6 +1048,36 @@ const AddTenant = () => {
           </div>
         )}
 
+        {/* Pet Information Banner */}
+        {hasPet && (
+          <div className="tenant-form-pet-info-banner">
+            <FaPaw className="pet-icon" />
+            <div className="pet-info-content">
+              <h3>Pet Information</h3>
+              <p>
+                This applicant has indicated they have a pet. 
+                {petFee > 0 ? (
+                  <span> A pet deposit of <strong>{formatCurrency(petFee)}</strong> will be added to their move-in costs.</span>
+                ) : (
+                  <span> No pet deposit is required for this property.</span>
+                )}
+              </p>
+              {petDetails && (
+                <div className="pet-details-section">
+                  <h4>Pet Details:</h4>
+                  {petDetails.petType && <p><strong>Type:</strong> {petDetails.petType}</p>}
+                  {petDetails.petBreed && <p><strong>Breed:</strong> {petDetails.petBreed}</p>}
+                  {petDetails.petName && <p><strong>Name:</strong> {petDetails.petName}</p>}
+                  {petDetails.petAge && <p><strong>Age:</strong> {petDetails.petAge}</p>}
+                  {petDetails.petWeight && <p><strong>Weight:</strong> {petDetails.petWeight} kg</p>}
+                  {petDetails.vaccinationStatus && <p><strong>Vaccinated:</strong> {petDetails.vaccinationStatus}</p>}
+                  {petDetails.notes && <p><strong>Notes:</strong> {petDetails.notes}</p>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="tenant-form-sections">
           
           {/* Section 1: Tenant Information */}
@@ -1006,11 +1159,17 @@ const AddTenant = () => {
                       <span className="tenant-form-status-value">{formatCurrency(unitDetails.rentAmount)}</span>
                     </div>
                   )}
+                  {unitDetails.hasPet && (
+                    <div className="tenant-form-status-item">
+                      <span className="tenant-form-status-label">Current Pet Status:</span>
+                      <span className="tenant-form-status-value">{unitDetails.hasPet ? "Has Pet" : "No Pet"}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Property Fee Information */}
+            {/* Property Fee Information - ENHANCED WITH PET FEE */}
             {propertyDetails && (
               <div className="tenant-form-property-fees-info">
                 <h3 className="tenant-form-property-fees-title">Property Fee Information</h3>
@@ -1026,7 +1185,8 @@ const AddTenant = () => {
                   <div className="tenant-form-fee-item">
                     <span className="tenant-form-fee-label">Pet Deposit:</span>
                     <span className="tenant-form-fee-value">
-                      {propertyDetails.petDeposit ? formatCurrency(propertyDetails.petDeposit) : "Not allowed"}
+                      {petFee > 0 ? formatCurrency(petFee) : "Not allowed"}
+                      {!hasPet && petFee > 0 && <small className="fee-conditional"> (if pet)</small>}
                     </span>
                   </div>
                   <div className="tenant-form-fee-item">
@@ -1037,12 +1197,20 @@ const AddTenant = () => {
                     <span className="tenant-form-fee-label">Notice Period:</span>
                     <span className="tenant-form-fee-value">{propertyDetails.noticePeriod || 30} days</span>
                   </div>
+                  {propertyDetails.allowsPets !== undefined && (
+                    <div className="tenant-form-fee-item">
+                      <span className="tenant-form-fee-label">Pets Allowed:</span>
+                      <span className={`tenant-form-fee-value ${propertyDetails.allowsPets ? 'allowed' : 'not-allowed'}`}>
+                        {propertyDetails.allowsPets ? "Yes" : "No"}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Section 3: Financial Details */}
+          {/* Section 3: Financial Details - ENHANCED WITH PET FEE */}
           <div className="tenant-form-section">
             <h2 className="tenant-form-section-title"><FaMoneyBillWave /> Financial Details</h2>
             
@@ -1051,7 +1219,12 @@ const AddTenant = () => {
                 { label: "Monthly Rent", value: formatCurrency(tenantData.monthlyRent) },
                 { label: "Security Deposit", value: formatCurrency(tenantData.securityDeposit) },
                 { label: "Application Fee", value: formatCurrency(tenantData.applicationFee) },
-                { label: "Pet Deposit", value: tenantData.petDeposit ? formatCurrency(tenantData.petDeposit) : "None" },
+                { 
+                  label: "Pet Deposit", 
+                  value: hasPet 
+                    ? (petFee > 0 ? formatCurrency(petFee) : "No pet fee") 
+                    : "No pet"
+                },
               ].map((field, index) => (
                 <div className="tenant-form-group" key={index}>
                   <label className="tenant-form-label">{field.label}</label>
@@ -1062,7 +1235,7 @@ const AddTenant = () => {
               ))}
             </div>
 
-            {/* Total Move-in Cost */}
+            {/* Total Move-in Cost - ENHANCED */}
             <div className="tenant-form-total-cost-summary">
               <h3 className="tenant-form-total-cost-title">Total Move-in Cost</h3>
               <div className="tenant-form-cost-breakdown">
@@ -1078,10 +1251,10 @@ const AddTenant = () => {
                   <span>Application Fee:</span>
                   <span>{formatCurrency(tenantData.applicationFee)}</span>
                 </div>
-                {tenantData.petDeposit > 0 && (
-                  <div className="tenant-form-cost-item">
-                    <span>Pet Deposit:</span>
-                    <span>{formatCurrency(tenantData.petDeposit)}</span>
+                {hasPet && petFee > 0 && (
+                  <div className="tenant-form-cost-item pet-fee-item">
+                    <span><FaPaw /> Pet Deposit:</span>
+                    <span>{formatCurrency(petFee)}</span>
                   </div>
                 )}
                 <div className="tenant-form-cost-total">
@@ -1091,6 +1264,7 @@ const AddTenant = () => {
               </div>
               <p className="tenant-form-helper-text">
                 <strong>Note:</strong> Tenant must pay this total amount before moving in
+                {hasPet && petFee > 0 && " (includes pet deposit)"}
               </p>
             </div>
           </div>
@@ -1271,6 +1445,7 @@ const AddTenant = () => {
                 <div className="tenant-form-info-box-content">
                   <p>
                     <strong>After approval:</strong> Tenant will appear in "Approved Tenants" page. 
+                    {hasPet && petFee > 0 && " Pet deposit has been included in total move-in costs."}
                     {competingApplications.length > 0 && 
                       ` Approving will automatically reject ${competingApplications.length} other pending application(s) for this unit.`}
                   </p>
