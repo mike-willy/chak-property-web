@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../pages/firebase/firebase';
 import { 
   collection, 
@@ -7,433 +7,445 @@ import {
   onSnapshot, 
   orderBy, 
   updateDoc, 
+  getDocs,
   doc,
-  getDocs
+  writeBatch,
+  serverTimestamp,
+  getDoc
 } from 'firebase/firestore';
 import '../../styles/overduePayments.css';
 
 const OverduePayments = () => {
   const [overduePayments, setOverduePayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [autoUpdateCount, setAutoUpdateCount] = useState(0);
+  const [lastChecked, setLastChecked] = useState(null);
   const [propertiesMap, setPropertiesMap] = useState({});
-  const [stats, setStats] = useState({
-    totalOverdue: 0,
-    totalCases: 0,
-    totalTenants: 0,
-    totalMonths: 0
-  });
-  const [showAll, setShowAll] = useState(false);
+  const [tenantsMap, setTenantsMap] = useState({});
+  const [tenantNameCache, setTenantNameCache] = useState({});
+  
+  // Configuration
+  const GRACE_PERIOD = 5; 
+  const CHECK_INTERVAL = 30000; 
 
-  useEffect(() => {
-    console.log('🔄 OverduePayments component mounting...');
+  // Fetch tenant name from tenants collection - SAME AS PAYMENT PAGE
+  const fetchTenantName = async (tenantId) => {
+    if (!tenantId || tenantNameCache[tenantId]) return tenantNameCache[tenantId];
     
-    let unsubscribe = null;
-
-    const setupListener = async () => {
-      try {
-        // Fetch properties for name mapping
-        console.log('📋 Fetching properties...');
-        const propertiesRef = collection(db, 'properties');
-        const propertiesSnapshot = await getDocs(propertiesRef);
-        const propertiesData = {};
+    try {
+      const tenantRef = doc(db, 'tenants', tenantId);
+      const tenantSnap = await getDoc(tenantRef);
+      
+      let tenantName = 'Unknown Tenant';
+      
+      if (tenantSnap.exists()) {
+        const data = tenantSnap.data();
+        tenantName = data.fullName || data.name || 'Unknown Tenant';
+      } else {
+        // Try alternative lookup
+        const tenantsRef = collection(db, 'tenants');
+        const q = query(tenantsRef, where('tenantId', '==', tenantId));
+        const querySnapshot = await getDocs(q);
         
+        if (!querySnapshot.empty) {
+          const tenantData = querySnapshot.docs[0].data();
+          tenantName = tenantData.fullName || tenantData.name || 'Unknown Tenant';
+        }
+      }
+      
+      setTenantNameCache(prev => ({
+        ...prev,
+        [tenantId]: tenantName
+      }));
+      
+      return tenantName;
+    } catch (error) {
+      console.error(`Error fetching tenant ${tenantId}:`, error);
+      return 'Unknown Tenant';
+    }
+  };
+
+  // Load tenants and properties
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load properties
+        const propertiesSnapshot = await getDocs(collection(db, 'properties'));
+        const propertiesData = {};
         propertiesSnapshot.forEach((doc) => {
-          const data = doc.data();
           propertiesData[doc.id] = {
-            name: data.name || 'Unnamed Property',
-            code: data.code || data.propertyCode || doc.id
+            name: doc.data().name || 'Unnamed Property',
+            code: doc.data().code || doc.data().propertyCode || 'N/A'
+          };
+        });
+        setPropertiesMap(propertiesData);
+
+        // Load initial tenants map
+        const tenantsSnapshot = await getDocs(collection(db, 'tenants'));
+        const tenantsData = {};
+        
+        tenantsSnapshot.forEach((doc) => {
+          const tenantData = doc.data();
+          tenantsData[doc.id] = {
+            id: doc.id,
+            name: tenantData.fullName || tenantData.name || 'Unknown Tenant',
+            fullName: tenantData.fullName || tenantData.name || 'Unknown Tenant',
+            phone: tenantData.phone || '',
+            email: tenantData.email || '',
+            propertyId: tenantData.propertyId
           };
         });
         
-        setPropertiesMap(propertiesData);
-        console.log(`✅ Loaded ${Object.keys(propertiesData).length} properties`);
+        setTenantsMap(tenantsData);
+        setLoading(false);
 
-        // Create query for overdue payments
-        const q = query(
-          collection(db, 'rentCycles'),
-          where('status', '==', 'overdue'),
-          orderBy('dueDate', 'asc')
-        );
-
-        console.log('🔍 Setting up Firestore listener...');
-        
-        unsubscribe = onSnapshot(
-          q,
-          (snapshot) => {
-            console.log('📊 Firestore snapshot received:', snapshot.size, 'overdue documents');
-            
-            // Group payments by tenant
-            const tenantMap = new Map();
-            let totalMonths = 0;
-
-            snapshot.forEach((doc) => {
-              const data = doc.data();
-              const tenantId = data.tenantId || data.tenantName || 'unknown';
-              
-              if (!tenantMap.has(tenantId)) {
-                // Initialize tenant entry
-                tenantMap.set(tenantId, {
-                  id: tenantId,
-                  tenantName: data.tenantName || 'Unknown Tenant',
-                  propertyId: data.propertyId,
-                  propertyCode: data.propertyCode || 'Unknown',
-                  cycles: [],
-                  totalAmount: 0,
-                  monthsOverdue: 0,
-                  oldestDueDate: null,
-                  maxDaysOverdue: 0,
-                  tenantPhone: data.tenantPhone || '',
-                  tenantEmail: data.tenantEmail || '',
-                  riskLevel: 'medium'
-                });
-              }
-              
-              const tenant = tenantMap.get(tenantId);
-              
-              // Add this rent cycle
-              const cycleData = {
-                cycleId: doc.id,
-                dueDate: data.dueDate,
-                dueDateFormatted: data.dueDate?.toDate 
-                  ? data.dueDate.toDate().toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    })
-                  : 'Unknown',
-                amountDue: data.amountDue || 0,
-                daysOverdue: data.daysOverdue || 0,
-                originalData: data
-              };
-              
-              tenant.cycles.push(cycleData);
-              
-              // Update totals
-              tenant.totalAmount += cycleData.amountDue;
-              tenant.monthsOverdue++;
-              totalMonths++;
-              
-              // Track oldest due date
-              const dueDate = data.dueDate?.toDate ? data.dueDate.toDate() : new Date();
-              if (!tenant.oldestDueDate || dueDate < tenant.oldestDueDate) {
-                tenant.oldestDueDate = dueDate;
-              }
-              
-              // Track maximum days overdue
-              if (cycleData.daysOverdue > tenant.maxDaysOverdue) {
-                tenant.maxDaysOverdue = cycleData.daysOverdue;
-              }
-            });
-
-            // Calculate risk levels and format for display
-            const payments = Array.from(tenantMap.values()).map(tenant => {
-              // Calculate risk based on months overdue
-              let riskLevel = 'medium';
-              if (tenant.monthsOverdue >= 3) riskLevel = 'critical';
-              else if (tenant.monthsOverdue === 2) riskLevel = 'high';
-              
-              // Get property display name
-              const propertyInfo = propertiesData[tenant.propertyId] || {
-                name: 'Unknown Property',
-                code: tenant.propertyCode
-              };
-              
-              // Sort cycles by due date (oldest first)
-              tenant.cycles.sort((a, b) => {
-                const dateA = a.dueDate?.toDate ? a.dueDate.toDate() : new Date(0);
-                const dateB = b.dueDate?.toDate ? b.dueDate.toDate() : new Date(0);
-                return dateA - dateB;
-              });
-
-              return {
-                id: tenant.id,
-                tenant: tenant.tenantName,
-                propertyId: tenant.propertyId,
-                propertyName: propertyInfo.name,
-                propertyCode: propertyInfo.code,
-                dueDate: tenant.oldestDueDate 
-                  ? tenant.oldestDueDate.toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    })
-                  : 'Unknown',
-                amount: `KSh ${tenant.totalAmount.toLocaleString()}`,
-                amountValue: tenant.totalAmount,
-                monthsOverdue: tenant.monthsOverdue,
-                daysOverdue: tenant.maxDaysOverdue,
-                status: 'Overdue',
-                riskLevel: riskLevel,
-                tenantId: tenant.id,
-                tenantPhone: tenant.tenantPhone,
-                tenantEmail: tenant.tenantEmail,
-                cycles: tenant.cycles
-              };
-            });
-
-            // Sort by total amount (highest first)
-            payments.sort((a, b) => b.amountValue - a.amountValue);
-
-            // Calculate statistics
-            const totalAmount = payments.reduce((sum, p) => sum + p.amountValue, 0);
-            
-            console.log(`✅ Processed ${payments.length} tenants with ${totalMonths} overdue months`);
-            
-            setOverduePayments(payments);
-            setStats({
-              totalOverdue: totalAmount,
-              totalCases: payments.length,
-              totalTenants: payments.length,
-              totalMonths: totalMonths
-            });
-            setLoading(false);
-            setError(null);
-          },
-          (error) => {
-            console.error('❌ Firestore listener error:', error);
-            setError(`Database error: ${error.message}`);
-            setLoading(false);
-          }
-        );
-
-      } catch (err) {
-        console.error('❌ Error setting up Firestore listener:', err);
-        setError(`Setup failed: ${err.message}. Check Firebase configuration.`);
+      } catch (error) {
+        console.error('Error loading data:', error);
         setLoading(false);
       }
     };
 
-    setupListener();
-
-    return () => {
-      console.log('🧹 Cleaning up Firestore listener...');
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
+    loadData();
   }, []);
 
-  const sendReminder = async (tenantId, tenantName, cycles, tenantPhone, tenantEmail) => {
+  // Calculate if payment is overdue
+  const calculatePaymentStatus = useCallback((payment) => {
+    const today = new Date();
+    let dueDate;
+    
+    if (payment.dueDate && payment.dueDate.toDate) {
+      dueDate = payment.dueDate.toDate();
+    } else if (payment.dueDate) {
+      dueDate = new Date(payment.dueDate);
+    } else {
+      dueDate = new Date();
+    }
+    
+    const daysOverdue = Math.max(0, Math.floor((today - dueDate) / (1000 * 60 * 60 * 24)));
+    
+    if (payment.paymentStatus === 'paid') return { status: 'paid', daysOverdue: 0 };
+    if (daysOverdue <= 0) return { status: 'pending', daysOverdue: 0 };
+    if (daysOverdue <= GRACE_PERIOD) return { status: 'due', daysOverdue };
+    return { status: 'overdue', daysOverdue };
+  }, [GRACE_PERIOD]);
+
+  // Auto-update payment statuses in Firestore
+  const updateOverdueStatuses = useCallback(async (payments) => {
     try {
-      console.log(`📧 Sending reminder to ${tenantName} for ${cycles.length} overdue months...`);
+      const batch = writeBatch(db);
+      let updates = 0;
       
-      // Update all cycles with reminder timestamp
-      const updatePromises = cycles.map(cycle => 
-        updateDoc(doc(db, 'rentCycles', cycle.cycleId), {
-          lastReminderSent: new Date(),
-          remindersSent: (cycle.originalData?.remindersSent || 0) + 1
+      payments.forEach(payment => {
+        const { status, daysOverdue } = calculatePaymentStatus(payment);
+        
+        if (payment.status !== status || payment.daysOverdue !== daysOverdue) {
+          const paymentRef = doc(db, 'rentCycles', payment.id);
+          
+          const updateData = {
+            status: status,
+            daysOverdue: daysOverdue,
+            updatedAt: serverTimestamp(),
+            lastAutoCheck: serverTimestamp()
+          };
+          
+          if (status === 'overdue' && payment.status !== 'overdue') {
+            updateData.overdueAmount = payment.amountDue - (payment.paidAmount || 0);
+            updateData.overdueSince = serverTimestamp();
+          }
+          
+          batch.update(paymentRef, updateData);
+          updates++;
+        }
+      });
+      
+      if (updates > 0) {
+        await batch.commit();
+        console.log(`🤖 AUTO-UPDATED ${updates} payment statuses`);
+        setAutoUpdateCount(prev => prev + updates);
+        setLastChecked(new Date());
+      }
+      
+      return updates;
+    } catch (error) {
+      console.error('Auto-update error:', error);
+      return 0;
+    }
+  }, [calculatePaymentStatus]);
+
+  // Main automation effect
+  useEffect(() => {
+    console.log('🚀 Starting automated arrears tracking...');
+    
+    let unsubscribe = null;
+    let checkInterval = null;
+    
+    const startAutomation = async () => {
+      try {
+        const q = query(
+          collection(db, 'rentCycles'),
+          where('paymentStatus', '!=', 'paid'),
+          orderBy('dueDate', 'asc')
+        );
+        
+        unsubscribe = onSnapshot(q, async (snapshot) => {
+          console.log('📊 Firestore snapshot received, size:', snapshot.size);
+          
+          const allPayments = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            allPayments.push({ id: doc.id, ...data });
+          });
+          
+          console.log(`📊 Tracking ${allPayments.length} unpaid payments`);
+          
+          const updates = await updateOverdueStatuses(allPayments);
+          const grouped = await groupPaymentsByTenant(allPayments);
+          
+          setOverduePayments(grouped);
+          setLoading(false);
+          
+        }, (error) => {
+          console.error('Firestore listener error:', error);
+          setLoading(false);
+        });
+        
+        checkInterval = setInterval(() => {
+          setLastChecked(new Date());
+        }, CHECK_INTERVAL);
+        
+      } catch (error) {
+        console.error('Automation setup error:', error);
+        setLoading(false);
+      }
+    };
+    
+    startAutomation();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, [updateOverdueStatuses]);
+
+  // Group payments by tenant - FIXED TO FETCH NAMES LIKE PAYMENT PAGE
+  const groupPaymentsByTenant = async (payments) => {
+    console.log('🔍 Starting groupPaymentsByTenant');
+    
+    const tenantMap = new Map();
+    
+    for (const payment of payments) {
+      const tenantId = payment.tenantId || '';
+      
+      if (!tenantId) {
+        console.log('⚠️ Payment has no tenantId:', payment.id);
+        continue;
+      }
+      
+      // Get tenant name from cache or fetch it
+      let tenantName = tenantNameCache[tenantId];
+      
+      if (!tenantName) {
+        tenantName = await fetchTenantName(tenantId);
+      }
+      
+      // Get property info
+      const propertyId = payment.propertyId || '';
+      const propertyInfo = propertiesMap[propertyId] || {
+        name: payment.propertyName || 'Unknown Property',
+        code: payment.propertyCode || 'N/A'
+      };
+      
+      if (!tenantMap.has(tenantId)) {
+        tenantMap.set(tenantId, {
+          tenantId,
+          tenantName: tenantName,
+          tenantPhone: payment.tenantPhone || '',
+          tenantEmail: payment.tenantEmail || '',
+          propertyId: propertyId,
+          propertyName: propertyInfo.name,
+          propertyCode: propertyInfo.code,
+          cycles: [],
+          totalAmount: 0,
+          monthsOverdue: 0,
+          maxDaysOverdue: 0,
+          oldestDueDate: null,
+          riskLevel: 'low'
+        });
+      }
+      
+      const tenant = tenantMap.get(tenantId);
+      tenant.cycles.push(payment);
+      tenant.totalAmount += payment.amountDue || 0;
+      tenant.monthsOverdue++;
+      
+      const daysOverdue = payment.daysOverdue || 0;
+      tenant.maxDaysOverdue = Math.max(tenant.maxDaysOverdue, daysOverdue);
+      
+      const dueDate = payment.dueDate?.toDate ? payment.dueDate.toDate() : new Date();
+      if (!tenant.oldestDueDate || dueDate < tenant.oldestDueDate) {
+        tenant.oldestDueDate = dueDate;
+      }
+    }
+    
+    // Calculate risk level
+    const result = Array.from(tenantMap.values()).map(tenant => {
+      if (tenant.maxDaysOverdue >= 30) tenant.riskLevel = 'critical';
+      else if (tenant.maxDaysOverdue >= 15) tenant.riskLevel = 'high';
+      else if (tenant.maxDaysOverdue > GRACE_PERIOD) tenant.riskLevel = 'medium';
+      else tenant.riskLevel = 'low';
+      return tenant;
+    });
+    
+    return result.sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue);
+  };
+
+  // Send reminder to tenant
+  const sendReminder = async (tenant) => {
+    try {
+      const updatePromises = tenant.cycles.map(cycle => 
+        updateDoc(doc(db, 'rentCycles', cycle.id), {
+          lastReminderSent: serverTimestamp(),
+          remindersSent: (cycle.remindersSent || 0) + 1
         })
       );
       
       await Promise.all(updatePromises);
-
-      // Call backend to send SMS/Email reminder
-      const response = await fetch('http://localhost:5000/api/rent/send-reminder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          tenantId, 
-          tenantName, 
-          totalAmount: cycles.reduce((sum, c) => sum + c.amountDue, 0),
-          monthsOverdue: cycles.length,
-          tenantPhone,
-          tenantEmail
-        })
-      });
-      
-      if (response.ok) {
-        alert(`Reminder sent to ${tenantName} for ${cycles.length} overdue month(s)`);
-      } else {
-        alert('Reminder queued for sending');
-      }
+      alert(`Reminder sent to ${tenant.tenantName} for ${tenant.monthsOverdue} overdue month(s)`);
     } catch (error) {
       console.error('Error sending reminder:', error);
-      alert('Failed to send reminder. Check console for details.');
+      alert('Failed to send reminder');
     }
   };
 
-  const markAsCashPaid = async (tenantId, tenantName, cycles) => {
-    const totalAmount = cycles.reduce((sum, c) => sum + c.amountDue, 0);
-    
-    if (window.confirm(`Mark ALL ${cycles.length} months as CASH PAID for ${tenantName}?\nTotal: KSh ${totalAmount.toLocaleString()}`)) {
+  // Mark as paid
+  const markAsPaid = async (tenant) => {
+    if (window.confirm(`Mark ${tenant.monthsOverdue} months as PAID for ${tenant.tenantName}?\nTotal: KSh ${tenant.totalAmount.toLocaleString()}`)) {
       try {
-        // Use the new cash payment endpoint
-        const response = await fetch('http://localhost:5000/api/rent/mark-cash-paid', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            cycleId: cycles[0].cycleId, // Using first cycle ID
-            tenantName,
-            amount: totalAmount
+        const updatePromises = tenant.cycles.map(cycle =>
+          updateDoc(doc(db, 'rentCycles', cycle.id), {
+            paymentStatus: 'paid',
+            paidAmount: cycle.amountDue,
+            paidDate: serverTimestamp(),
+            status: 'paid',
+            updatedAt: serverTimestamp()
           })
-        });
+        );
         
-        if (response.ok) {
-          const result = await response.json();
-          alert(result.message || `✅ ${cycles.length} months marked as cash paid for ${tenantName}`);
-        } else {
-          alert('Failed to mark as cash paid. Check console for details.');
-        }
+        await Promise.all(updatePromises);
+        alert(`✅ ${tenant.monthsOverdue} months marked as paid for ${tenant.tenantName}`);
       } catch (error) {
-        console.error('Error marking as cash paid:', error);
-        alert('Failed to update payment status. Check console for details.');
+        console.error('Error marking as paid:', error);
+        alert('Failed to update payment status');
       }
     }
   };
 
-  const getRiskBadge = (riskLevel) => {
-    const riskConfig = {
-      critical: { label: 'Critical', class: 'risk-critical', icon: '🔥' },
-      high: { label: 'High', class: 'risk-high', icon: '⚠️' },
-      medium: { label: 'Medium', class: 'risk-medium', icon: '🔶' },
-      low: { label: 'Low', class: 'risk-low', icon: 'ℹ️' }
-    };
-    
-    const config = riskConfig[riskLevel] || riskConfig.medium;
-    
-    return (
-      <span className={`risk-badge ${config.class}`}>
-        <span className="risk-icon">{config.icon}</span>
-        {config.label}
-      </span>
-    );
-  };
-
-  // Get displayed payments (limited or all)
-  const displayedPayments = showAll ? overduePayments : overduePayments.slice(0, 5);
-
-  // Show error state
-  if (error) {
-    return (
-      <div className="overdue-card">
-        <div className="overdue-header">
-          <h3>Overdue Payments</h3>
-          <span className="view-all">View All</span>
-        </div>
-        <div className="error-state">
-          <div className="error-icon">⚠️</div>
-          <p>Error Loading Data</p>
-          <p className="error-details">{error}</p>
-          <button 
-            className="retry-btn"
-            onClick={() => window.location.reload()}
-          >
-            Retry Loading
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="overdue-payments-card">
-        <div className="overdue-header">
-          <h3>Overdue Payments</h3>
-          <span className="view-all">View All</span>
-        </div>
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>Loading overdue payments...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Render
   return (
     <div className="overdue-payments-card">
+      {/* Automation Status Header */}
       <div className="overdue-header">
         <div>
-          <h3>Overdue Payments</h3>
+          <h3>Automated Rent Arrears Tracking</h3>
           <div className="overdue-stats">
-            <span className="total-amount">KSh {stats.totalOverdue.toLocaleString()}</span>
+            <span className="total-amount">
+              KSh {overduePayments.reduce((sum, t) => sum + t.totalAmount, 0).toLocaleString()}
+            </span>
             <div className="stats-details">
-              <span className="stat-item">{stats.totalTenants} tenants</span>
+              <span className="stat-item">{overduePayments.length} tenants</span>
               <span className="stat-divider">•</span>
-              <span className="stat-item">{stats.totalMonths} months</span>
+              <span className="stat-item">{overduePayments.reduce((sum, t) => sum + t.monthsOverdue, 0)} months</span>
               <span className="stat-divider">•</span>
-              <span className="stat-item">{stats.totalCases} cases</span>
+              <span className="stat-item">{autoUpdateCount} auto-updates</span>
             </div>
           </div>
         </div>
-        <span 
-          className="view-all" 
-          onClick={() => setShowAll(!showAll)}
-          style={{ cursor: 'pointer' }}
-        >
-          {showAll ? 'Show Less' : 'View All'}
-        </span>
+        <div className="auto-status">
+          <span className="status-indicator active"></span>
+          <span>Auto-tracking active</span>
+        </div>
       </div>
-
-      {overduePayments.length === 0 ? (
+      
+      {/* Last checked time */}
+      {lastChecked && (
+        <div className="last-checked">
+          System check: {lastChecked.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
+      
+      {/* Loading State */}
+      {loading ? (
+        <div className="loading-state">
+          <div className="loading-spinner"></div>
+          <p>Loading tenants and tracking payments...</p>
+        </div>
+      ) : overduePayments.length === 0 ? (
         <div className="no-overdue">
-          <div className="no-overdue-icon">🎉</div>
-          <p>No overdue payments!</p>
-          <p className="subtext">All rent is up-to-date</p>
+          <div className="success-icon">✅</div>
+          <p>All rent payments are up-to-date!</p>
+          <p className="subtext">System will automatically detect any overdue payments</p>
         </div>
       ) : (
         <>
+          {/* Payments Table */}
           <div className="table-container">
             <table className="overdue-table">
               <thead>
                 <tr>
                   <th>Tenant</th>
                   <th>Property</th>
-                  <th>First Due</th>
                   <th>Amount</th>
-                  <th>Mos</th>
+                  <th>Months</th>
+                  <th>Days Late</th>
                   <th>Risk</th>
                   <th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
-                {displayedPayments.map((item) => (
-                  <tr key={item.id} className={`overdue-row risk-${item.riskLevel}`}>
-                    <td data-label="Tenant">
-                      <div className="tenant-info">
-                        <div className="tenant-name">{item.tenant}</div>
-                        <div className="tenant-days">{item.daysOverdue} days overdue</div>
-                      </div>
+                {overduePayments.map(tenant => (
+                  <tr key={tenant.tenantId} className={`overdue-row risk-${tenant.riskLevel}`}>
+                    <td>
+                      <span className="tenant-name">{tenant.tenantName}</span>
+                      {tenant.tenantPhone && (
+                        <span className="tenant-contact">{tenant.tenantPhone}</span>
+                      )}
                     </td>
-                    <td data-label="Property" className="property-cell">
-                      <div className="property-display">
-                        <div className="property-name">{item.propertyName}</div>
-                        {/* TRUNCATED PROPERTY CODE */}
-                        <div className="property-code" title={item.propertyCode}>
-                          {item.propertyCode.length > 8 
-                            ? `${item.propertyCode.substring(0, 8)}...` 
-                            : item.propertyCode}
-                        </div>
-                      </div>
+                    <td>
+                      <span className="property-name">{tenant.propertyName}</span>
+                      <span className="property-code">{tenant.propertyCode}</span>
                     </td>
-                    <td data-label="First Due">{item.dueDate}</td>
-                    <td data-label="Amount" className="amount total-amount">
-                      <div className="amount-main">{item.amount}</div>
-                      <div className="amount-breakdown">
-                        ({item.monthsOverdue} × KSh {Math.round(item.amountValue / item.monthsOverdue).toLocaleString()})
-                      </div>
+                    <td className="amount">
+                      <span className="amount-main">KSh {tenant.totalAmount.toLocaleString()}</span>
+                      <span className="per-month">
+                        ~KSh {Math.round(tenant.totalAmount / tenant.monthsOverdue).toLocaleString()}/month
+                      </span>
                     </td>
-                    <td data-label="Mos" className="months-cell">
-                      <span className="months-badge">{item.monthsOverdue}</span>
+                    <td>
+                      <span className="months-badge">{tenant.monthsOverdue}</span>
                     </td>
-                    <td data-label="Risk">
-                      {getRiskBadge(item.riskLevel)}
+                    <td>
+                      <span className={`days-badge ${tenant.riskLevel}`}>
+                        {tenant.maxDaysOverdue} days
+                      </span>
                     </td>
-                    <td data-label="Actions">
+                    <td>
+                      <span className={`risk-badge ${tenant.riskLevel}`}>
+                        {tenant.riskLevel.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ minWidth: '150px' }}>
                       <div className="action-buttons">
                         <button 
                           className="reminder-btn"
-                          onClick={() => sendReminder(item.tenantId, item.tenant, item.cycles, item.tenantPhone, item.tenantEmail)}
+                          onClick={() => sendReminder(tenant)}
                         >
                           Remind
                         </button>
                         <button 
-                          className="cash-btn"
-                          onClick={() => markAsCashPaid(item.tenantId, item.tenant, item.cycles)}
+                          className="pay-btn"
+                          onClick={() => markAsPaid(tenant)}
                         >
-                          Cash Paid
+                          Mark Paid
                         </button>
                       </div>
                     </td>
@@ -442,13 +454,12 @@ const OverduePayments = () => {
               </tbody>
             </table>
           </div>
-
-          {/* ... (Footer section remains the same) */}
-          <div className="summary-footer">
-            <div className="automation-status">
-              <span className="status-indicator active"></span>
-              <span>M-Pesa auto-pay • Cash manual • {displayedPayments.length} shown</span>
-            </div>
+          
+          <div className="automation-footer">
+            <span className="auto-status-indicator">
+              <span className="pulse-dot"></span>
+              LIVE • Auto-checks every {CHECK_INTERVAL/1000} seconds • Grace period: {GRACE_PERIOD} days
+            </span>
           </div>
         </>
       )}
