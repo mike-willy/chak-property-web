@@ -1168,38 +1168,6 @@ const AddTenant = () => {
               </div>
             </div>
 
-            {/* Unit Status Information */}
-            {unitDetails && (
-              <div className="tenant-form-unit-status-info">
-                <h3 className="tenant-form-unit-status-title">Current Unit Status</h3>
-                <div className="tenant-form-status-grid">
-                  <div className="tenant-form-status-item">
-                    <span className="tenant-form-status-label">Current Status:</span>
-                    <span className={`tenant-form-status-value status-${unitDetails.status?.toLowerCase() || 'vacant'}`}>
-                      {unitDetails.status || "Vacant"}
-                    </span>
-                  </div>
-                  {unitDetails.tenantName && (
-                    <div className="tenant-form-status-item">
-                      <span className="tenant-form-status-label">Current Tenant:</span>
-                      <span className="tenant-form-status-value">{unitDetails.tenantName}</span>
-                    </div>
-                  )}
-                  {unitDetails.rentAmount && (
-                    <div className="tenant-form-status-item">
-                      <span className="tenant-form-status-label">Current Rent:</span>
-                      <span className="tenant-form-status-value">{formatCurrency(unitDetails.rentAmount)}</span>
-                    </div>
-                  )}
-                  {unitDetails.hasPet && (
-                    <div className="tenant-form-status-item">
-                      <span className="tenant-form-status-label">Current Pet Status:</span>
-                      <span className="tenant-form-status-value">{unitDetails.hasPet ? "Has Pet" : "No Pet"}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Property Fee Information - ENHANCED WITH PET FEE */}
             {propertyDetails && (
