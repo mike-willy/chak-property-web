@@ -1,4 +1,4 @@
-/* src/styles/addTenant.css - UPDATED FOR VISIBILITY */
+/* src/styles/addTenant.css - COMPLETE UPDATED VERSION WITH BUTTON FIX */
 /* Unique class prefix: tenant-form- */
 :root {
   --tenant-primary: #3b82f6;
@@ -231,8 +231,7 @@
   word-break: break-word;
 }
 
-.tenant-form-label.required::after {
-  content: '*';
+.tenant-form-label .required {
   color: var(--tenant-danger);
   font-size: 1.125rem;
   margin-left: 0.125rem;
@@ -350,6 +349,83 @@
   border-left-color: var(--tenant-danger);
 }
 
+/* ========== UNIT STATUS INFO ========== */
+.tenant-form-unit-status-info {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-radius: var(--tenant-radius-sm);
+  border-left: 4px solid var(--tenant-info);
+  overflow: visible;
+}
+
+.tenant-form-unit-status-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0369a1;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  word-break: break-word;
+}
+
+.tenant-form-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.tenant-form-status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border: 1px solid #bae6fd;
+  border-radius: var(--tenant-radius-sm);
+  word-break: break-word;
+}
+
+.tenant-form-status-label {
+  font-size: 0.8125rem;
+  color: #475569;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.tenant-form-status-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tenant-info);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  word-break: break-word;
+}
+
+.status-vacant {
+  color: var(--tenant-success) !important;
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--tenant-radius-pill);
+  font-weight: 600;
+}
+
+.status-leased {
+  color: var(--tenant-primary) !important;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--tenant-radius-pill);
+  font-weight: 600;
+}
+
+.status-maintenance {
+  color: var(--tenant-warning) !important;
+  background: linear-gradient(135deg, #fed7aa, #fdba74);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--tenant-radius-pill);
+  font-weight: 600;
+}
+
 /* ========== PROPERTY FEES INFO ========== */
 .tenant-form-property-fees-info {
   margin-top: 1.5rem;
@@ -403,6 +479,30 @@
   word-break: break-word;
 }
 
+.tenant-form-fee-value.allowed {
+  color: var(--tenant-success);
+}
+
+.tenant-form-fee-value.not-allowed {
+  color: var(--tenant-danger);
+}
+
+.fee-conditional {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--tenant-secondary);
+  font-weight: 400;
+  margin-top: 0.125rem;
+}
+
+.fee-applied {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--tenant-success);
+  font-weight: 600;
+  margin-top: 0.125rem;
+}
+
 /* ========== TOTAL COST SUMMARY ========== */
 .tenant-form-total-cost-summary {
   margin-top: 2rem;
@@ -438,6 +538,11 @@
   word-break: break-word;
 }
 
+.tenant-form-cost-item.pet-fee-item {
+  background: linear-gradient(135deg, #fef9c3, #fef08a);
+  border-color: #facc15;
+}
+
 .tenant-form-cost-total {
   display: flex;
   justify-content: space-between;
@@ -457,20 +562,329 @@
   word-break: break-word;
 }
 
-/* ========== SPINNER ========== */
+/* ========== COMPETING APPLICATIONS WARNING ========== */
+.tenant-form-competing-warning {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #fef9c3, #fef08a);
+  border: 1px solid #facc15;
+  border-left: 4px solid #eab308;
+  border-radius: var(--tenant-radius);
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+  overflow: visible;
+}
+
+.warning-icon {
+  color: #ca8a04;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.warning-content {
+  flex: 1;
+}
+
+.warning-content h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #854d0e;
+  margin: 0 0 0.5rem 0;
+  word-break: break-word;
+}
+
+.warning-content p {
+  color: #854d0e;
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.competing-applicants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 1rem;
+  border-radius: var(--tenant-radius-sm);
+}
+
+.competing-applicant-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 1rem;
+  padding: 0.5rem;
+  background: white;
+  border-radius: var(--tenant-radius-sm);
+  align-items: center;
+  font-size: 0.875rem;
+  word-break: break-word;
+}
+
+.applicant-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.applicant-email {
+  color: #64748b;
+}
+
+.applicant-date {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.more-applicants {
+  padding: 0.5rem;
+  color: #854d0e;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  text-align: center;
+  background: #fef9c3;
+  border-radius: var(--tenant-radius-sm);
+}
+
+/* ========== PET INFORMATION BANNER ========== */
+.tenant-form-pet-info-banner {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
+  border: 1px solid #c084fc;
+  border-left: 4px solid #a855f7;
+  border-radius: var(--tenant-radius);
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+  overflow: visible;
+}
+
+.pet-icon {
+  color: #9333ea;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  animation: pet-paw 2s ease-in-out infinite;
+}
+
+@keyframes pet-paw {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.pet-info-content {
+  flex: 1;
+}
+
+.pet-info-content h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #6b21a8;
+  margin: 0 0 0.5rem 0;
+  word-break: break-word;
+}
+
+.pet-info-content p {
+  color: #6b21a8;
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.pet-details-section {
+  background: rgba(255, 255, 255, 0.5);
+  padding: 1rem;
+  border-radius: var(--tenant-radius-sm);
+  margin-top: 0.5rem;
+}
+
+.pet-details-section h4 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #6b21a8;
+  margin: 0 0 0.75rem 0;
+  word-break: break-word;
+}
+
+.pet-details-section p {
+  margin: 0.25rem 0;
+  font-size: 0.8125rem;
+  color: #581c87;
+}
+
+/* ========== REJECTION MODAL ========== */
+.tenant-form-rejection-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.tenant-form-rejection-modal {
+  background: white;
+  border-radius: var(--tenant-radius);
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  animation: modal-slide-in 0.3s ease-out;
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tenant-form-rejection-modal h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--tenant-danger);
+  margin: 0 0 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  word-break: break-word;
+}
+
+.rejection-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.rejection-form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+}
+
+.rejection-form-label .required {
+  color: var(--tenant-danger);
+  margin-left: 0.25rem;
+}
+
+.rejection-reason-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--tenant-border);
+  border-radius: var(--tenant-radius-sm);
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+  transition: all 0.2s ease;
+}
+
+.rejection-reason-textarea:focus {
+  outline: none;
+  border-color: var(--tenant-danger);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+}
+
+.rejection-form-helper {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--tenant-secondary);
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+.rejection-form-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.rejection-btn-cancel {
+  padding: 0.625rem 1.5rem;
+  background: transparent;
+  border: 1px solid var(--tenant-border);
+  border-radius: var(--tenant-radius-sm);
+  color: var(--tenant-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rejection-btn-cancel:hover {
+  background: var(--tenant-light);
+  border-color: var(--tenant-secondary);
+}
+
+.rejection-btn-confirm {
+  padding: 0.625rem 1.5rem;
+  background: linear-gradient(135deg, var(--tenant-danger), #dc2626);
+  border: none;
+  border-radius: var(--tenant-radius-sm);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.rejection-btn-confirm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+}
+
+.rejection-btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========== SPINNER - FIXED ========== */
 .tenant-form-spinner-small {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: white;
   border-radius: 50%;
   animation: tenant-form-spin 0.8s linear infinite;
   display: inline-block;
   margin-right: 0.5rem;
+  vertical-align: middle;
 }
 
 @keyframes tenant-form-spin {
-  to { transform: rotate(360deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Loading state spinner */
+.loading-state .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(59, 130, 246, 0.2);
+  border-top-color: var(--tenant-primary);
+  border-radius: 50%;
+  animation: tenant-form-spin 1s linear infinite;
+  margin-bottom: 1.5rem;
 }
 
 /* ========== TWO-ROW LAYOUT ========== */
@@ -601,12 +1015,51 @@
   box-shadow: none !important;
 }
 
+/* ========== BUTTON GROUP FIX - PREVENTS HOVER OVERLAP ========== */
 .tenant-form-button-group {
   display: flex;
-  gap: 0.75rem;
+  gap: 1rem; /* Increased from 0.75rem to 1rem */
   align-items: center;
   flex-shrink: 0;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure buttons have their own stacking context */
+.tenant-form-btn-danger,
+.tenant-form-btn-submit {
+  position: relative;
+  z-index: 2;
+  isolation: isolate; /* Creates a new stacking context */
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+/* Fix hover states to not interfere with each other */
+.tenant-form-btn-danger:hover,
+.tenant-form-btn-submit:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Ensure hover transforms don't overlap */
+.tenant-form-btn-danger:hover {
+  z-index: 10;
+}
+
+.tenant-form-btn-submit:hover {
+  z-index: 10;
+}
+
+/* Remove any shared hover effects */
+.tenant-form-button-group:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Add visual separation between buttons */
+.tenant-form-btn-danger {
+  margin-right: 0.25rem; /* Add small margin for extra separation */
 }
 
 .tenant-form-btn-danger {
@@ -689,7 +1142,7 @@
   background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
 }
 
-/* ========== UPDATED INFO BOX FOR SINGLE LINE LAYOUT ========== */
+/* ========== INFO BOX ========== */
 .tenant-form-info-box {
   background: linear-gradient(135deg, #f0fdf4, #dcfce7);
   border: 1px solid #bbf7d0;
@@ -704,7 +1157,7 @@
   overflow: visible;
   width: 100%;
   max-width: 100%;
-  justify-content: space-between; /* Changed from center to space-between */
+  justify-content: space-between;
 }
 
 .tenant-form-info-box::before {
@@ -729,9 +1182,9 @@
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Changed to space-between */
+  justify-content: space-between;
   gap: 1.5rem;
-  flex-wrap: nowrap; /* Ensure everything stays on one line */
+  flex-wrap: nowrap;
 }
 
 .tenant-form-info-box-content p {
@@ -740,10 +1193,10 @@
   font-size: 0.875rem;
   line-height: 1.5;
   font-weight: 500;
-  flex: 1; /* Allow text to take available space */
-  white-space: nowrap; /* Keep text on one line */
+  flex: 1;
+  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; /* Add ellipsis if text is too long */
+  text-overflow: ellipsis;
 }
 
 /* Updated View Approved Link Button */
@@ -770,8 +1223,8 @@
   height: 32px;
   justify-content: center;
   white-space: nowrap;
-  flex-shrink: 0; /* Prevent button from shrinking */
-  margin-left: 1rem; /* Add some space between text and button */
+  flex-shrink: 0;
+  margin-left: 1rem;
 }
 
 .tenant-form-view-approved-link::before {
@@ -853,18 +1306,20 @@
   text-align: center;
 }
 
-.loading-state .spinner,
-.error-state .error-icon {
-  font-size: 3rem;
+.loading-state .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(59, 130, 246, 0.2);
+  border-top-color: var(--tenant-primary);
+  border-radius: 50%;
+  animation: tenant-form-spin 1s linear infinite;
   margin-bottom: 1.5rem;
 }
 
-.loading-state .spinner {
-  color: var(--tenant-primary);
-}
-
 .error-state .error-icon {
+  font-size: 3rem;
   color: var(--tenant-danger);
+  margin-bottom: 1.5rem;
 }
 
 .loading-state p,
@@ -889,6 +1344,30 @@
   max-width: 100%;
 }
 
+/* ========== SCROLLBAR STYLING ========== */
+.tenant-form-textarea::-webkit-scrollbar,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tenant-form-textarea::-webkit-scrollbar-track,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.tenant-form-textarea::-webkit-scrollbar-thumb,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.tenant-form-textarea::-webkit-scrollbar-thumb:hover,
+.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
 /* ========== RESPONSIVE DESIGN ========== */
 @media (max-width: 1200px) {
   .tenant-form-container {
@@ -903,7 +1382,8 @@
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   }
   
-  .tenant-form-fees-grid {
+  .tenant-form-fees-grid,
+  .tenant-form-status-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -942,7 +1422,8 @@
     gap: 1.25rem;
   }
   
-  .tenant-form-fees-grid {
+  .tenant-form-fees-grid,
+  .tenant-form-status-grid {
     grid-template-columns: 1fr;
   }
   
@@ -964,6 +1445,7 @@
   
   .tenant-form-button-group {
     flex-direction: column;
+    gap: 0.75rem; /* Adjusted for mobile */
   }
   
   .tenant-form-info-box {
@@ -975,11 +1457,35 @@
     flex-direction: column;
     text-align: center;
     gap: 1rem;
+    flex-wrap: wrap;
   }
   
   .tenant-form-info-box-content p {
     white-space: normal;
     text-align: center;
+  }
+  
+  .tenant-form-view-approved-link {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .competing-applicant-item {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  
+  .tenant-form-rejection-modal {
+    padding: 1.5rem;
+  }
+  
+  .rejection-form-buttons {
+    flex-direction: column;
+  }
+  
+  .rejection-btn-cancel,
+  .rejection-btn-confirm {
+    width: 100%;
   }
 }
 
@@ -1008,7 +1514,8 @@
   }
   
   .tenant-form-total-cost-summary,
-  .tenant-form-property-fees-info {
+  .tenant-form-property-fees-info,
+  .tenant-form-unit-status-info {
     padding: 1rem;
   }
   
@@ -1042,35 +1549,15 @@
     font-size: 0.6875rem;
     min-width: 100px;
   }
+  
+  .pet-details-section p {
+    font-size: 0.75rem;
+  }
 }
 
 /* Remove old duplicate styles */
 .view-approved-link {
   display: none;
-}
-
-/* ========== SCROLLBAR STYLING ========== */
-.tenant-form-textarea::-webkit-scrollbar,
-.tenant-form-input.tenant-form-readonly::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.tenant-form-textarea::-webkit-scrollbar-track,
-.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.tenant-form-textarea::-webkit-scrollbar-thumb,
-.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.tenant-form-textarea::-webkit-scrollbar-thumb:hover,
-.tenant-form-input.tenant-form-readonly::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
 }
 
 /* ========== ENSURE ALL CONTENT IS VISIBLE ========== */

@@ -105,63 +105,22 @@ const AddTenant = () => {
   const [tenantData, setTenantData] = useState(initialTenantData);
 
   // Calculate total move-in cost
-  // Helper to resolve financials with priority: Property Pricing > Unit Data > Application Data
-  const resolveFinancials = useCallback((appData, propertyData, unitData) => {
-    let resolvedRent = appData?.monthlyRent || appData?.rentAmount || appData?.price || "";
-    let resolvedSecurityDeposit = appData?.securityDeposit || appData?.deposit || "";
-    let resolvedPetDeposit = appData?.petDeposit || appData?.petFee || "";
-
-    if (propertyData) {
-      // Check property pricing based on unit type or bedroom count
-      const unitType = unitData?.propertyType || unitData?.unitType || appData?.unitType || propertyData.propertyType;
-      const unitBedrooms = unitData?.bedrooms || unitData?.unitBedrooms || appData?.unitBedrooms || 0;
-
-      let propertyPrice = propertyData.rentAmount;
-      if (propertyData.pricing) {
-        if (unitType === 'single') propertyPrice = propertyData.pricing.single;
-        else if (unitType === 'bedsitter') propertyPrice = propertyData.pricing.bedsitter;
-        else if (unitType === 'one-bedroom' || unitBedrooms === 1) propertyPrice = propertyData.pricing.oneBedroom;
-        else if (unitType === 'two-bedroom' || unitBedrooms === 2) propertyPrice = propertyData.pricing.twoBedroom;
-        else if (unitType === 'three-bedroom' || unitBedrooms === 3) propertyPrice = propertyData.pricing.threeBedroom;
-      }
-
-      resolvedRent = propertyPrice || unitData?.rentAmount || unitData?.monthlyRent || resolvedRent;
-      resolvedSecurityDeposit = propertyData.securityDeposit || propertyData.deposit || unitData?.securityDeposit || unitData?.deposit || resolvedSecurityDeposit;
-      resolvedPetDeposit = propertyData.petDeposit || propertyData.petFee || propertyData.petSecurityDeposit || unitData?.petDeposit || unitData?.petFee || resolvedPetDeposit;
-    }
-
-    return {
-      monthlyRent: resolvedRent,
-      securityDeposit: resolvedSecurityDeposit,
-      petDeposit: resolvedPetDeposit
-    };
-  }, []);
-
   const calculateTotalMoveInCost = useCallback(() => {
     const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
     const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
     const applicationFee = parseFloat(tenantData.applicationFee) || 0;
-    const currentPetDeposit = parseFloat(tenantData.petDeposit) || 0;
+    const petDeposit = hasPet ? (parseFloat(petFee) || 0) : (parseFloat(tenantData.petDeposit) || 0);
 
-    // The pet deposit should be 0 if hasPet is false
-    const effectivePetDeposit = hasPet ? currentPetDeposit : 0;
+    const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
 
-    const total = monthlyRent + securityDeposit + applicationFee + effectivePetDeposit;
+    setTenantData(prev => ({
+      ...prev,
+      totalMoveInCost: total,
+      petDeposit: hasPet ? petDeposit : 0
+    }));
+  }, [tenantData.monthlyRent, tenantData.securityDeposit, tenantData.applicationFee, hasPet, petFee]);
 
-    setTenantData(prev => {
-      // Avoid unnecessary updates if total hasn't changed
-      if (prev.totalMoveInCost === total && prev.petDeposit === effectivePetDeposit) {
-        return prev;
-      }
-      return {
-        ...prev,
-        totalMoveInCost: total,
-        petDeposit: effectivePetDeposit
-      };
-    });
-  }, [tenantData.monthlyRent, tenantData.securityDeposit, tenantData.applicationFee, tenantData.petDeposit, hasPet]);
-
-  // Calculate total whenever financial fields change
+  // Calculate whenever financial fields change
   useEffect(() => {
     calculateTotalMoveInCost();
   }, [calculateTotalMoveInCost]);
@@ -280,10 +239,9 @@ const AddTenant = () => {
         const petFeeFromProperty = propertyData.petDeposit ||
           propertyData.petFee ||
           propertyData.petSecurityDeposit ||
-          (propertyData.propertyFees && propertyData.propertyFees.petDeposit) ||
           0;
 
-        return parseFloat(petFeeFromProperty) || 0;
+        return petFeeFromProperty;
       }
     } catch (error) {
       console.error("Error fetching pet fee:", error);
@@ -292,40 +250,26 @@ const AddTenant = () => {
     return 0;
   }, []);
 
-  // Check if applicant has pet and get pet details - STRICT VERSION
+  // Check if applicant has pet and get pet details
   const checkPetInformation = useCallback((appData) => {
-    if (!appData) return { hasPet: false, petDetails: null };
-
-    // 1. Check explicit boolean or string flags
-    const hasPetFlag = appData.hasPet === true ||
-      appData.hasPet === 'true' ||
-      appData.hasPet === 'Yes' ||
-      appData.hasPets === true ||
-      appData.hasPets === 'true' ||
-      appData.hasPets === 'Yes';
-
-    // 2. Check for non-empty pet information objects
-    // Function to check if an object has at least one non-empty value
-    const hasContent = (obj) => {
-      if (!obj || typeof obj !== 'object') return false;
-      return Object.values(obj).some(val => val && val !== "" && val !== "None" && val !== "none");
-    };
-
-    const hasValidPetInfo = hasContent(appData.petInfo);
-    const hasValidPetDetails = hasContent(appData.petDetails);
-
-    // The tenant has a pet only if they explicitly said so OR provided actual details
-    const isActuallyHasPet = hasPetFlag || hasValidPetInfo || hasValidPetDetails;
+    const hasPetFlag = appData.hasPet ||
+      appData.petInfo ||
+      appData.petDetails ||
+      appData.hasPets ||
+      false;
 
     let petDetailsInfo = null;
-    if (hasValidPetDetails) {
+
+    if (appData.petDetails) {
       petDetailsInfo = appData.petDetails;
-    } else if (hasValidPetInfo) {
+    } else if (appData.petInfo) {
       petDetailsInfo = appData.petInfo;
+    } else if (appData.additionalInfo && appData.additionalInfo.includes("pet")) {
+      petDetailsInfo = { notes: appData.additionalInfo };
     }
 
     return {
-      hasPet: isActuallyHasPet,
+      hasPet: hasPetFlag,
       petDetails: petDetailsInfo
     };
   }, []);
@@ -437,10 +381,7 @@ const AddTenant = () => {
         propertyName: appData.propertyName || appData.selectedPropertyName || "",
         unitId: appData.unitId || appData.selectedUnitId || "",
         unitNumber: appData.unitNumber || appData.selectedUnitNumber || "",
-        monthlyRent: appData.monthlyRent || appData.rentAmount || appData.price || "",
-        securityDeposit: appData.securityDeposit || appData.deposit || "",
-        applicationFee: appData.applicationFee || "",
-        petDeposit: appData.petDeposit || appData.petFee || "",
+        monthlyRent: appData.monthlyRent || appData.rentAmount || "",
         leaseStart: appData.leaseStart,
         leaseEnd: appData.leaseEnd,
         leaseTerm: appData.leaseTerm || appData.preferredLeaseTerm || 12,
@@ -461,9 +402,8 @@ const AddTenant = () => {
       }));
 
       // Load property details and pet fee
-      let propertyData = null;
       if (tenantInfo.propertyId) {
-        propertyData = await loadPropertyDetails(tenantInfo.propertyId);
+        await loadPropertyDetails(tenantInfo.propertyId);
 
         // Fetch pet fee
         const propertyPetFee = await fetchPetFee(tenantInfo.propertyId);
@@ -491,10 +431,6 @@ const AddTenant = () => {
 
       if (tenantInfo.unitId && tenantInfo.propertyId) {
         const unitDocInfo = await findUnitDocument(tenantInfo.unitId, tenantInfo.propertyId);
-
-        // RESOLVE CORRECT FINANCIALS
-        const resolved = resolveFinancials(appData, propertyData, unitDocInfo?.data);
-
         if (unitDocInfo) {
           setUnitRef(unitDocInfo.ref);
           setUnitDetails(unitDocInfo.data);
@@ -502,19 +438,15 @@ const AddTenant = () => {
           setTenantData(prev => ({
             ...prev,
             unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
-            monthlyRent: resolved.monthlyRent || "",
-            securityDeposit: resolved.securityDeposit || "",
-            petDeposit: petInfo.hasPet ? (resolved.petDeposit || prev.petDeposit || 0) : 0,
+            monthlyRent: unitDocInfo.data.rentAmount || unitDocInfo.data.monthlyRent || prev.monthlyRent || "",
             propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
           }));
         } else {
           setTenantData(prev => ({
             ...prev,
-            unitNumber: prev.unitNumber || appData.unitNumber || "",
-            monthlyRent: resolved.monthlyRent || "",
-            securityDeposit: resolved.securityDeposit || "",
-            petDeposit: petInfo.hasPet ? (resolved.petDeposit || prev.petDeposit || 0) : 0,
-            propertyName: prev.propertyName || appData.propertyName || ""
+            unitNumber: appData.unitNumber || prev.unitNumber || "",
+            monthlyRent: appData.monthlyRent || prev.monthlyRent || "",
+            propertyName: appData.propertyName || prev.propertyName || ""
           }));
         }
       }
@@ -525,7 +457,7 @@ const AddTenant = () => {
     } finally {
       setLoading(false);
     }
-  }, [findUnitDocument, fetchCompetingApplications, checkPetInformation, fetchPetFee, resolveFinancials]);
+  }, [findUnitDocument, fetchCompetingApplications, checkPetInformation, fetchPetFee]);
 
   // Load property details
   const loadPropertyDetails = useCallback(async (propertyId) => {
@@ -534,24 +466,18 @@ const AddTenant = () => {
       const propertyDoc = await getDoc(propertyRef);
 
       if (propertyDoc.exists()) {
-        const propertyData = {
-          id: propertyDoc.id,
-          ...propertyDoc.data()
-        };
+        const propertyData = propertyDoc.data();
         setPropertyDetails(propertyData);
 
         setTenantData(prev => ({
           ...prev,
-          monthlyRent: propertyData.rentAmount || propertyData.price || prev.monthlyRent || "",
-          securityDeposit: propertyData.securityDeposit || propertyData.deposit || prev.securityDeposit || "",
+          securityDeposit: propertyData.securityDeposit || prev.securityDeposit || "",
           applicationFee: propertyData.applicationFee || prev.applicationFee || "",
           leaseTerm: propertyData.leaseTerm || prev.leaseTerm || 12,
           noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30,
-          // Set pet deposit if property has pet fee setting and it's not already set
-          petDeposit: propertyData.petDeposit || propertyData.petFee || propertyData.petSecurityDeposit || prev.petDeposit || 0
+          // Set pet deposit if property has pet fee setting
+          petDeposit: propertyData.petDeposit || prev.petDeposit || 0
         }));
-
-        return propertyData;
       }
     } catch (error) {
       console.error("Error loading property details:", error);
@@ -604,13 +530,56 @@ const AddTenant = () => {
 
     if (appIdToUse) {
       fetchApplicationData(appIdToUse);
-    } else if (location.state?.prefillData || localStorage.getItem('prefillTenantData')) {
-      const loadInitialData = async () => {
-        const prefill = location.state?.prefillData || JSON.parse(localStorage.getItem('prefillTenantData'));
-        if (!prefill) return;
+    } else if (location.state?.prefillData) {
+      const prefill = location.state.prefillData;
+      setApplicationData(prefill);
 
+      // Check for pet information
+      const petInfo = checkPetInformation(prefill);
+      setHasPet(petInfo.hasPet);
+      setPetDetails(petInfo.petDetails);
+
+      setTenantData(prev => ({
+        ...prev,
+        ...prefill,
+        applicationId: prefill.applicationId || ""
+      }));
+
+      if (prefill.propertyId) {
+        loadPropertyDetails(prefill.propertyId).then(async () => {
+          // Fetch pet fee
+          const propertyPetFee = await fetchPetFee(prefill.propertyId);
+          setPetFee(propertyPetFee);
+
+          // If applicant has pet, update pet deposit
+          if (petInfo.hasPet && propertyPetFee > 0) {
+            setTenantData(prev => ({
+              ...prev,
+              petDeposit: propertyPetFee
+            }));
+          }
+        });
+      }
+      if (prefill.unitId && prefill.propertyId) {
+        findUnitDocument(prefill.unitId, prefill.propertyId).then(unitDocInfo => {
+          if (unitDocInfo) {
+            setUnitRef(unitDocInfo.ref);
+            setUnitDetails(unitDocInfo.data);
+
+            setTenantData(prev => ({
+              ...prev,
+              unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
+              monthlyRent: unitDocInfo.data.rentAmount || unitDocInfo.data.monthlyRent || prev.monthlyRent || "",
+              propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
+            }));
+          }
+        });
+      }
+    } else {
+      const stored = localStorage.getItem('prefillTenantData');
+      if (stored) {
+        const prefill = JSON.parse(stored);
         setApplicationData(prefill);
-        if (localStorage.getItem('prefillTenantData')) localStorage.removeItem('prefillTenantData');
 
         // Check for pet information
         const petInfo = checkPetInformation(prefill);
@@ -622,42 +591,41 @@ const AddTenant = () => {
           ...prefill,
           applicationId: prefill.applicationId || ""
         }));
-
-        let propertyData = null;
-        let unitData = null;
+        localStorage.removeItem('prefillTenantData');
 
         if (prefill.propertyId) {
-          propertyData = await loadPropertyDetails(prefill.propertyId);
-          // Fetch pet fee
-          const propertyPetFee = await fetchPetFee(prefill.propertyId);
-          setPetFee(propertyPetFee);
-        }
+          loadPropertyDetails(prefill.propertyId).then(async () => {
+            // Fetch pet fee
+            const propertyPetFee = await fetchPetFee(prefill.propertyId);
+            setPetFee(propertyPetFee);
 
+            // If applicant has pet, update pet deposit
+            if (petInfo.hasPet && propertyPetFee > 0) {
+              setTenantData(prev => ({
+                ...prev,
+                petDeposit: propertyPetFee
+              }));
+            }
+          });
+        }
         if (prefill.unitId && prefill.propertyId) {
-          const unitDocInfo = await findUnitDocument(prefill.unitId, prefill.propertyId);
-          if (unitDocInfo) {
-            setUnitRef(unitDocInfo.ref);
-            unitData = unitDocInfo.data;
-            setUnitDetails(unitData);
-          }
+          findUnitDocument(prefill.unitId, prefill.propertyId).then(unitDocInfo => {
+            if (unitDocInfo) {
+              setUnitRef(unitDocInfo.ref);
+              setUnitDetails(unitDocInfo.data);
+
+              setTenantData(prev => ({
+                ...prev,
+                unitNumber: unitDocInfo.data.unitNumber || unitDocInfo.data.unitName || prev.unitNumber || "",
+                monthlyRent: unitDocInfo.data.rentAmount || unitDocInfo.data.monthlyRent || prev.monthlyRent || "",
+                propertyName: unitDocInfo.data.propertyName || prev.propertyName || ""
+              }));
+            }
+          });
         }
-
-        // Resolve Correct Financials
-        const resolved = resolveFinancials(prefill, propertyData, unitData);
-
-        setTenantData(prev => ({
-          ...prev,
-          monthlyRent: resolved.monthlyRent || prev.monthlyRent || "",
-          securityDeposit: resolved.securityDeposit || prev.securityDeposit || "",
-          petDeposit: petInfo.hasPet ? (resolved.petDeposit || prev.petDeposit || 0) : 0,
-          unitNumber: unitData?.unitNumber || unitData?.unitName || prev.unitNumber || "",
-          propertyName: unitData?.propertyName || prev.propertyName || ""
-        }));
-      };
-
-      loadInitialData();
+      }
     }
-  }, [applicationId, location.state, fetchApplicationData, loadPropertyDetails, findUnitDocument, checkPetInformation, fetchPetFee, resolveFinancials]);
+  }, [applicationId, location.state, fetchApplicationData, loadPropertyDetails, findUnitDocument, checkPetInformation, fetchPetFee]);
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -719,18 +687,31 @@ const AddTenant = () => {
   };
 
   // Reject handler - Custom form version
-  const handleRejectClick = () => {
+  const handleRejectClick = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setShowRejectionForm(true);
   };
 
   // Cancel rejection
-  const handleCancelRejection = () => {
+  const handleCancelRejection = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setShowRejectionForm(false);
     setRejectionReason("");
   };
 
   // Confirm rejection
-  const handleConfirmRejection = async () => {
+  const handleConfirmRejection = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!rejectionReason.trim()) {
       alert("Please provide a rejection reason");
       return;
@@ -770,7 +751,11 @@ const AddTenant = () => {
 
   // Handle approve tenant - ENHANCED VERSION WITH PET FEE
   const handleApproveTenant = async (e) => {
-    e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     setLoading(true);
 
     try {
@@ -847,8 +832,8 @@ const AddTenant = () => {
         monthlyRent: parseFloat(tenantData.monthlyRent) || 0,
         securityDeposit: parseFloat(tenantData.securityDeposit) || 0,
         applicationFee: parseFloat(tenantData.applicationFee) || 0,
-        petDeposit: parseFloat(tenantData.petDeposit) || 0,
-        totalMoveInCost: parseFloat(tenantData.totalMoveInCost) || 0,
+        petDeposit: hasPet ? (parseFloat(petFee) || 0) : 0, // Use fetched pet fee if has pet
+        totalMoveInCost: tenantData.totalMoveInCost || 0,
         leaseStart: leaseStartDate,
         leaseEnd: leaseEndDate,
         leaseTerm: parseInt(tenantData.leaseTerm) || 12,
@@ -861,8 +846,8 @@ const AddTenant = () => {
         hasPet: hasPet,
         petInfo: petDetails || {},
         petDetails: petDetails,
-        petFee: parseFloat(tenantData.petDeposit) || 0,
-        petFeeApplied: hasPet && (parseFloat(tenantData.petDeposit) > 0),
+        petFee: hasPet ? petFee : 0,
+        petFeeApplied: hasPet,
         status: "approved_pending_payment",
         balance: parseFloat(tenantData.monthlyRent) || 0,
         paymentStatus: "initial_fees_pending",
@@ -1045,6 +1030,7 @@ const AddTenant = () => {
           <button
             className="tenant-form-view-tenants-btn"
             onClick={handleCancel}
+            type="button"
           >
             <FaUsers /> View Applications
           </button>
@@ -1168,6 +1154,38 @@ const AddTenant = () => {
               </div>
             </div>
 
+            {/* Unit Status Information */}
+            {unitDetails && (
+              <div className="tenant-form-unit-status-info">
+                <h3 className="tenant-form-unit-status-title">Current Unit Status</h3>
+                <div className="tenant-form-status-grid">
+                  <div className="tenant-form-status-item">
+                    <span className="tenant-form-status-label">Current Status:</span>
+                    <span className={`tenant-form-status-value status-${unitDetails.status?.toLowerCase() || 'vacant'}`}>
+                      {unitDetails.status || "Vacant"}
+                    </span>
+                  </div>
+                  {unitDetails.tenantName && (
+                    <div className="tenant-form-status-item">
+                      <span className="tenant-form-status-label">Current Tenant:</span>
+                      <span className="tenant-form-status-value">{unitDetails.tenantName}</span>
+                    </div>
+                  )}
+                  {unitDetails.rentAmount && (
+                    <div className="tenant-form-status-item">
+                      <span className="tenant-form-status-label">Current Rent:</span>
+                      <span className="tenant-form-status-value">{formatCurrency(unitDetails.rentAmount)}</span>
+                    </div>
+                  )}
+                  {unitDetails.hasPet && (
+                    <div className="tenant-form-status-item">
+                      <span className="tenant-form-status-label">Current Pet Status:</span>
+                      <span className="tenant-form-status-value">{unitDetails.hasPet ? "Has Pet" : "No Pet"}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Property Fee Information - ENHANCED WITH PET FEE */}
             {propertyDetails && (
@@ -1216,15 +1234,16 @@ const AddTenant = () => {
 
             <div className="tenant-form-grid">
               {[
-                { label: "Monthly Rent", value: formatCurrency(tenantData.monthlyRent), show: true },
-                { label: "Security Deposit", value: formatCurrency(tenantData.securityDeposit), show: true },
-                { label: "Application Fee", value: formatCurrency(tenantData.applicationFee), show: true },
+                { label: "Monthly Rent", value: formatCurrency(tenantData.monthlyRent) },
+                { label: "Security Deposit", value: formatCurrency(tenantData.securityDeposit) },
+                { label: "Application Fee", value: formatCurrency(tenantData.applicationFee) },
                 {
                   label: "Pet Deposit",
-                  value: petFee > 0 ? formatCurrency(petFee) : "No pet fee",
-                  show: hasPet
+                  value: hasPet
+                    ? (petFee > 0 ? formatCurrency(petFee) : "No pet fee")
+                    : "No pet"
                 },
-              ].filter(field => field.show).map((field, index) => (
+              ].map((field, index) => (
                 <div className="tenant-form-group" key={index}>
                   <label className="tenant-form-label">{field.label}</label>
                   <div className="tenant-form-input tenant-form-readonly">
@@ -1250,10 +1269,10 @@ const AddTenant = () => {
                   <span>Application Fee:</span>
                   <span>{formatCurrency(tenantData.applicationFee)}</span>
                 </div>
-                {hasPet && (parseFloat(tenantData.petDeposit) > 0) && (
+                {hasPet && petFee > 0 && (
                   <div className="tenant-form-cost-item pet-fee-item">
                     <span><FaPaw /> Pet Deposit:</span>
-                    <span>{formatCurrency(tenantData.petDeposit)}</span>
+                    <span>{formatCurrency(petFee)}</span>
                   </div>
                 )}
                 <div className="tenant-form-cost-total">
@@ -1263,7 +1282,7 @@ const AddTenant = () => {
               </div>
               <p className="tenant-form-helper-text">
                 <strong>Note:</strong> Tenant must pay this total amount before moving in
-                {hasPet && (parseFloat(tenantData.petDeposit) > 0) && " (includes pet deposit)"}
+                {hasPet && petFee > 0 && " (includes pet deposit)"}
               </p>
             </div>
           </div>
@@ -1343,12 +1362,12 @@ const AddTenant = () => {
             </div>
           </div>
 
-          {/* FORM ACTIONS */}
+          {/* FORM ACTIONS - FIXED BUTTONS */}
           <div className="tenant-form-actions">
-            {/* Rejection Form Modal */}
+            {/* Rejection Form Modal - FIXED */}
             {showRejectionForm && (
-              <div className="tenant-form-rejection-modal-overlay">
-                <div className="tenant-form-rejection-modal">
+              <div className="tenant-form-rejection-modal-overlay" onClick={(e) => e.stopPropagation()}>
+                <div className="tenant-form-rejection-modal" onClick={(e) => e.stopPropagation()}>
                   <h3><FaThumbsDown /> Reject Application</h3>
                   <div className="rejection-form-group">
                     <label className="rejection-form-label">
@@ -1369,15 +1388,25 @@ const AddTenant = () => {
                   </div>
                   <div className="rejection-form-buttons">
                     <button
+                      type="button"
                       className="rejection-btn-cancel"
-                      onClick={handleCancelRejection}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleCancelRejection(e);
+                      }}
                       disabled={isRejecting}
                     >
                       Cancel
                     </button>
                     <button
+                      type="button"
                       className="rejection-btn-confirm"
-                      onClick={handleConfirmRejection}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleConfirmRejection(e);
+                      }}
                       disabled={isRejecting || !rejectionReason.trim()}
                     >
                       {isRejecting ? (
@@ -1398,7 +1427,11 @@ const AddTenant = () => {
               <button
                 type="button"
                 className="tenant-form-btn-cancel"
-                onClick={handleCancel}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCancel();
+                }}
                 disabled={loading || isRejecting}
               >
                 <FaTimes /> Cancel
@@ -1408,7 +1441,11 @@ const AddTenant = () => {
                 <button
                   type="button"
                   className="tenant-form-btn-danger"
-                  onClick={handleRejectClick}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRejectClick(e);
+                  }}
                   disabled={loading || isRejecting}
                 >
                   <FaThumbsDown /> Reject Application
@@ -1417,7 +1454,11 @@ const AddTenant = () => {
                 <button
                   type="button"
                   className="tenant-form-btn-submit"
-                  onClick={handleApproveTenant}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleApproveTenant(e);
+                  }}
                   disabled={loading || isRejecting}
                   title={!unitRef ? "Warning: Unit document not found in database. Tenant will be created but unit status won't be updated." : ""}
                 >
@@ -1444,16 +1485,11 @@ const AddTenant = () => {
                 <div className="tenant-form-info-box-content">
                   <p>
                     <strong>After approval:</strong> Tenant will appear in "Approved Tenants" page.
-                    {hasPet && (parseFloat(tenantData.petDeposit) > 0) && ` Pet deposit of ${formatCurrency(tenantData.petDeposit)} has been included in total move-in costs.`}
+                    {hasPet && petFee > 0 && " Pet deposit has been included in total move-in costs."}
                     {competingApplications.length > 0 &&
                       ` Approving will automatically reject ${competingApplications.length} other pending application(s) for this unit.`}
                   </p>
-                  <button
-                    className="tenant-form-view-approved-link"
-                    onClick={() => navigate("/approved-tenants")}
-                  >
-                    View Approved Tenants <FaArrowRight />
-                  </button>
+                  
                 </div>
               </div>
             </div>
