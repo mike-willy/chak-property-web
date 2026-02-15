@@ -1,18 +1,18 @@
 // src/pages/Units.jsx - LOCKED LEASED STATUS VERSION (FIXED)
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  collection, 
-  getDocs, 
+import {
+  collection,
+  getDocs,
   doc,
   updateDoc,
   deleteDoc
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
-import { 
-  FaArrowLeft, 
-  FaBed, 
-  FaBath, 
+import {
+  FaArrowLeft,
+  FaBed,
+  FaBath,
   FaMoneyBillWave,
   FaUser,
   FaHome,
@@ -45,29 +45,33 @@ const Units = () => {
   const [showDeleteTenantModal, setShowDeleteTenantModal] = useState(false);
   const [unitToDeleteTenant, setUnitToDeleteTenant] = useState(null);
 
+  // NEW: Unit Details Modal State
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [viewingUnit, setViewingUnit] = useState(null);
+
   // Get unit statuses - DUAL STATUS VERSION
   const getUnitStatuses = (unitData) => {
     // Default values
     let occupancyStatus = "vacant";
     let maintenanceStatus = "normal";
     let displayStatus = "vacant";
-    
+
     // If unit has new dual-status fields, use them
     if (unitData.occupancyStatus && unitData.maintenanceStatus) {
       occupancyStatus = unitData.occupancyStatus;
       maintenanceStatus = unitData.maintenanceStatus;
-      
+
       // Calculate display status for backward compatibility
       if (maintenanceStatus === "under_maintenance") {
         displayStatus = "maintenance";
       } else {
         displayStatus = occupancyStatus;
       }
-    } 
+    }
     // Legacy: single status field (for backward compatibility during transition)
     else if (unitData.status) {
       const statusLower = unitData.status.toLowerCase();
-      
+
       // Map legacy status to new dual status
       if (statusLower === "maintenance" || statusLower === "repair" || statusLower === "under_repair") {
         if (unitData.tenantName || unitData.tenantId) {
@@ -78,7 +82,7 @@ const Units = () => {
           maintenanceStatus = "under_maintenance";
         }
         displayStatus = "maintenance";
-      } 
+      }
       else if (statusLower === "leased" || statusLower === "occupied" || statusLower === "rented") {
         occupancyStatus = "leased";
         maintenanceStatus = "normal";
@@ -90,7 +94,7 @@ const Units = () => {
         displayStatus = "vacant";
       }
     }
-    
+
     return { occupancyStatus, maintenanceStatus, displayStatus };
   };
 
@@ -101,14 +105,14 @@ const Units = () => {
   const fetchAllUnits = async () => {
     try {
       setLoading(true);
-      
+
       const propertiesSnapshot = await getDocs(collection(db, "properties"));
       const propertiesData = [];
       const unitsByProperty = {};
-      
+
       propertiesSnapshot.forEach((doc) => {
-        const propertyData = { 
-          id: doc.id, 
+        const propertyData = {
+          id: doc.id,
           ...doc.data(),
           // Ensure property has correct unit counts
           unitDetails: {
@@ -124,23 +128,23 @@ const Units = () => {
           units: []
         };
       });
-      
+
       setProperties(propertiesData);
-      
+
       // Fetch units from each property
       for (const property of propertiesData) {
         try {
           const unitsRef = collection(db, `properties/${property.id}/units`);
           const unitsSnapshot = await getDocs(unitsRef);
-          
+
           unitsSnapshot.forEach((unitDoc) => {
             const unitData = unitDoc.data();
-            
+
             // Get dual statuses
             const { occupancyStatus, maintenanceStatus, displayStatus } = getUnitStatuses(unitData);
-            
-            const enhancedUnitData = { 
-              id: unitDoc.id, 
+
+            const enhancedUnitData = {
+              id: unitDoc.id,
               ...unitData,
               occupancyStatus, // NEW FIELD
               maintenanceStatus, // NEW FIELD
@@ -150,43 +154,43 @@ const Units = () => {
               propertyAddress: property.address,
               propertyCity: property.city
             };
-            
+
             unitsByProperty[property.id].units.push(enhancedUnitData);
           });
-          
+
         } catch (error) {
           console.log(`No units found for property ${property.name}:`, error.message);
         }
       }
-      
+
       // Update property counts based on actual unit data - DUAL STATUS VERSION
       Object.keys(unitsByProperty).forEach(propertyId => {
         const propertyUnits = unitsByProperty[propertyId].units;
         const property = unitsByProperty[propertyId].property;
-        
+
         // Calculate actual counts using dual status
         let vacantCount = 0;
         let leasedCount = 0;
         let maintenanceCount = 0;
-        
+
         propertyUnits.forEach(unit => {
           const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unit);
-          
+
           // Count occupancy
           if (occupancyStatus === "leased") {
             leasedCount++;
           } else {
             vacantCount++;
           }
-          
+
           // Count maintenance
           if (maintenanceStatus === "under_maintenance") {
             maintenanceCount++;
           }
         });
-        
+
         const totalUnits = propertyUnits.length;
-        
+
         // Update property object with real counts
         unitsByProperty[propertyId].property.unitDetails = {
           totalUnits,
@@ -196,14 +200,14 @@ const Units = () => {
           occupancyRate: totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0
         };
       });
-      
+
       // Convert to array
       const unitsArray = Object.values(unitsByProperty)
         .filter(item => item.units.length > 0)
         .sort((a, b) => a.property.name?.localeCompare(b.property.name));
-      
+
       setAllUnits(unitsArray);
-      
+
     } catch (error) {
       console.error("Error fetching units:", error);
       alert("Failed to load units");
@@ -218,28 +222,28 @@ const Units = () => {
       // Find unit data
       const propertyGroup = allUnits.find(item => item.property.id === propertyId);
       if (!propertyGroup) return;
-      
+
       const unit = propertyGroup.units.find(u => u.id === unitId);
       if (!unit) return;
-      
+
       const { occupancyStatus } = getUnitStatuses(unit);
-      
+
       // PREVENT changing occupancy from leased to vacant
       if (statusType === "occupancy" && occupancyStatus === "leased" && newValue === "vacant") {
         alert("Cannot change occupancy from 'Leased' to 'Vacant'. You must delete the tenant first.");
         return;
       }
-      
+
       const unitRef = doc(db, `properties/${propertyId}/units`, unitId);
-      
+
       // Determine updates based on what's being changed
       const updates = {
         updatedAt: new Date()
       };
-      
+
       if (statusType === "occupancy") {
         updates.occupancyStatus = newValue;
-        
+
         // Clear tenant info if changing from leased to vacant (shouldn't happen due to check above)
         if (occupancyStatus === "leased" && newValue === "vacant") {
           updates.tenantId = null;
@@ -249,17 +253,17 @@ const Units = () => {
           updates.leaseStartDate = null;
           updates.leaseEndDate = null;
         }
-        
+
         // Keep legacy status for backward compatibility
         if (unit.maintenanceStatus === "under_maintenance") {
           updates.status = "maintenance";
         } else {
           updates.status = newValue;
         }
-      } 
+      }
       else if (statusType === "maintenance") {
         updates.maintenanceStatus = newValue;
-        
+
         // Keep legacy status for backward compatibility
         if (newValue === "under_maintenance") {
           updates.status = "maintenance";
@@ -267,51 +271,51 @@ const Units = () => {
           updates.status = occupancyStatus;
         }
       }
-      
+
       await updateDoc(unitRef, updates);
-      
+
       // Update local state
       setAllUnits(prev => prev.map(item => {
         if (item.property.id === propertyId) {
           const updatedUnits = item.units.map(unit => {
             if (unit.id === unitId) {
-              const updatedUnit = { 
-                ...unit, 
+              const updatedUnit = {
+                ...unit,
                 ...updates,
                 ...(statusType === "occupancy" && { occupancyStatus: newValue }),
                 ...(statusType === "maintenance" && { maintenanceStatus: newValue })
               };
-              
+
               // Recalculate display status
               const { displayStatus } = getUnitStatuses(updatedUnit);
               return { ...updatedUnit, displayStatus };
             }
             return unit;
           });
-          
+
           // Recalculate property counts using dual status
           let vacantCount = 0;
           let leasedCount = 0;
           let maintenanceCount = 0;
-          
+
           updatedUnits.forEach(unit => {
             const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unit);
-            
+
             if (occupancyStatus === "leased") {
               leasedCount++;
             } else {
               vacantCount++;
             }
-            
+
             if (maintenanceStatus === "under_maintenance") {
               maintenanceCount++;
             }
           });
-          
+
           const totalUnits = updatedUnits.length;
-          
-          return { 
-            ...item, 
+
+          return {
+            ...item,
             units: updatedUnits,
             property: {
               ...item.property,
@@ -327,10 +331,10 @@ const Units = () => {
         }
         return item;
       }));
-      
+
       // Update main properties collection
       await updatePropertyCountsInFirestore(propertyId);
-      
+
       alert(`Unit status updated successfully`);
     } catch (error) {
       console.error("Error updating unit status:", error);
@@ -341,17 +345,17 @@ const Units = () => {
   // Handle delete tenant - NEW FUNCTION (FIXED SEMICOLON ERROR)
   const handleDeleteTenant = async () => {
     if (!unitToDeleteTenant) return;
-    
+
     try {
       const { propertyId, unitId } = unitToDeleteTenant;
-      
+
       // Find the unit
       const propertyGroup = allUnits.find(item => item.property.id === propertyId);
       if (!propertyGroup) return;
-      
+
       const unit = propertyGroup.units.find(u => u.id === unitId);
       if (!unit) return;
-      
+
       // Update unit document
       const unitRef = doc(db, `properties/${propertyId}/units`, unitId);
       await updateDoc(unitRef, {
@@ -366,7 +370,7 @@ const Units = () => {
         leaseEndDate: null,
         updatedAt: new Date()
       });
-      
+
       // Also delete tenant from tenants collection if exists
       if (unit.tenantId) {
         try {
@@ -378,14 +382,14 @@ const Units = () => {
           // Continue even if tenant deletion fails
         }
       }
-      
+
       // Update local state (FIXED: Added missing semicolon after .map())
       setAllUnits(prev => prev.map(item => {
         if (item.property.id === propertyId) {
           const updatedUnits = item.units.map(u => {
             if (u.id === unitId) {
-              return { 
-                ...u, 
+              return {
+                ...u,
                 occupancyStatus: "vacant",
                 tenantId: null,
                 tenantName: null,
@@ -398,30 +402,30 @@ const Units = () => {
             }
             return u;
           });
-          
+
           // Recalculate property counts
           let vacantCount = 0;
           let leasedCount = 0;
           let maintenanceCount = 0;
-          
+
           updatedUnits.forEach(u => {
             const { occupancyStatus, maintenanceStatus } = getUnitStatuses(u);
-            
+
             if (occupancyStatus === "leased") {
               leasedCount++;
             } else {
               vacantCount++;
             }
-            
+
             if (maintenanceStatus === "under_maintenance") {
               maintenanceCount++;
             }
           });
-          
+
           const totalUnits = updatedUnits.length;
-          
-          return { 
-            ...item, 
+
+          return {
+            ...item,
             units: updatedUnits,
             property: {
               ...item.property,
@@ -437,16 +441,16 @@ const Units = () => {
         }
         return item;
       }));
-      
+
       // Update main properties collection
       await updatePropertyCountsInFirestore(propertyId);
-      
+
       // Close modal and reset
       setShowDeleteTenantModal(false);
       setUnitToDeleteTenant(null);
-      
+
       alert(`Tenant deleted and unit is now vacant`);
-      
+
     } catch (error) {
       console.error("Error deleting tenant:", error);
       alert("Failed to delete tenant");
@@ -458,17 +462,17 @@ const Units = () => {
     // Find the unit
     const propertyGroup = allUnits.find(item => item.property.id === propertyId);
     if (!propertyGroup) return;
-    
+
     const unit = propertyGroup.units.find(u => u.id === unitId);
     if (!unit) return;
-    
+
     const { occupancyStatus } = getUnitStatuses(unit);
-    
+
     if (occupancyStatus !== "leased") {
       alert("Unit is not leased. No tenant to delete.");
       return;
     }
-    
+
     setUnitToDeleteTenant({ propertyId, unitId, unit });
     setShowDeleteTenantModal(true);
   };
@@ -479,10 +483,10 @@ const Units = () => {
       // Find property in current state
       const propertyGroup = allUnits.find(item => item.property.id === propertyId);
       if (!propertyGroup) return;
-      
+
       const { unitDetails } = propertyGroup.property;
       const propertyRef = doc(db, "properties", propertyId);
-      
+
       await updateDoc(propertyRef, {
         "unitDetails.totalUnits": unitDetails.totalUnits,
         "unitDetails.vacantCount": unitDetails.vacantCount,
@@ -491,7 +495,7 @@ const Units = () => {
         "unitDetails.occupancyRate": unitDetails.occupancyRate,
         updatedAt: new Date()
       });
-      
+
     } catch (error) {
       console.error("Error updating property counts:", error);
     }
@@ -502,20 +506,20 @@ const Units = () => {
     .map(item => {
       const filteredPropertyUnits = item.units.filter(unit => {
         const { displayStatus } = getUnitStatuses(unit);
-        
-        const matchesSearch = 
+
+        const matchesSearch =
           unit.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           unit.unitName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.property.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.property.address?.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const matchesStatus = 
-          filterStatus === "all" || 
+
+        const matchesStatus =
+          filterStatus === "all" ||
           displayStatus === filterStatus;
-        
+
         return matchesSearch && matchesStatus;
       });
-      
+
       return {
         ...item,
         units: filteredPropertyUnits
@@ -557,7 +561,7 @@ const Units = () => {
   // Get display status text - DUAL STATUS VERSION
   const getDisplayStatusText = (unitData) => {
     const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unitData);
-    
+
     if (maintenanceStatus === "under_maintenance") {
       if (occupancyStatus === "leased") {
         return "LEASED & UNDER MAINTENANCE";
@@ -572,7 +576,7 @@ const Units = () => {
   // Get status class - DUAL STATUS VERSION
   const getStatusClass = (unitData) => {
     const { displayStatus } = getUnitStatuses(unitData);
-    switch(displayStatus) {
+    switch (displayStatus) {
       case "leased": return "all-units-status-leased";
       case "vacant": return "all-units-status-vacant";
       case "maintenance": return "all-units-status-maintenance";
@@ -583,7 +587,7 @@ const Units = () => {
   // Get status icon - DUAL STATUS VERSION
   const getStatusIcon = (unitData) => {
     const { occupancyStatus, maintenanceStatus } = getUnitStatuses(unitData);
-    
+
     if (maintenanceStatus === "under_maintenance") {
       return <FaTools />;
     } else if (occupancyStatus === "leased") {
@@ -593,17 +597,25 @@ const Units = () => {
     }
   };
 
-  // View unit details
+  // View unit details - UPDATED TO OPEN MODAL
   const handleViewUnit = (propertyId, unitId) => {
-    navigate(`/units/${unitId}/details`, { state: { propertyId } });
+    // Find the unit data
+    const propertyGroup = allUnits.find(item => item.property.id === propertyId);
+    if (propertyGroup) {
+      const unit = propertyGroup.units.find(u => u.id === unitId);
+      if (unit) {
+        setViewingUnit(unit);
+        setShowDetailsModal(true);
+      }
+    }
   };
 
   // Assign tenant to unit
   const handleAssignTenant = (propertyId, unitId) => {
-    navigate(`/applications`, { 
-      state: { 
+    navigate(`/applications`, {
+      state: {
         assignToUnit: { unitId, propertyId }
-      } 
+      }
     });
   };
 
@@ -643,7 +655,7 @@ const Units = () => {
             className="all-units-search-input"
           />
           {searchTerm && (
-            <button 
+            <button
               className="all-units-search-clear"
               onClick={() => setSearchTerm("")}
               type="button"
@@ -652,27 +664,27 @@ const Units = () => {
             </button>
           )}
         </div>
-        
+
         <div className="all-units-filter-buttons">
-          <button 
+          <button
             className={`all-units-filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
             onClick={() => setFilterStatus('all')}
           >
             All Units
           </button>
-          <button 
+          <button
             className={`all-units-filter-btn ${filterStatus === 'vacant' ? 'active' : ''}`}
             onClick={() => setFilterStatus('vacant')}
           >
             Vacant
           </button>
-          <button 
+          <button
             className={`all-units-filter-btn ${filterStatus === 'leased' ? 'active' : ''}`}
             onClick={() => setFilterStatus('leased')}
           >
             Leased
           </button>
-          <button 
+          <button
             className={`all-units-filter-btn ${filterStatus === 'maintenance' ? 'active' : ''}`}
             onClick={() => setFilterStatus('maintenance')}
           >
@@ -737,8 +749,8 @@ const Units = () => {
                 </p>
               </div>
               <div className="modal-actions">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="cancel-btn"
                   onClick={() => {
                     setShowDeleteTenantModal(false);
@@ -747,14 +759,104 @@ const Units = () => {
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="delete-btn"
                   onClick={handleDeleteTenant}
                 >
                   <FaUserMinus /> Delete Tenant
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Unit Details Modal */}
+      {showDetailsModal && viewingUnit && (
+        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
+          <div className="modal-content unit-details-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Unit {viewingUnit.unitNumber} Details</h3>
+              <button className="close-modal" onClick={() => setShowDetailsModal(false)}>
+                ×
+              </button>
+            </div>
+
+            <div className="unit-details-body">
+              {/* Image Gallery */}
+              <div className="details-section">
+                <h4>Unit Images</h4>
+                {viewingUnit.images && viewingUnit.images.length > 0 ? (
+                  <div className="unit-image-gallery">
+                    {viewingUnit.images.map((imgUrl, idx) => (
+                      <div key={idx} className="gallery-image-wrapper">
+                        <img src={imgUrl} alt={`Unit ${viewingUnit.unitNumber} - ${idx + 1}`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="no-images-placeholder">
+                    <FaHome className="placeholder-icon" />
+                    <p>No images uploaded for this unit</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Unit Info Grid */}
+              <div className="details-section">
+                <h4>Information</h4>
+                <div className="details-grid">
+                  <div className="detail-item">
+                    <span className="label">Status:</span>
+                    <span className={`value status-badge ${getStatusClass(viewingUnit)}`}>
+                      {getDisplayStatusText(viewingUnit)}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Rent:</span>
+                    <span className="value">{formatCurrency(viewingUnit.rentAmount || viewingUnit.monthlyRent)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Size:</span>
+                    <span className="value">{viewingUnit.size || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Floor:</span>
+                    <span className="value">{viewingUnit.floor || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Bedrooms:</span>
+                    <span className="value">{viewingUnit.bedrooms || viewingUnit.unitBedrooms || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Bathrooms:</span>
+                    <span className="value">{viewingUnit.bathrooms || viewingUnit.unitBathrooms || "N/A"}</span>
+                  </div>
+
+                  {viewingUnit.amenities && viewingUnit.amenities.length > 0 && (
+                    <div className="detail-item full-width">
+                      <span className="label">Amenities:</span>
+                      <div className="amenities-tags">
+                        {viewingUnit.amenities.map((amenity, idx) => (
+                          <span key={idx} className="amenity-tag">{amenity}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Values that might be property specific can be added here if needed */}
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => setShowDetailsModal(false)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -767,15 +869,15 @@ const Units = () => {
             <FaHome className="all-units-empty-icon" />
             <h3>No units found</h3>
             <p>
-              {searchTerm || filterStatus !== 'all' 
-                ? 'Try changing your search or filter' 
+              {searchTerm || filterStatus !== 'all'
+                ? 'Try changing your search or filter'
                 : 'No units found in any property. Add units to properties first.'}
             </p>
           </div>
         ) : (
           filteredUnits.map((item) => {
             const { vacantCount, leasedCount, maintenanceCount, totalUnits, occupancyRate } = item.property.unitDetails;
-            
+
             return (
               <div key={item.property.id} className="all-units-property-group">
                 {/* Property Header with Statistics */}
@@ -818,7 +920,7 @@ const Units = () => {
                     const isLeased = occupancyStatus === "leased";
                     const isUnderMaintenance = maintenanceStatus === "under_maintenance";
                     const isOccupancyLocked = isLeased;
-                    
+
                     return (
                       <div key={unit.id} className={`all-units-unit-card ${isLeased ? 'leased' : ''}`}>
                         <div className="all-units-unit-header">
@@ -859,14 +961,14 @@ const Units = () => {
                           {/* Status Details - LOCKED STATUS VERSION */}
                           <div className="all-units-status-details">
                             <div className="all-units-status-row">
-                              <strong>Occupancy:</strong> 
+                              <strong>Occupancy:</strong>
                               <span>
                                 {occupancyStatus.toUpperCase()}
                                 {isOccupancyLocked && <FaLock style={{ marginLeft: '6px', fontSize: '0.7rem' }} title="Occupancy locked" />}
                               </span>
                             </div>
                             <div className="all-units-status-row">
-                              <strong>Maintenance:</strong> 
+                              <strong>Maintenance:</strong>
                               <span>{isUnderMaintenance ? "Under Maintenance" : "Normal"}</span>
                             </div>
                           </div>
@@ -937,8 +1039,8 @@ const Units = () => {
                             {isOccupancyLocked && (
                               <div className="all-units-locked-message">
                                 <small>
-                                  <FaLock /> Occupancy locked. <button 
-                                    type="button" 
+                                  <FaLock /> Occupancy locked. <button
+                                    type="button"
                                     className="all-units-delete-tenant-link"
                                     onClick={() => handleRequestDeleteTenant(item.property.id, unit.id)}
                                   >
@@ -948,18 +1050,18 @@ const Units = () => {
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="all-units-action-buttons">
-                            <button 
+                            <button
                               className="all-units-action-btn all-units-view-btn"
                               onClick={() => handleViewUnit(item.property.id, unit.id)}
                               title="View Details"
                             >
                               <FaEye />
                             </button>
-                            
+
                             {!isLeased ? (
-                              <button 
+                              <button
                                 className="all-units-action-btn all-units-assign-btn"
                                 onClick={() => handleAssignTenant(item.property.id, unit.id)}
                                 title="Assign Tenant"
@@ -967,7 +1069,7 @@ const Units = () => {
                                 <FaUser />
                               </button>
                             ) : (
-                              <button 
+                              <button
                                 className="all-units-action-btn all-units-delete-tenant-btn"
                                 onClick={() => handleRequestDeleteTenant(item.property.id, unit.id)}
                                 title="Delete Tenant"
@@ -975,8 +1077,8 @@ const Units = () => {
                                 <FaUserMinus />
                               </button>
                             )}
-                            
-                            <button 
+
+                            <button
                               className="all-units-action-btn all-units-edit-btn"
                               onClick={() => navigate(`/units/${unit.id}/edit`, { state: { propertyId: item.property.id } })}
                               title="Edit Unit"
@@ -1011,7 +1113,7 @@ const Units = () => {
           <div className="all-units-summary-stat">
             <span className="stat-label">Vacant Units:</span>
             <span className="stat-value">
-              {filteredUnits.reduce((total, item) => 
+              {filteredUnits.reduce((total, item) =>
                 total + item.units.filter(u => {
                   const { occupancyStatus } = getUnitStatuses(u);
                   return occupancyStatus === "vacant";
@@ -1021,7 +1123,7 @@ const Units = () => {
           <div className="all-units-summary-stat">
             <span className="stat-label">Leased Units:</span>
             <span className="stat-value leased-count">
-              {filteredUnits.reduce((total, item) => 
+              {filteredUnits.reduce((total, item) =>
                 total + item.units.filter(u => {
                   const { occupancyStatus } = getUnitStatuses(u);
                   return occupancyStatus === "leased";
@@ -1031,7 +1133,7 @@ const Units = () => {
           <div className="all-units-summary-stat">
             <span className="stat-label">Under Maintenance:</span>
             <span className="stat-value">
-              {filteredUnits.reduce((total, item) => 
+              {filteredUnits.reduce((total, item) =>
                 total + item.units.filter(u => {
                   const { maintenanceStatus } = getUnitStatuses(u);
                   return maintenanceStatus === "under_maintenance";
@@ -1044,7 +1146,7 @@ const Units = () => {
       {/* Data Health Check - LOCKED STATUS VERSION */}
       <div className="all-units-data-health">
 
-        <button 
+        <button
           className="all-units-refresh-btn"
           onClick={fetchAllUnits}
         >
