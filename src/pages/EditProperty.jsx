@@ -52,6 +52,11 @@ const EditProperty = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [propertyImages, setPropertyImages] = useState([]);
 
+  // NEW: State for Unit Images
+  const [unitImages, setUnitImages] = useState([]);
+  const [uploadingUnitImages, setUploadingUnitImages] = useState(false);
+  const unitFileInputRef = React.useRef(null);
+
   // Property types with icons and descriptions - MUST MATCH AddProperty.jsx
   const propertyTypes = [
     { value: "single", label: "Single Room", icon: "🏠", description: "Single self-contained room", hasBedrooms: false },
@@ -341,6 +346,61 @@ const EditProperty = () => {
     handleImageUpload(files);
   };
 
+  // --- NEW: Unit Image Handlers ---
+
+  const handleUnitImageUpload = async (files) => {
+    if (files.length === 0) return;
+
+    setUploadingUnitImages(true);
+
+    try {
+      // Use Cloudinary service to upload images
+      const uploadResults = await uploadMultipleImages(files, {
+        folder: form.name ? `properties/${form.name.replace(/\s+/g, '_')}/units` : 'properties/units'
+      });
+
+      // Filter successful uploads
+      const successfulUploads = uploadResults.filter(result => result.success);
+
+      // Update preview
+      successfulUploads.forEach((result, index) => {
+        setUnitImages(prev => [...prev, {
+          url: result.url,
+          name: `Unit Image ${index + 1}`,
+          size: result.bytes
+        }]);
+      });
+
+      // Show warning for failed uploads
+      const failedUploads = uploadResults.filter(result => !result.success);
+      if (failedUploads.length > 0) {
+        console.warn(`${failedUploads.length} unit image(s) failed to upload`);
+      }
+
+    } catch (error) {
+      console.error("Unit image upload error:", error);
+      alert("Failed to upload unit images. Please try again.");
+    } finally {
+      setUploadingUnitImages(false);
+    }
+  };
+
+  const removeUnitImage = (index) => {
+    setUnitImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUnitDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleUnitDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files);
+    handleUnitImageUpload(files);
+  };
+
   // Check if property type requires pricing input - MUST MATCH AddProperty.jsx
   const requiresPricingInput = () => {
     const noPricingTypes = ['apartment', 'commercial', 'one-two-bedroom'];
@@ -476,6 +536,11 @@ const EditProperty = () => {
             rentAmount: numPrice,
             deposit: propertyData.securityDeposit
           };
+
+          // NEW: Update unit images if provided
+          if (unitImages.length > 0) {
+            updates.images = unitImages.map(img => img.url);
+          }
 
           await updateDoc(unitRef, updates);
         });
@@ -791,6 +856,61 @@ const EditProperty = () => {
                 disabled={saving}
               />
               <small className="form-hint">Parking fees, storage, etc.</small>
+            </div>
+
+            {/* NEW: Unit Images Upload Section */}
+            <div className="form-group">
+              <label>Default Unit Images</label>
+              <p className="form-helper">These images will be applied to ALL units. Existing unit images will be overwritten if you upload new ones here.</p>
+
+              <div
+                className={`image-upload-area ${uploadingUnitImages ? 'uploading' : ''}`}
+                onDragOver={handleUnitDragOver}
+                onDrop={handleUnitDrop}
+                onClick={() => unitFileInputRef.current.click()}
+              >
+                <FaUpload className="upload-icon" />
+                <p>Drag & drop unit images here or click to browse</p>
+                <p className="upload-hint">Interior views, bathroom, kitchen specific to units</p>
+                <input
+                  type="file"
+                  ref={unitFileInputRef}
+                  onChange={(e) => handleUnitImageUpload(Array.from(e.target.files))}
+                  multiple
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              {uploadingUnitImages && (
+                <div className="uploading-status">
+                  <div className="spinner"></div>
+                  <p>Uploading unit images...</p>
+                </div>
+              )}
+
+              {unitImages.length > 0 && (
+                <div className="image-preview-container">
+                  <h4>Uploaded Unit Images ({unitImages.length})</h4>
+                  <div className="image-grid">
+                    {unitImages.map((image, index) => (
+                      <div key={index} className="image-preview">
+                        <img src={image.url} alt={`Unit ${index + 1}`} />
+                        <button
+                          type="button"
+                          className="remove-image-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeUnitImage(index);
+                          }}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Lease Terms */}

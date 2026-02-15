@@ -1,28 +1,28 @@
 // src/pages/AddProperty.jsx - UPDATED WITH CLOUDINARY SERVICE
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  collection, 
-  addDoc, 
-  serverTimestamp, 
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
   getDocs,
   updateDoc,
   doc,
-  arrayUnion 
+  arrayUnion
 } from "firebase/firestore";
-import { db } from "../pages/firebase/firebase"; 
+import { db } from "../pages/firebase/firebase";
 import { uploadMultipleImages } from "../services/cloudinary"; // Import from your service
 import "../styles/Addproperty.css";
-import { 
-  FaImage, 
-  FaUpload, 
-  FaTrash, 
-  FaHome, 
-  FaBed, 
-  FaBath, 
-  FaWifi, 
-  FaCar, 
-  FaTv, 
+import {
+  FaImage,
+  FaUpload,
+  FaTrash,
+  FaHome,
+  FaBed,
+  FaBath,
+  FaWifi,
+  FaCar,
+  FaTv,
   FaSnowflake,
   FaSwimmingPool,
   FaDumbbell,
@@ -36,89 +36,93 @@ import {
 const AddProperty = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  
+
   const [loading, setLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [landlords, setLandlords] = useState([]);
   const [fetchingLandlords, setFetchingLandlords] = useState(true);
   const [propertyImages, setPropertyImages] = useState([]);
-  
+  // NEW: State for Unit Images
+  const [unitImages, setUnitImages] = useState([]);
+  const [uploadingUnitImages, setUploadingUnitImages] = useState(false);
+  const unitFileInputRef = useRef(null);
+
   // Property types with icons, descriptions, and AUTO bedroom/bathroom mapping
   const propertyTypes = [
-    { 
-      value: "single", 
-      label: "Single Room", 
-      icon: "🏠", 
-      description: "Single self-contained room", 
+    {
+      value: "single",
+      label: "Single Room",
+      icon: "🏠",
+      description: "Single self-contained room",
       hasBedrooms: false,
       autoBedrooms: 0,
       autoBathrooms: 1
     },
-    { 
-      value: "bedsitter", 
-      label: "Bedsitter", 
-      icon: "🛌", 
-      description: "Bed-sitting room with kitchenette", 
+    {
+      value: "bedsitter",
+      label: "Bedsitter",
+      icon: "🛌",
+      description: "Bed-sitting room with kitchenette",
       hasBedrooms: false,
       autoBedrooms: 0,
       autoBathrooms: 1
     },
-    { 
-      value: "one-bedroom", 
-      label: "One Bedroom", 
-      icon: "1️⃣", 
-      description: "One bedroom apartment", 
+    {
+      value: "one-bedroom",
+      label: "One Bedroom",
+      icon: "1️⃣",
+      description: "One bedroom apartment",
       hasBedrooms: true,
       autoBedrooms: 1,
       autoBathrooms: 1
     },
-    { 
-      value: "two-bedroom", 
-      label: "Two Bedroom", 
-      icon: "2️⃣", 
-      description: "Two bedroom apartment", 
+    {
+      value: "two-bedroom",
+      label: "Two Bedroom",
+      icon: "2️⃣",
+      description: "Two bedroom apartment",
       hasBedrooms: true,
       autoBedrooms: 2,
       autoBathrooms: 2
     },
-    { 
-      value: "three-bedroom", 
-      label: "Three Bedroom", 
-      icon: "3️⃣", 
-      description: "Three bedroom apartment", 
+    {
+      value: "three-bedroom",
+      label: "Three Bedroom",
+      icon: "3️⃣",
+      description: "Three bedroom apartment",
       hasBedrooms: true,
       autoBedrooms: 3,
       autoBathrooms: 3
     },
-    { 
-      value: "one-two-bedroom", 
-      label: "1BR + 2BR", 
-      icon: "🏘️", 
-      description: "Mix of 1BR and 2BR units", 
+    {
+      value: "one-two-bedroom",
+      label: "1BR + 2BR",
+      icon: "🏘️",
+      description: "Mix of 1BR and 2BR units",
       hasBedrooms: true,
       autoBedrooms: 0,
       autoBathrooms: 0
     },
-    { 
-      value: "apartment", 
-      label: "Apartment Complex", 
-      icon: "🏢", 
-      description: "Multi-unit apartment building", 
+    {
+      value: "apartment",
+      label: "Apartment Complex",
+      icon: "🏢",
+      description: "Multi-unit apartment building",
       hasBedrooms: false,
       autoBedrooms: 1,
       autoBathrooms: 1
     },
-    { 
-      value: "commercial", 
-      label: "Commercial", 
-      icon: "🏪", 
-      description: "Commercial property", 
+    {
+      value: "commercial",
+      label: "Commercial",
+      icon: "🏪",
+      description: "Commercial property",
       hasBedrooms: false,
       autoBedrooms: 0,
       autoBathrooms: 1
     },
   ];
-  
+
   // Amenities options
   const amenitiesOptions = [
     { id: "wifi", label: "WiFi", icon: <FaWifi /> },
@@ -132,7 +136,7 @@ const AddProperty = () => {
     { id: "backup", label: "Power Backup", icon: "⚡" },
     { id: "laundry", label: "Laundry", icon: "🧺" },
   ];
-  
+
   const [form, setForm] = useState({
     name: "",
     address: "",
@@ -220,13 +224,13 @@ const AddProperty = () => {
   // Function to generate units based on total units count
   const generateUnits = (totalUnits, propertyName, rentAmount, propertyType) => {
     const units = [];
-    const propertyPrefix = propertyName 
-      ? propertyName.replace(/\s+/g, '').substring(0, 3).toUpperCase() 
+    const propertyPrefix = propertyName
+      ? propertyName.replace(/\s+/g, '').substring(0, 3).toUpperCase()
       : 'APT';
-    
+
     // Get base rent based on property type
     let baseRent = 0;
-    switch(propertyType) {
+    switch (propertyType) {
       case 'single': baseRent = parseFloat(form.pricing.single) || 0; break;
       case 'bedsitter': baseRent = parseFloat(form.pricing.bedsitter) || 0; break;
       case 'one-bedroom': baseRent = parseFloat(form.pricing.oneBedroom) || 0; break;
@@ -234,21 +238,21 @@ const AddProperty = () => {
       case 'three-bedroom': baseRent = parseFloat(form.pricing.threeBedroom) || 0; break;
       default: baseRent = parseFloat(rentAmount) || 0;
     }
-    
+
     // SPECIAL HANDLING FOR MIXED PROPERTY TYPE (one-two-bedroom)
     if (propertyType === "one-two-bedroom") {
       for (let i = 1; i <= totalUnits; i++) {
         const unitNumber = i.toString().padStart(3, '0');
-        
+
         // Alternate between 1BR and 2BR units
         const isOneBedroom = i % 2 === 1;
-        
+
         const unitBedrooms = isOneBedroom ? 1 : 2;
         const unitBathrooms = isOneBedroom ? 1 : 2;
-        const unitRent = isOneBedroom ? 
-          (parseFloat(form.pricing.oneBedroom) || 0) : 
+        const unitRent = isOneBedroom ?
+          (parseFloat(form.pricing.oneBedroom) || 0) :
           (parseFloat(form.pricing.twoBedroom) || 0);
-        
+
         units.push({
           unitId: `${propertyPrefix}-${unitNumber}`,
           unitNumber: unitNumber,
@@ -274,16 +278,16 @@ const AddProperty = () => {
           updatedAt: new Date().toISOString()
         });
       }
-    } 
+    }
     // REGULAR PROPERTY TYPES
     else {
       const currentType = propertyTypes.find(t => t.value === propertyType);
       const unitBedrooms = currentType?.hasBedrooms ? currentType.autoBedrooms : form.bedrooms;
       const unitBathrooms = currentType?.hasBedrooms ? currentType.autoBathrooms : form.bathrooms;
-      
+
       for (let i = 1; i <= totalUnits; i++) {
         const unitNumber = i.toString().padStart(3, '0');
-        
+
         units.push({
           unitId: `${propertyPrefix}-${unitNumber}`,
           unitNumber: unitNumber,
@@ -310,7 +314,7 @@ const AddProperty = () => {
         });
       }
     }
-    
+
     return units;
   };
 
@@ -320,7 +324,7 @@ const AddProperty = () => {
       setFetchingLandlords(true);
       const querySnapshot = await getDocs(collection(db, "landlords"));
       const landlordsData = [];
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         landlordsData.push({
@@ -331,9 +335,9 @@ const AddProperty = () => {
           propertiesCount: data.totalProperties || data.properties?.length || 0
         });
       });
-      
+
       setLandlords(landlordsData);
-      
+
       if (landlordsData.length === 0) {
         console.log("No landlords found in landlords collection.");
       }
@@ -347,7 +351,7 @@ const AddProperty = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === "landlordId") {
       const selectedLandlord = landlords.find(l => l.id === value);
       setForm({
@@ -367,7 +371,7 @@ const AddProperty = () => {
     } else if (name === "units") {
       const totalUnits = parseInt(value) || 1;
       const generatedUnits = generateUnits(totalUnits, form.name, getPriceForType(), form.propertyType);
-      
+
       setForm(prev => ({
         ...prev,
         units: totalUnits,
@@ -390,19 +394,19 @@ const AddProperty = () => {
   // Handle image upload - UPDATED TO USE CLOUDINARY
   const handleImageUpload = async (files) => {
     if (files.length === 0) return;
-    
+
     setUploadingImages(true);
-    
+
     try {
       // Use Cloudinary service to upload images
       const uploadResults = await uploadMultipleImages(files, {
         folder: form.name ? `properties/${form.name.replace(/\s+/g, '_')}` : 'properties'
       });
-      
+
       // Filter successful uploads
       const successfulUploads = uploadResults.filter(result => result.success);
       const uploadedUrls = successfulUploads.map(result => result.url);
-      
+
       // Update preview
       successfulUploads.forEach((result, index) => {
         setPropertyImages(prev => [...prev, {
@@ -411,19 +415,19 @@ const AddProperty = () => {
           size: result.bytes
         }]);
       });
-      
+
       // Update form with Cloudinary URLs
       setForm(prev => ({
         ...prev,
         images: [...prev.images, ...uploadedUrls]
       }));
-      
+
       // Show warning for failed uploads
       const failedUploads = uploadResults.filter(result => !result.success);
       if (failedUploads.length > 0) {
         console.warn(`${failedUploads.length} image(s) failed to upload`);
       }
-      
+
     } catch (error) {
       console.error("Image upload error:", error);
       alert("Failed to upload images. Please try again.");
@@ -454,13 +458,70 @@ const AddProperty = () => {
     handleImageUpload(files);
   };
 
+  // --- NEW: Unit Image Handlers ---
+
+  const handleUnitImageUpload = async (files) => {
+    if (files.length === 0) return;
+
+    setUploadingUnitImages(true);
+
+    try {
+      // Use Cloudinary service to upload images
+      const uploadResults = await uploadMultipleImages(files, {
+        folder: form.name ? `properties/${form.name.replace(/\s+/g, '_')}/units` : 'properties/units'
+      });
+
+      // Filter successful uploads
+      const successfulUploads = uploadResults.filter(result => result.success);
+      const uploadedUrls = successfulUploads.map(result => result.url);
+
+      // Update preview
+      successfulUploads.forEach((result, index) => {
+        setUnitImages(prev => [...prev, {
+          url: result.url,
+          name: `Unit Image ${index + 1}`,
+          size: result.bytes
+        }]);
+      });
+
+
+      // Show warning for failed uploads
+      const failedUploads = uploadResults.filter(result => !result.success);
+      if (failedUploads.length > 0) {
+        console.warn(`${failedUploads.length} unit image(s) failed to upload`);
+      }
+
+    } catch (error) {
+      console.error("Unit image upload error:", error);
+      alert("Failed to upload unit images. Please try again.");
+    } finally {
+      setUploadingUnitImages(false);
+    }
+  };
+
+  const removeUnitImage = (index) => {
+    setUnitImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUnitDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleUnitDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files);
+    handleUnitImageUpload(files);
+  };
+
   // Handle property type selection
   const handlePropertyTypeSelect = (type) => {
     const selectedType = propertyTypes.find(t => t.value === type);
-    
+
     let newBedrooms = form.bedrooms;
     let newBathrooms = form.bathrooms;
-    
+
     if (type !== "one-two-bedroom" && type !== "apartment" && type !== "commercial") {
       newBedrooms = selectedType.autoBedrooms;
       newBathrooms = selectedType.autoBathrooms;
@@ -471,14 +532,14 @@ const AddProperty = () => {
       newBedrooms = form.bedrooms || 1;
       newBathrooms = form.bathrooms || 1;
     }
-    
+
     setForm(prev => ({
       ...prev,
       propertyType: type,
       bedrooms: newBedrooms,
       bathrooms: newBathrooms
     }));
-    
+
     // Regenerate units with new property type
     if (form.name && form.units > 0) {
       const generatedUnits = generateUnits(form.units, form.name, getPriceForType(), type);
@@ -497,12 +558,12 @@ const AddProperty = () => {
     const newAmenities = form.amenities.includes(amenityId)
       ? form.amenities.filter(id => id !== amenityId)
       : [...form.amenities, amenityId];
-    
+
     const updatedUnits = form.unitDetails.units.map(unit => ({
       ...unit,
       amenities: newAmenities
     }));
-    
+
     setForm(prev => ({
       ...prev,
       amenities: newAmenities,
@@ -516,7 +577,7 @@ const AddProperty = () => {
   // Get price based on property type
   const getPriceForType = () => {
     let price = 0;
-    switch(form.propertyType) {
+    switch (form.propertyType) {
       case 'single': price = parseFloat(form.pricing.single) || 0; break;
       case 'bedsitter': price = parseFloat(form.pricing.bedsitter) || 0; break;
       case 'one-bedroom': price = parseFloat(form.pricing.oneBedroom) || 0; break;
@@ -542,12 +603,12 @@ const AddProperty = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!form.landlordId) {
       alert("Please select a landlord");
       return;
     }
-    
+
     // Validate pricing based on property type
     if (requiresPricingInput()) {
       const selectedPrice = getPriceForType();
@@ -563,19 +624,19 @@ const AddProperty = () => {
         return;
       }
     }
-    
+
     setLoading(true);
-    
+
     try {
       // Generate units if not already generated
       const priceForUnits = requiresPricingInput() ? getPriceForType() : parseFloat(form.rentAmount) || 0;
-      const unitsArray = form.unitDetails.units.length > 0 
-        ? form.unitDetails.units 
+      const unitsArray = form.unitDetails.units.length > 0
+        ? form.unitDetails.units
         : generateUnits(form.units, form.name, priceForUnits, form.propertyType);
-      
+
       // Get current property type details
       const currentPropertyType = propertyTypes.find(t => t.value === form.propertyType);
-      
+
       // Create property data
       const propertyData = {
         // Basic info
@@ -592,11 +653,11 @@ const AddProperty = () => {
         description: form.description,
         amenities: form.amenities,
         images: form.images, // Now contains Cloudinary URLs
-        
+
         // Landlord info
         landlordId: form.landlordId,
         landlordName: form.landlordName,
-        
+
         // Fee-related fields
         applicationFee: parseFeeValue(form.applicationFee),
         securityDeposit: parseFeeValue(form.securityDeposit),
@@ -607,7 +668,7 @@ const AddProperty = () => {
         latePaymentFee: parseFeeValue(form.latePaymentFee),
         gracePeriod: parseInt(form.gracePeriod) || 5,
         feeDetails: form.feeDetails,
-        
+
         // Store unit counts
         unitDetails: {
           totalUnits: parseInt(form.units) || 1,
@@ -616,7 +677,7 @@ const AddProperty = () => {
           maintenanceCount: 0,
           occupancyRate: 0
         },
-        
+
         // Status and timestamps
         status: "available",
         isActive: true,
@@ -626,7 +687,7 @@ const AddProperty = () => {
         totalTenants: 0,
         occupancy: 0
       };
-      
+
       // Add pricing if exists
       if (form.pricing && (Object.values(form.pricing).some(val => val !== "" && val !== "0"))) {
         const pricingNumbers = {};
@@ -635,15 +696,15 @@ const AddProperty = () => {
         });
         propertyData.pricing = pricingNumbers;
       }
-      
+
       console.log("Saving property data with Cloudinary images:", propertyData);
-      
+
       // Save the main property document to Firestore
       const propertyRef = await addDoc(collection(db, "properties"), propertyData);
       const propertyId = propertyRef.id;
-      
+
       console.log("✅ Main property created with ID:", propertyId);
-      
+
       // Create unit documents
       const unitCreationPromises = unitsArray.map(async (unitData, index) => {
         const unitDocData = {
@@ -654,13 +715,14 @@ const AddProperty = () => {
           propertyName: form.name,
           propertyAddress: form.address,
           propertyType: form.propertyType,
-          
+
           // Unit specifications
           bedrooms: unitData.bedrooms || propertyData.bedrooms,
           bathrooms: unitData.bathrooms || propertyData.bathrooms,
           size: form.size || "",
           amenities: [...form.amenities],
-          
+          images: unitImages.map(img => img.url), // Add unit images
+
           // Pricing
           rentAmount: parseFloat(unitData.rentAmount) || 0,
           applicationFee: parseFeeValue(form.applicationFee),
@@ -670,12 +732,12 @@ const AddProperty = () => {
           latePaymentFee: parseFeeValue(form.latePaymentFee),
           gracePeriod: parseInt(form.gracePeriod) || 5,
           feeDetails: form.feeDetails,
-          
+
           // Status tracking
           status: "vacant",
           isAvailable: true,
           isActive: true,
-          
+
           // Tenant info
           tenantId: null,
           tenantName: "",
@@ -688,21 +750,21 @@ const AddProperty = () => {
           rentPaidUntil: null,
           lastPaymentDate: null,
           leaseDocumentUrl: "",
-          
+
           // Maintenance info
           maintenanceRequests: 0,
           lastMaintenanceDate: null,
           currentMaintenance: false,
-          
+
           // Landlord info
           landlordId: form.landlordId,
           landlordName: form.landlordName,
-          
+
           // Timestamps
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           unitOrder: index + 1,
-          
+
           // For easy querying
           searchKeywords: [
             form.name.toLowerCase(),
@@ -712,18 +774,18 @@ const AddProperty = () => {
             "vacant"
           ]
         };
-        
+
         await addDoc(collection(db, `properties/${propertyId}/units`), unitDocData);
         return unitData.unitId;
       });
-      
+
       await Promise.all(unitCreationPromises);
       console.log(`✅ Created ${unitsArray.length} unit documents`);
-      
+
       // Update landlord's document
       const landlordRef = doc(db, "landlords", form.landlordId);
       const currentTime = new Date().toISOString();
-      
+
       await updateDoc(landlordRef, {
         properties: arrayUnion({
           propertyId: propertyId,
@@ -743,9 +805,9 @@ const AddProperty = () => {
         totalProperties: (form.totalProperties || 0) + 1,
         lastUpdated: serverTimestamp()
       });
-      
+
       console.log("✅ Updated landlord");
-      
+
       // Success message
       const successMessage = `✅ Property "${form.name}" added successfully!\n\n` +
         `📊 Details:\n` +
@@ -757,10 +819,10 @@ const AddProperty = () => {
         `• Security Deposit: KSh ${propertyData.securityDeposit.toLocaleString()}\n` +
         `• Application Fee: KSh ${propertyData.applicationFee.toLocaleString()}\n\n` +
         `Each unit is now individually manageable.`;
-      
+
       alert(successMessage);
       navigate("/properties");
-      
+
     } catch (error) {
       console.error("❌ Error adding property:", error);
       alert("Error adding property: " + error.message);
@@ -784,18 +846,18 @@ const AddProperty = () => {
           ← Back to Properties
         </button>
       </div>
-      
+
       <div className="add-property-card">
         <h2>Property Details</h2>
         <p className="form-subtitle">Fill in property details and assign to a landlord</p>
-        
+
         <form onSubmit={handleSubmit} className="add-property-form">
-          
+
           {/* IMAGE UPLOAD SECTION */}
           <div className="form-section">
             <h3>Property Images</h3>
             <div className="image-upload-section">
-              <div 
+              <div
                 className="drop-zone"
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
@@ -813,14 +875,14 @@ const AddProperty = () => {
                   style={{ display: 'none' }}
                 />
               </div>
-              
+
               {uploadingImages && (
                 <div className="uploading-status">
                   <div className="spinner"></div>
                   <p>Uploading images to Cloudinary...</p>
                 </div>
               )}
-              
+
               {propertyImages.length > 0 && (
                 <div className="image-preview-container">
                   <h4>Uploaded Images ({propertyImages.length})</h4>
@@ -842,7 +904,7 @@ const AddProperty = () => {
               )}
             </div>
           </div>
-          
+
           {/* PROPERTY TYPE SELECTION WITH AUTO INFO */}
           <div className="form-section">
             <h3>Property Type</h3>
@@ -871,7 +933,7 @@ const AddProperty = () => {
                 </button>
               ))}
             </div>
-            
+
             {/* Current Selection Info */}
             {currentPropertyType && (
               <div className="current-type-info">
@@ -891,7 +953,7 @@ const AddProperty = () => {
               </div>
             )}
           </div>
-          
+
           {/* PRICING SECTION */}
           {requiresPricingInput() ? (
             <div className="form-section">
@@ -901,7 +963,7 @@ const AddProperty = () => {
                   <h4>Selected: {currentPropertyType?.label}</h4>
                   <p>{currentPropertyType?.description}</p>
                 </div>
-                
+
                 <div className="price-input-container">
                   {form.propertyType === 'single' && (
                     <div className="form-group">
@@ -917,7 +979,7 @@ const AddProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'bedsitter' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for Bedsitter (KSh)</label>
@@ -932,7 +994,7 @@ const AddProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'one-bedroom' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for 1 Bedroom (KSh)</label>
@@ -947,7 +1009,7 @@ const AddProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'two-bedroom' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for 2 Bedrooms (KSh)</label>
@@ -962,7 +1024,7 @@ const AddProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'three-bedroom' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for 3 Bedrooms (KSh)</label>
@@ -977,7 +1039,7 @@ const AddProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   <div className="price-summary">
                     <p><strong>Monthly Revenue Estimate:</strong> KSh {(getPriceForType() || 0) * form.units}</p>
                     <p className="note">Based on {form.units} unit(s) × KSh {getPriceForType() || 0}</p>
@@ -992,7 +1054,7 @@ const AddProperty = () => {
                 <div className="selected-type-display">
                   <h4>{currentPropertyType?.label}</h4>
                   <p>{currentPropertyType?.description}</p>
-                  
+
                   {form.propertyType === "one-two-bedroom" && (
                     <div className="mixed-type-pricing">
                       <p className="note">🔀 This property type will have a mix of 1BR and 2BR units</p>
@@ -1009,7 +1071,7 @@ const AddProperty = () => {
                             disabled={loading}
                           />
                         </div>
-                        
+
                         <div className="form-group">
                           <label className="required">2 Bedroom Rent (KSh)</label>
                           <input
@@ -1025,12 +1087,12 @@ const AddProperty = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   {(form.propertyType === "apartment" || form.propertyType === "commercial") && (
                     <p className="note">Enter the base monthly rent amount</p>
                   )}
                 </div>
-                
+
                 {(form.propertyType === "apartment" || form.propertyType === "commercial") && (
                   <div className="form-group">
                     <label className="required">Monthly Rent Amount (KSh)</label>
@@ -1052,12 +1114,12 @@ const AddProperty = () => {
               </div>
             </div>
           )}
-          
+
           {/* FEES AND DEPOSITS SECTION */}
           <div className="form-section">
             <h3>Fees & Deposits</h3>
             <p className="form-subtitle">Set application fees, deposits, and other charges</p>
-            
+
             <div className="form-row">
               <div className="form-group">
                 <label>Application Fee (KSh)</label>
@@ -1071,7 +1133,7 @@ const AddProperty = () => {
                 />
                 <small className="form-hint">One-time non-refundable fee</small>
               </div>
-              
+
               <div className="form-group">
                 <label>Security Deposit (KSh)</label>
                 <input
@@ -1085,7 +1147,7 @@ const AddProperty = () => {
                 <small className="form-hint">Refundable deposit (usually 1-2 months rent)</small>
               </div>
             </div>
-            
+
             <div className="form-row">
               <div className="form-group">
                 <label>Pet Deposit (KSh)</label>
@@ -1099,7 +1161,7 @@ const AddProperty = () => {
                 />
                 <small className="form-hint">If pets are allowed</small>
               </div>
-              
+
               <div className="form-group">
                 <label>Late Payment Fee (KSh)</label>
                 <input
@@ -1113,7 +1175,7 @@ const AddProperty = () => {
                 <small className="form-hint">Per day late fee</small>
               </div>
             </div>
-            
+
             <div className="form-group">
               <label>Other Fees (Description)</label>
               <textarea
@@ -1126,7 +1188,7 @@ const AddProperty = () => {
               />
               <small className="form-hint">Parking fees, storage, etc.</small>
             </div>
-            
+
             {/* Lease Terms */}
             <div className="form-row">
               <div className="form-group">
@@ -1143,7 +1205,7 @@ const AddProperty = () => {
                   <option value="36">36 Months</option>
                 </select>
               </div>
-              
+
               <div className="form-group">
                 <label>Notice Period (Days)</label>
                 <select
@@ -1158,7 +1220,7 @@ const AddProperty = () => {
                 </select>
               </div>
             </div>
-            
+
             {/* Fee Inclusions */}
             <div className="form-group">
               <label className="fee-inclusion-label">What's Included in Rent?</label>
@@ -1178,7 +1240,7 @@ const AddProperty = () => {
                   />
                   <label htmlFor="includesWater">Water Bill</label>
                 </div>
-                
+
                 <div className="fee-inclusion-checkbox">
                   <input
                     type="checkbox"
@@ -1194,7 +1256,7 @@ const AddProperty = () => {
                   />
                   <label htmlFor="includesElectricity">Electricity</label>
                 </div>
-                
+
                 <div className="fee-inclusion-checkbox">
                   <input
                     type="checkbox"
@@ -1210,7 +1272,7 @@ const AddProperty = () => {
                   />
                   <label htmlFor="includesInternet">Internet</label>
                 </div>
-                
+
                 <div className="fee-inclusion-checkbox">
                   <input
                     type="checkbox"
@@ -1229,7 +1291,7 @@ const AddProperty = () => {
               </div>
             </div>
           </div>
-          
+
           {/* AMENITIES SECTION */}
           <div className="form-section">
             <h3>Amenities & Features</h3>
@@ -1245,18 +1307,18 @@ const AddProperty = () => {
                   <input
                     type="checkbox"
                     checked={form.amenities.includes(amenity.id)}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     style={{ display: 'none' }}
                   />
                 </div>
               ))}
             </div>
           </div>
-          
+
           {/* Basic Property Info */}
           <div className="form-section">
             <h3>Property Information</h3>
-            
+
             <div className="form-group">
               <label className="required">Property Name</label>
               <input
@@ -1273,7 +1335,7 @@ const AddProperty = () => {
                 </p>
               )}
             </div>
-            
+
             <div className="form-group">
               <label className="required">Address</label>
               <input
@@ -1285,7 +1347,7 @@ const AddProperty = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <div className="form-row">
               <div className="form-group">
                 <label className="required">City</label>
@@ -1298,7 +1360,7 @@ const AddProperty = () => {
                   disabled={loading}
                 />
               </div>
-              
+
               <div className="form-group">
                 <label className="required">Country</label>
                 <select
@@ -1316,7 +1378,7 @@ const AddProperty = () => {
                 </select>
               </div>
             </div>
-            
+
             {/* Bedroom/Bathroom Section */}
             {(form.propertyType === "apartment" || form.propertyType === "commercial" || form.propertyType === "one-two-bedroom") && (
               <div className="form-row">
@@ -1341,7 +1403,7 @@ const AddProperty = () => {
                     </select>
                   </div>
                 )}
-                
+
                 <div className="form-group">
                   <label>Bathrooms</label>
                   <select
@@ -1357,26 +1419,26 @@ const AddProperty = () => {
                 </div>
               </div>
             )}
-            
+
             {/* Auto-set info for other types */}
-            {(form.propertyType === "single" || form.propertyType === "bedsitter" || 
-              form.propertyType === "one-bedroom" || form.propertyType === "two-bedroom" || 
+            {(form.propertyType === "single" || form.propertyType === "bedsitter" ||
+              form.propertyType === "one-bedroom" || form.propertyType === "two-bedroom" ||
               form.propertyType === "three-bedroom") && (
-              <div className="auto-set-display">
-                <div className="auto-set-info-box">
-                  <p><strong>Auto-set based on property type:</strong></p>
-                  <div className="auto-set-values">
-                    <span className="auto-set-item">
-                      🛏️ {currentPropertyType?.autoBedrooms || 0} Bedroom{currentPropertyType?.autoBedrooms !== 1 ? 's' : ''}
-                    </span>
-                    <span className="auto-set-item">
-                      🚿 {currentPropertyType?.autoBathrooms || 1} Bathroom{currentPropertyType?.autoBathrooms !== 1 ? 's' : ''}
-                    </span>
+                <div className="auto-set-display">
+                  <div className="auto-set-info-box">
+                    <p><strong>Auto-set based on property type:</strong></p>
+                    <div className="auto-set-values">
+                      <span className="auto-set-item">
+                        🛏️ {currentPropertyType?.autoBedrooms || 0} Bedroom{currentPropertyType?.autoBedrooms !== 1 ? 's' : ''}
+                      </span>
+                      <span className="auto-set-item">
+                        🚿 {currentPropertyType?.autoBathrooms || 1} Bathroom{currentPropertyType?.autoBathrooms !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
+              )}
+
             {/* Size input */}
             <div className="form-group">
               <label>Size (sq ft)</label>
@@ -1390,7 +1452,7 @@ const AddProperty = () => {
               />
               <small className="form-hint">Total property area</small>
             </div>
-            
+
             {/* UNITS INPUT */}
             <div className="form-group">
               <label className="required">Number of Units</label>
@@ -1411,7 +1473,7 @@ const AddProperty = () => {
               <small className="form-hint">
                 {form.units} unit(s) will be created. Each can be managed individually.
               </small>
-              
+
               {/* Unit Preview */}
               {form.units > 0 && (
                 <div className="units-preview">
@@ -1437,7 +1499,7 @@ const AddProperty = () => {
                       <span className="stat-label">Maintenance</span>
                     </div>
                   </div>
-                  
+
                   {form.units <= 10 && form.unitDetails.units.length > 0 && (
                     <div className="units-list-preview">
                       <p className="preview-title">First 10 Unit Numbers:</p>
@@ -1458,7 +1520,62 @@ const AddProperty = () => {
                 </div>
               )}
             </div>
-            
+
+            {/* NEW: Unit Images Upload Section */}
+            <div className="form-group">
+              <label>Default Unit Images</label>
+              <p className="form-helper">These images will be applied to ALL units created. You can verify them in the property details.</p>
+
+              <div
+                className={`image-upload-area ${uploadingUnitImages ? 'uploading' : ''}`}
+                onDragOver={handleUnitDragOver}
+                onDrop={handleUnitDrop}
+                onClick={() => unitFileInputRef.current.click()}
+              >
+                <FaUpload className="upload-icon" />
+                <p>Drag & drop unit images here or click to browse</p>
+                <p className="upload-hint">Interior views, bathroom, kitchen specific to units</p>
+                <input
+                  type="file"
+                  ref={unitFileInputRef}
+                  onChange={(e) => handleUnitImageUpload(Array.from(e.target.files))}
+                  multiple
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              {uploadingUnitImages && (
+                <div className="uploading-status">
+                  <div className="spinner"></div>
+                  <p>Uploading unit images...</p>
+                </div>
+              )}
+
+              {unitImages.length > 0 && (
+                <div className="image-preview-container">
+                  <h4>Uploaded Unit Images ({unitImages.length})</h4>
+                  <div className="image-grid">
+                    {unitImages.map((image, index) => (
+                      <div key={index} className="image-preview">
+                        <img src={image.url} alt={`Unit ${index + 1}`} />
+                        <button
+                          type="button"
+                          className="remove-image-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeUnitImage(index);
+                          }}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="form-group">
               <label>Description</label>
               <textarea
@@ -1471,11 +1588,11 @@ const AddProperty = () => {
               />
             </div>
           </div>
-          
+
           {/* Landlord Assignment */}
           <div className="form-section">
             <h3>Assign to Landlord</h3>
-            
+
             <div className="form-group">
               <label className="required">Select Landlord</label>
               {fetchingLandlords ? (
@@ -1486,8 +1603,8 @@ const AddProperty = () => {
               ) : landlords.length === 0 ? (
                 <div className="no-landlords">
                   <p>No landlords found in the system.</p>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="secondary-button"
                     onClick={() => navigate("/landlords/add")}
                   >
@@ -1511,7 +1628,7 @@ const AddProperty = () => {
                   ))}
                 </select>
               )}
-              
+
               {form.landlordName && (
                 <div className="selected-landlord-info">
                   <p>Selected: <strong>{form.landlordName}</strong></p>
@@ -1519,18 +1636,18 @@ const AddProperty = () => {
               )}
             </div>
           </div>
-          
+
           <div className="form-actions">
-            <button 
-              type="button" 
-              className="cancel-button" 
+            <button
+              type="button"
+              className="cancel-button"
               onClick={handleCancel}
               disabled={loading}
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="submit-button"
               disabled={loading || fetchingLandlords || landlords.length === 0}
             >
