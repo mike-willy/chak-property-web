@@ -109,14 +109,15 @@ const AddTenant = () => {
     const monthlyRent = parseFloat(tenantData.monthlyRent) || 0;
     const securityDeposit = parseFloat(tenantData.securityDeposit) || 0;
     const applicationFee = parseFloat(tenantData.applicationFee) || 0;
-    const petDeposit = hasPet ? (parseFloat(petFee) || 0) : (parseFloat(tenantData.petDeposit) || 0);
+    // STRICT PET FEE LOGIC: Only apply if hasPet is true
+    const petDeposit = hasPet ? (parseFloat(petFee) || 0) : 0;
 
     const total = monthlyRent + securityDeposit + applicationFee + petDeposit;
 
     setTenantData(prev => ({
       ...prev,
       totalMoveInCost: total,
-      petDeposit: hasPet ? petDeposit : 0
+      petDeposit: petDeposit
     }));
   }, [tenantData.monthlyRent, tenantData.securityDeposit, tenantData.applicationFee, hasPet, petFee]);
 
@@ -252,20 +253,59 @@ const AddTenant = () => {
 
   // Check if applicant has pet and get pet details
   const checkPetInformation = useCallback((appData) => {
-    const hasPetFlag = appData.hasPet ||
-      appData.petInfo ||
-      appData.petDetails ||
-      appData.hasPets ||
-      false;
+    // Helper to check if value indicates "No"
+    const isNegative = (val) => {
+      if (!val) return true; // Empty/null is negative (no pet)
+      if (typeof val === 'boolean') return !val;
+      if (typeof val === 'string') {
+        const lower = val.toLowerCase().trim();
+        return lower === 'no' || lower === 'none' || lower === 'false' || lower === 'n/a' || lower === '0';
+      }
+      // If it's an object, we need to inspect it
+      if (typeof val === 'object') {
+        // If it has a 'hasPet' property, check that
+        if ('hasPet' in val) {
+          return isNegative(val.hasPet);
+        }
+        // If it's empty object, treat as negative
+        if (Object.keys(val).length === 0) return true;
+
+        // Otherwise, assume positive if it has keys (unless we add more checks)
+        return false;
+      }
+      return false; // numbers > 0 are positive
+    };
+
+    // Check specific fields
+    const hasPetField = appData.hasPet;
+    const petInfoField = appData.petInfo; // Could be object { hasPet: false }
+    const petDetailsField = appData.petDetails;
+    const hasPetsField = appData.hasPets;
+
+    // Determine truthiness carefully
+    let hasPetFlag = false;
+
+    if (hasPetField === true || (typeof hasPetField === 'string' && !isNegative(hasPetField))) {
+      hasPetFlag = true;
+    } else if (hasPetsField === true || (typeof hasPetsField === 'string' && !isNegative(hasPetsField))) {
+      hasPetFlag = true;
+    } else if (petInfoField && !isNegative(petInfoField)) {
+      hasPetFlag = true;
+    } else if (petDetailsField && !isNegative(petDetailsField)) {
+      hasPetFlag = true;
+    }
 
     let petDetailsInfo = null;
 
-    if (appData.petDetails) {
-      petDetailsInfo = appData.petDetails;
-    } else if (appData.petInfo) {
-      petDetailsInfo = appData.petInfo;
-    } else if (appData.additionalInfo && appData.additionalInfo.includes("pet")) {
-      petDetailsInfo = { notes: appData.additionalInfo };
+    if (hasPetFlag) {
+      // Extract details from the positive source
+      if (appData.petDetails && !isNegative(appData.petDetails)) {
+        petDetailsInfo = appData.petDetails;
+      } else if (appData.petInfo && !isNegative(appData.petInfo)) {
+        petDetailsInfo = appData.petInfo;
+      } else if (appData.additionalInfo && typeof appData.additionalInfo === 'string' && appData.additionalInfo.toLowerCase().includes("pet")) {
+        petDetailsInfo = { notes: appData.additionalInfo };
+      }
     }
 
     return {
@@ -474,9 +514,9 @@ const AddTenant = () => {
           securityDeposit: propertyData.securityDeposit || prev.securityDeposit || "",
           applicationFee: propertyData.applicationFee || prev.applicationFee || "",
           leaseTerm: propertyData.leaseTerm || prev.leaseTerm || 12,
-          noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30,
-          // Set pet deposit if property has pet fee setting
-          petDeposit: propertyData.petDeposit || prev.petDeposit || 0
+          noticePeriod: propertyData.noticePeriod || prev.noticePeriod || 30
+          // REMOVED: Unconditionally setting petDeposit from propertyData
+          // This ensures we respect the "hasPet" check logic instead
         }));
       }
     } catch (error) {
@@ -711,7 +751,7 @@ const AddTenant = () => {
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     if (!rejectionReason.trim()) {
       alert("Please provide a rejection reason");
       return;
@@ -755,7 +795,7 @@ const AddTenant = () => {
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     setLoading(true);
 
     try {
@@ -1489,7 +1529,7 @@ const AddTenant = () => {
                     {competingApplications.length > 0 &&
                       ` Approving will automatically reject ${competingApplications.length} other pending application(s) for this unit.`}
                   </p>
-                  
+
                 </div>
               </div>
             </div>

@@ -1,24 +1,26 @@
 // src/pages/EditProperty.jsx - UPDATED WITH CLOUDINARY
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { 
-  doc, 
-  getDoc, 
+import {
+  doc,
+  getDoc,
   updateDoc,
+  collection,
+  getDocs,
   Timestamp
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import { uploadMultipleImages } from "../services/cloudinary"; // Import Cloudinary service
 import "../styles/EditProperty.css";
-import { 
-  FaSave, 
-  FaTimes, 
-  FaHome, 
-  FaBed, 
-  FaBath, 
-  FaWifi, 
-  FaCar, 
-  FaTv, 
+import {
+  FaSave,
+  FaTimes,
+  FaHome,
+  FaBed,
+  FaBath,
+  FaWifi,
+  FaCar,
+  FaTv,
   FaSnowflake,
   FaSwimmingPool,
   FaDumbbell,
@@ -143,7 +145,7 @@ const EditProperty = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         console.log("Fetched property data:", data); // Debug log
-        
+
         // Load images for preview
         if (data.images && data.images.length > 0) {
           setPropertyImages(data.images.map(url => ({ url, name: "Property Image" })));
@@ -165,11 +167,11 @@ const EditProperty = () => {
           description: data.description || "",
           amenities: data.amenities || [],
           images: data.images || [],
-          
+
           // Landlord info
           landlordId: data.landlordId || "",
           landlordName: data.landlordName || "",
-          
+
           // NEW: Fee-related fields
           applicationFee: data.applicationFee || "",
           securityDeposit: data.securityDeposit || "",
@@ -185,7 +187,7 @@ const EditProperty = () => {
             includesInternet: false,
             includesMaintenance: false
           },
-          
+
           // Pricing
           pricing: data.pricing || {
             single: "",
@@ -194,7 +196,7 @@ const EditProperty = () => {
             twoBedroom: "",
             threeBedroom: ""
           },
-          
+
           // Unit details
           unitDetails: {
             totalUnits: data.units || 1,
@@ -204,7 +206,7 @@ const EditProperty = () => {
             occupancyRate: data.unitDetails?.occupancyRate || 0,
             units: data.unitDetails?.units || []
           },
-          
+
           // Status
           status: data.status || "available"
         });
@@ -223,7 +225,7 @@ const EditProperty = () => {
   // Handle input changes - MUST MATCH AddProperty.jsx logic
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name.startsWith("pricing.")) {
       const pricingField = name.split(".")[1];
       setForm(prev => ({
@@ -259,7 +261,7 @@ const EditProperty = () => {
     const newAmenities = form.amenities.includes(amenityId)
       ? form.amenities.filter(id => id !== amenityId)
       : [...form.amenities, amenityId];
-    
+
     setForm(prev => ({
       ...prev,
       amenities: newAmenities
@@ -269,21 +271,21 @@ const EditProperty = () => {
   // Handle image upload - UPDATED TO USE CLOUDINARY
   const handleImageUpload = async (files) => {
     if (files.length === 0) return;
-    
+
     setUploadingImages(true);
-    
+
     try {
       // Use Cloudinary service to upload images
       const uploadResults = await uploadMultipleImages(files, {
         folder: 'properties' // Use the same folder as AddProperty.jsx
       });
-      
+
       console.log("Cloudinary upload results:", uploadResults);
-      
+
       // Filter successful uploads
       const successfulUploads = uploadResults.filter(result => result.success);
       const uploadedUrls = successfulUploads.map(result => result.url);
-      
+
       // Update preview
       successfulUploads.forEach((result, index) => {
         setPropertyImages(prev => [...prev, {
@@ -292,23 +294,23 @@ const EditProperty = () => {
           size: result.bytes
         }]);
       });
-      
+
       // Update form with Cloudinary URLs
       setForm(prev => ({
         ...prev,
         images: [...prev.images, ...uploadedUrls]
       }));
-      
+
       // Show warning for failed uploads
       const failedUploads = uploadResults.filter(result => !result.success);
       if (failedUploads.length > 0) {
         console.warn(`${failedUploads.length} image(s) failed to upload`);
       }
-      
+
       if (successfulUploads.length > 0) {
         alert(`✅ ${successfulUploads.length} image(s) uploaded successfully to Cloudinary!`);
       }
-      
+
     } catch (error) {
       console.error("Image upload error:", error);
       alert(`Failed to upload images: ${error.message}`);
@@ -347,7 +349,7 @@ const EditProperty = () => {
 
   // Get price based on property type - MUST MATCH AddProperty.jsx
   const getPriceForType = () => {
-    switch(form.propertyType) {
+    switch (form.propertyType) {
       case 'single': return form.pricing.single;
       case 'bedsitter': return form.pricing.bedsitter;
       case 'one-bedroom': return form.pricing.oneBedroom;
@@ -360,16 +362,16 @@ const EditProperty = () => {
   // Get current property type details
   const currentPropertyType = propertyTypes.find(t => t.value === form.propertyType);
 
-  // Handle form submission
+  // Handle form submission - UPDATED TO SYNC UNITS
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!form.landlordId) {
       alert("Please select a landlord");
       return;
     }
-    
-    // Validate pricing based on property type - MUST MATCH AddProperty.jsx
+
+    // Validate pricing based on property type
     if (requiresPricingInput()) {
       const selectedPrice = getPriceForType();
       if (!selectedPrice || selectedPrice <= 0) {
@@ -383,21 +385,22 @@ const EditProperty = () => {
         return;
       }
     }
-    
+
     setSaving(true);
-    
+
     try {
       // Calculate price for units
       const priceForUnits = requiresPricingInput() ? getPriceForType() : form.rentAmount;
-      
-      // Prepare property data - MUST MATCH AddProperty.jsx structure
+      const numPrice = Number(priceForUnits);
+
+      // Prepare property data
       const propertyData = {
         // Basic info
         name: form.name,
         address: form.address,
         city: form.city,
         country: form.country,
-        rentAmount: Number(priceForUnits),
+        rentAmount: numPrice,
         units: Number(form.units),
         propertyType: form.propertyType,
         bedrooms: Number(form.bedrooms),
@@ -406,12 +409,12 @@ const EditProperty = () => {
         description: form.description,
         amenities: form.amenities,
         images: form.images,
-        
+
         // Landlord info
         landlordId: form.landlordId,
         landlordName: form.landlordName,
-        
-        // NEW: Application and fee-related fields
+
+        // Fee-related fields
         applicationFee: Number(form.applicationFee) || 0,
         securityDeposit: Number(form.securityDeposit) || 0,
         petDeposit: Number(form.petDeposit) || 0,
@@ -421,7 +424,7 @@ const EditProperty = () => {
         latePaymentFee: Number(form.latePaymentFee) || 0,
         gracePeriod: Number(form.gracePeriod),
         feeDetails: form.feeDetails,
-        
+
         // Unit details
         unitDetails: {
           totalUnits: Number(form.units),
@@ -431,24 +434,59 @@ const EditProperty = () => {
           occupancyRate: form.unitDetails.occupancyRate,
           units: form.unitDetails.units
         },
-        
+
         // Status and timestamps
         status: form.status,
         updatedAt: Timestamp.now()
       };
-      
+
       // Add pricing if exists
       if (form.pricing && (Object.values(form.pricing).some(val => val !== ""))) {
         propertyData.pricing = form.pricing;
       }
-      
-      // Update in Firestore
+
+      // 1. Update Property Document
       const propertyRef = doc(db, "properties", id);
       await updateDoc(propertyRef, propertyData);
-      
-      alert("✅ Property updated successfully!");
+
+      // 2. Propagate changes to Units Subcollection
+      // Fetch all units first
+      const unitsRef = collection(db, `properties/${id}/units`);
+      const unitsSnapshot = await getDocs(unitsRef);
+
+      if (!unitsSnapshot.empty) {
+        const batchUpdates = unitsSnapshot.docs.map(async (unitDoc) => {
+          const unit = unitDoc.data();
+          const unitRef = doc(db, `properties/${id}/units`, unitDoc.id);
+
+          const updates = {
+            // ALWAYS update policy/fee fields to match property
+            // This ensures all units have the latest fees
+            applicationFee: propertyData.applicationFee,
+            securityDeposit: propertyData.securityDeposit,
+            petDeposit: propertyData.petDeposit,
+            leaseTerm: propertyData.leaseTerm,
+            noticePeriod: propertyData.noticePeriod,
+            latePaymentFee: propertyData.latePaymentFee,
+            gracePeriod: propertyData.gracePeriod,
+            feeDetails: propertyData.feeDetails,
+            amenities: propertyData.amenities,
+            propertyType: propertyData.propertyType,
+            updatedAt: new Date().toISOString(),
+            rentAmount: numPrice,
+            deposit: propertyData.securityDeposit
+          };
+
+          await updateDoc(unitRef, updates);
+        });
+
+        await Promise.all(batchUpdates);
+        console.log(`Updated ${unitsSnapshot.size} units with property changes`);
+      }
+
+      alert("✅ Property and associated units updated successfully!");
       navigate("/properties");
-      
+
     } catch (error) {
       console.error("Error updating property:", error);
       alert("Error updating property: " + error.message);
@@ -480,18 +518,18 @@ const EditProperty = () => {
           ← Cancel
         </button>
       </div>
-      
+
       <div className="add-property-card">
         <h2>Edit Property Details</h2>
         <p className="form-subtitle">Update property details and fees</p>
-        
+
         <form onSubmit={handleSubmit} className="add-property-form">
-          
+
           {/* IMAGE UPLOAD SECTION - UPDATED FOR CLOUDINARY */}
           <div className="form-section">
             <h3>Property Images</h3>
             <div className="image-upload-section">
-              <div 
+              <div
                 className="drop-zone"
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
@@ -509,14 +547,14 @@ const EditProperty = () => {
                   style={{ display: 'none' }}
                 />
               </div>
-              
+
               {uploadingImages && (
                 <div className="uploading-status">
                   <div className="spinner"></div>
                   <p>Uploading images to Cloudinary...</p>
                 </div>
               )}
-              
+
               {propertyImages.length > 0 && (
                 <div className="image-preview-container">
                   <h4>Property Images ({propertyImages.length})</h4>
@@ -538,7 +576,7 @@ const EditProperty = () => {
               )}
             </div>
           </div>
-          
+
           {/* PROPERTY TYPE SELECTION */}
           <div className="form-section">
             <h3>Property Type</h3>
@@ -557,7 +595,7 @@ const EditProperty = () => {
               ))}
             </div>
           </div>
-          
+
           {/* PRICING SECTION - Dynamic based on property type */}
           {requiresPricingInput() ? (
             <div className="form-section">
@@ -567,7 +605,7 @@ const EditProperty = () => {
                   <h4>Selected: {currentPropertyType?.label}</h4>
                   <p>{currentPropertyType?.description}</p>
                 </div>
-                
+
                 <div className="price-input-container">
                   {form.propertyType === 'single' && (
                     <div className="form-group">
@@ -583,7 +621,7 @@ const EditProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'bedsitter' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for Bedsitter (KSh)</label>
@@ -598,7 +636,7 @@ const EditProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'one-bedroom' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for 1 Bedroom (KSh)</label>
@@ -613,7 +651,7 @@ const EditProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'two-bedroom' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for 2 Bedrooms (KSh)</label>
@@ -628,7 +666,7 @@ const EditProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   {form.propertyType === 'three-bedroom' && (
                     <div className="form-group">
                       <label className="required">Monthly Rent for 3 Bedrooms (KSh)</label>
@@ -643,7 +681,7 @@ const EditProperty = () => {
                       />
                     </div>
                   )}
-                  
+
                   <div className="price-summary">
                     <p><strong>Monthly Revenue Estimate:</strong> KSh {(getPriceForType() || 0) * form.units}</p>
                     <p className="note">Based on {form.units} unit(s) × KSh {getPriceForType() || 0}</p>
@@ -660,7 +698,7 @@ const EditProperty = () => {
                   <p>{currentPropertyType?.description}</p>
                   <p className="note">Enter the base monthly rent amount</p>
                 </div>
-                
+
                 <div className="form-group">
                   <label className="required">Monthly Rent Amount (KSh)</label>
                   <input
@@ -680,12 +718,12 @@ const EditProperty = () => {
               </div>
             </div>
           )}
-          
+
           {/* FEES AND DEPOSITS SECTION - MATCHING AddProperty.jsx */}
           <div className="form-section">
             <h3>Fees & Deposits</h3>
             <p className="form-subtitle">Update application fees, deposits, and other charges</p>
-            
+
             <div className="form-row">
               <div className="form-group">
                 <label>Application Fee (KSh)</label>
@@ -699,7 +737,7 @@ const EditProperty = () => {
                 />
                 <small className="form-hint">One-time non-refundable fee</small>
               </div>
-              
+
               <div className="form-group">
                 <label>Security Deposit (KSh)</label>
                 <input
@@ -713,7 +751,7 @@ const EditProperty = () => {
                 <small className="form-hint">Refundable deposit (usually 1-2 months rent)</small>
               </div>
             </div>
-            
+
             <div className="form-row">
               <div className="form-group">
                 <label>Pet Deposit (KSh)</label>
@@ -727,7 +765,7 @@ const EditProperty = () => {
                 />
                 <small className="form-hint">If pets are allowed</small>
               </div>
-              
+
               <div className="form-group">
                 <label>Late Payment Fee (KSh)</label>
                 <input
@@ -741,7 +779,7 @@ const EditProperty = () => {
                 <small className="form-hint">Per day late fee</small>
               </div>
             </div>
-            
+
             <div className="form-group">
               <label>Other Fees (Description)</label>
               <textarea
@@ -754,7 +792,7 @@ const EditProperty = () => {
               />
               <small className="form-hint">Parking fees, storage, etc.</small>
             </div>
-            
+
             {/* Lease Terms */}
             <div className="form-row">
               <div className="form-group">
@@ -771,7 +809,7 @@ const EditProperty = () => {
                   <option value="36">36 Months</option>
                 </select>
               </div>
-              
+
               <div className="form-group">
                 <label>Notice Period (Days)</label>
                 <select
@@ -786,7 +824,7 @@ const EditProperty = () => {
                 </select>
               </div>
             </div>
-            
+
             {/* Fee Inclusions */}
             <div className="form-group">
               <label className="fee-inclusion-label">What's Included in Rent?</label>
@@ -806,7 +844,7 @@ const EditProperty = () => {
                   />
                   <label htmlFor="includesWater">Water Bill</label>
                 </div>
-                
+
                 <div className="fee-inclusion-checkbox">
                   <input
                     type="checkbox"
@@ -822,7 +860,7 @@ const EditProperty = () => {
                   />
                   <label htmlFor="includesElectricity">Electricity</label>
                 </div>
-                
+
                 <div className="fee-inclusion-checkbox">
                   <input
                     type="checkbox"
@@ -838,7 +876,7 @@ const EditProperty = () => {
                   />
                   <label htmlFor="includesInternet">Internet</label>
                 </div>
-                
+
                 <div className="fee-inclusion-checkbox">
                   <input
                     type="checkbox"
@@ -857,7 +895,7 @@ const EditProperty = () => {
               </div>
             </div>
           </div>
-          
+
           {/* AMENITIES SECTION */}
           <div className="form-section">
             <h3>Amenities & Features</h3>
@@ -873,18 +911,18 @@ const EditProperty = () => {
                   <input
                     type="checkbox"
                     checked={form.amenities.includes(amenity.id)}
-                    onChange={() => {}}
+                    onChange={() => { }}
                     style={{ display: 'none' }}
                   />
                 </div>
               ))}
             </div>
           </div>
-          
+
           {/* Basic Property Info */}
           <div className="form-section">
             <h3>Property Information</h3>
-            
+
             <div className="form-group">
               <label className="required">Property Name</label>
               <input
@@ -896,7 +934,7 @@ const EditProperty = () => {
                 disabled={saving}
               />
             </div>
-            
+
             <div className="form-group">
               <label className="required">Address</label>
               <input
@@ -908,7 +946,7 @@ const EditProperty = () => {
                 disabled={saving}
               />
             </div>
-            
+
             <div className="form-row">
               <div className="form-group">
                 <label className="required">City</label>
@@ -921,7 +959,7 @@ const EditProperty = () => {
                   disabled={saving}
                 />
               </div>
-              
+
               <div className="form-group">
                 <label className="required">Country</label>
                 <select
@@ -939,7 +977,7 @@ const EditProperty = () => {
                 </select>
               </div>
             </div>
-            
+
             {/* Professional Bedrooms/Bathrooms Section */}
             {currentPropertyType?.hasBedrooms ? (
               <div className="form-row">
@@ -956,7 +994,7 @@ const EditProperty = () => {
                     ))}
                   </select>
                 </div>
-                
+
                 <div className="form-group">
                   <label>Bathrooms</label>
                   <select
@@ -987,7 +1025,7 @@ const EditProperty = () => {
                     />
                     <small className="form-hint">Total property area</small>
                   </div>
-                  
+
                   {form.propertyType === 'commercial' && (
                     <div className="form-group">
                       <label>Commercial Type</label>
@@ -1009,7 +1047,7 @@ const EditProperty = () => {
                 </div>
               </div>
             )}
-            
+
             {/* Size input for all property types */}
             {currentPropertyType?.hasBedrooms && (
               <div className="form-group">
@@ -1025,7 +1063,7 @@ const EditProperty = () => {
                 <small className="form-hint">Total property area</small>
               </div>
             )}
-            
+
             {/* UNITS INPUT */}
             <div className="form-group">
               <label className="required">Number of Units</label>
@@ -1047,7 +1085,7 @@ const EditProperty = () => {
                 {form.units} unit(s) in this property
               </small>
             </div>
-            
+
             <div className="form-group">
               <label>Description</label>
               <textarea
@@ -1060,7 +1098,7 @@ const EditProperty = () => {
               />
             </div>
           </div>
-          
+
           {/* Status Section */}
           <div className="form-section">
             <h3>Property Status</h3>
@@ -1080,18 +1118,18 @@ const EditProperty = () => {
               </select>
             </div>
           </div>
-          
+
           <div className="form-actions">
-            <button 
-              type="button" 
-              className="cancel-button" 
+            <button
+              type="button"
+              className="cancel-button"
               onClick={handleCancel}
               disabled={saving}
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="submit-button"
               disabled={saving}
             >
