@@ -43,6 +43,10 @@ const PropertyUnits = () => {
   const [unitToDeleteTenant, setUnitToDeleteTenant] = useState(null);
   const [selectedUnitIndex, setSelectedUnitIndex] = useState(null);
 
+  // NEW: Unit Details Modal State
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [viewingUnit, setViewingUnit] = useState(null);
+
   // Tenant assignment form - UPDATED TO MATCH AddTenant.jsx
   const [tenantForm, setTenantForm] = useState({
     // Personal Information (SAME AS AddTenant.jsx)
@@ -1476,7 +1480,10 @@ const PropertyUnits = () => {
 
                     <button
                       className="action-btn view-btn"
-                      onClick={() => alert(`View unit ${unit.unitNumber} details`)}
+                      onClick={() => {
+                        setViewingUnit(unit);
+                        setShowDetailsModal(true);
+                      }}
                     >
                       <FaExpand /> Details
                     </button>
@@ -1494,6 +1501,95 @@ const PropertyUnits = () => {
           })
         )}
       </div>
+
+      {/* NEW: Unit Details Modal */}
+      {showDetailsModal && viewingUnit && (
+        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
+          <div className="modal-content unit-details-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Unit {viewingUnit.unitNumber} Details</h3>
+              <button className="close-modal" onClick={() => setShowDetailsModal(false)}>
+                ×
+              </button>
+            </div>
+
+            <div className="unit-details-body">
+              {/* Image Gallery */}
+              <div className="details-section">
+                <h4>Unit Images</h4>
+                {viewingUnit.images && viewingUnit.images.length > 0 ? (
+                  <div className="unit-image-gallery">
+                    {viewingUnit.images.map((imgUrl, idx) => (
+                      <div key={idx} className="gallery-image-wrapper">
+                        <img src={imgUrl} alt={`Unit ${viewingUnit.unitNumber} - ${idx + 1}`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="no-images-placeholder">
+                    <FaHome className="placeholder-icon" />
+                    <p>No images uploaded for this unit</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Unit Info Grid */}
+              <div className="details-section">
+                <h4>Information</h4>
+                <div className="details-grid">
+                  <div className="detail-item">
+                    <span className="label">Status:</span>
+                    <span className={`value status-badge ${getStatusClass(viewingUnit)}`}>
+                      {getDisplayStatusText(viewingUnit)}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Rent:</span>
+                    <span className="value">{formatCurrency(viewingUnit.rentAmount)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Size:</span>
+                    <span className="value">{viewingUnit.size || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Floor:</span>
+                    <span className="value">{viewingUnit.floor || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Bedrooms:</span>
+                    <span className="value">{viewingUnit.bedrooms || viewingUnit.unitBedrooms || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="label">Bathrooms:</span>
+                    <span className="value">{viewingUnit.bathrooms || viewingUnit.unitBathrooms || "N/A"}</span>
+                  </div>
+
+                  {viewingUnit.amenities && viewingUnit.amenities.length > 0 && (
+                    <div className="detail-item full-width">
+                      <span className="label">Amenities:</span>
+                      <div className="amenities-tags">
+                        {viewingUnit.amenities.map((amenity, idx) => (
+                          <span key={idx} className="amenity-tag">{amenity}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => setShowDetailsModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="quick-actions">
