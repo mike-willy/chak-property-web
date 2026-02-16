@@ -6,7 +6,11 @@ import {
   getDocs,
   doc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  writeBatch,
+  query,
+  where,
+  increment
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import {
@@ -356,9 +360,31 @@ const Units = () => {
       const unit = propertyGroup.units.find(u => u.id === unitId);
       if (!unit) return;
 
-      // Update unit document
+      // Start a batch
+      const batch = writeBatch(db);
+
+      // 1. Snapshot Tenant Details to Payments (Preserve History)
+      if (unit.tenantId) {
+        const paymentsRef = collection(db, "payments");
+        const paymentsQuery = query(paymentsRef, where("tenantId", "==", unit.tenantId));
+        const paymentsSnapshot = await getDocs(paymentsQuery);
+
+        paymentsSnapshot.forEach((doc) => {
+          batch.update(doc.ref, {
+            tenantName: unit.tenantName,
+            tenantPhone: unit.tenantPhone || '',
+            tenantEmail: unit.tenantEmail || '',
+            propertyName: unit.propertyName || propertyGroup.property.name || '',
+            unitNumber: unit.unitNumber || '',
+            isDeletedTenant: true,
+            tenantDeletedAt: new Date()
+          });
+        });
+      }
+
+      // 2. Update Unit Status
       const unitRef = doc(db, `properties/${propertyId}/units`, unitId);
-      await updateDoc(unitRef, {
+      batch.update(unitRef, {
         occupancyStatus: "vacant",
         maintenanceStatus: unit.maintenanceStatus || "normal",
         status: unit.maintenanceStatus === "under_maintenance" ? "maintenance" : "vacant",
@@ -371,17 +397,27 @@ const Units = () => {
         updatedAt: new Date()
       });
 
-      // Also delete tenant from tenants collection if exists
+      // 3. Update Property Counts
+      // Calculate rent amount to decrement revenue
+      // Note: unit.rentAmount is standard, but check data model
+      const rentAmount = unit.rentAmount || 0;
+
+      const propertyRef = doc(db, "properties", propertyId);
+      batch.update(propertyRef, {
+        "unitDetails.vacantCount": increment(1),
+        "unitDetails.leasedCount": increment(-1),
+        totalTenants: increment(-1),
+        monthlyRevenue: increment(-(rentAmount || 0)) // Check if monthlyRevenue tracks actual collected or potential
+      });
+
+      // 4. Delete Tenant Document
       if (unit.tenantId) {
-        try {
-          const tenantRef = doc(db, "tenants", unit.tenantId);
-          await deleteDoc(tenantRef);
-          console.log("Tenant deleted from tenants collection");
-        } catch (tenantError) {
-          console.error("Error deleting tenant record:", tenantError);
-          // Continue even if tenant deletion fails
-        }
+        const tenantRef = doc(db, "tenants", unit.tenantId);
+        batch.delete(tenantRef);
       }
+
+      // Commit Batch
+      await batch.commit();
 
       // Update local state (FIXED: Added missing semicolon after .map())
       setAllUnits(prev => prev.map(item => {
@@ -442,14 +478,14 @@ const Units = () => {
         return item;
       }));
 
-      // Update main properties collection
-      await updatePropertyCountsInFirestore(propertyId);
+      // Update main properties collection - strictly speaking not needed if batch worked, but good for safety/consistency check in complex app
+      // await updatePropertyCountsInFirestore(propertyId); // Batch handled this
 
       // Close modal and reset
       setShowDeleteTenantModal(false);
       setUnitToDeleteTenant(null);
 
-      alert(`Tenant deleted and unit is now vacant`);
+      alert(`Tenant deleted and unit is now vacant. Payment history preserved.`);
 
     } catch (error) {
       console.error("Error deleting tenant:", error);

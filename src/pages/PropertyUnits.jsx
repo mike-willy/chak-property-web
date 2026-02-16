@@ -1,7 +1,7 @@
 // src/pages/PropertyUnits.jsx - LOCKED LEASED STATUS VERSION
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, getDocs, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch, query, where, increment } from "firebase/firestore";
 import { addDoc, collection, Timestamp } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import "../styles/PropertyUnits.css";
@@ -421,9 +421,31 @@ const PropertyUnits = () => {
     try {
       const { unitIndex, unit } = unitToDeleteTenant;
 
-      // Update unit document in subcollection
+      // Start a batch
+      const batch = writeBatch(db);
+
+      // 1. Snapshot Tenant Details to Payments (Preserve History)
+      if (unit.tenantId) {
+        const paymentsRef = collection(db, "payments");
+        const paymentsQuery = query(paymentsRef, where("tenantId", "==", unit.tenantId));
+        const paymentsSnapshot = await getDocs(paymentsQuery);
+
+        paymentsSnapshot.forEach((doc) => {
+          batch.update(doc.ref, {
+            tenantName: unit.tenantName,
+            tenantPhone: unit.tenantPhone || '',
+            tenantEmail: unit.tenantEmail || '',
+            propertyName: unit.propertyName || property?.name || '',
+            unitNumber: unit.unitNumber || '',
+            isDeletedTenant: true,
+            tenantDeletedAt: new Date()
+          });
+        });
+      }
+
+      // 2. Update Unit Status
       const unitRef = doc(db, `properties/${id}/units`, unit.id);
-      await updateDoc(unitRef, {
+      batch.update(unitRef, {
         occupancyStatus: "vacant",
         maintenanceStatus: unit.maintenanceStatus || "normal",
         status: unit.maintenanceStatus === "under_maintenance" ? "maintenance" : "vacant",
@@ -436,17 +458,26 @@ const PropertyUnits = () => {
         updatedAt: new Date().toISOString()
       });
 
-      // Also delete tenant from tenants collection if exists
+      // 3. Update Property Counts
+      // Calculate rent amount to decrement revenue
+      const rentAmount = unit.rentAmount || 0;
+
+      const propertyRef = doc(db, "properties", id);
+      batch.update(propertyRef, {
+        "unitDetails.vacantCount": increment(1),
+        "unitDetails.leasedCount": increment(-1),
+        totalTenants: increment(-1),
+        monthlyRevenue: increment(-(rentAmount || 0))
+      });
+
+      // 4. Delete Tenant Document
       if (unit.tenantId) {
-        try {
-          const tenantRef = doc(db, "tenants", unit.tenantId);
-          await deleteDoc(tenantRef);
-          console.log("Tenant deleted from tenants collection");
-        } catch (tenantError) {
-          console.error("Error deleting tenant record:", tenantError);
-          // Continue even if tenant deletion fails
-        }
+        const tenantRef = doc(db, "tenants", unit.tenantId);
+        batch.delete(tenantRef);
       }
+
+      // Commit Batch
+      await batch.commit();
 
       // Update local state
       const updatedUnits = [...units];
@@ -462,31 +493,18 @@ const PropertyUnits = () => {
         updatedAt: new Date().toISOString()
       };
 
-      // Recalculate counts
+      // Recalculate counts locally for UI immediate update (optional if we trust reload, but better UX)
       const { vacantCount, leasedCount, maintenanceCount } = calculateUnitCounts(updatedUnits);
       const totalUnits = updatedUnits.length;
       const occupancyRate = totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0;
 
-      // Calculate monthly revenue
+      // Calculate monthly revenue locally
       const monthlyRevenue = updatedUnits
         .filter(u => {
           const { occupancyStatus } = getUnitStatuses(u);
           return occupancyStatus === 'leased';
         })
         .reduce((total, u) => total + (u.rentAmount || 0), 0);
-
-      // Update property document with new counts
-      const propertyRef = doc(db, "properties", id);
-      await updateDoc(propertyRef, {
-        "unitDetails.vacantCount": vacantCount,
-        "unitDetails.leasedCount": leasedCount,
-        "unitDetails.maintenanceCount": maintenanceCount,
-        "unitDetails.occupancyRate": occupancyRate,
-        "unitDetails.totalUnits": totalUnits,
-        monthlyRevenue: monthlyRevenue,
-        totalTenants: leasedCount,
-        updatedAt: new Date()
-      });
 
       // Update local state
       setUnits(updatedUnits);
@@ -508,7 +526,7 @@ const PropertyUnits = () => {
       setShowDeleteTenantModal(false);
       setUnitToDeleteTenant(null);
 
-      alert(`Tenant deleted and unit ${unit.unitNumber} is now vacant`);
+      alert(`Tenant deleted and unit ${unit.unitNumber} is now vacant. Payment history preserved.`);
 
     } catch (error) {
       console.error("Error deleting tenant:", error);
