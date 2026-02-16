@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../pages/firebase/firebase";
-import { 
-  collection, 
-  getDocs, 
-  query, 
+import {
+  collection,
+  getDocs,
+  getDoc,
+  updateDoc,
+  increment,
+  query,
   orderBy,
   deleteDoc,
   doc,
   where
 } from "firebase/firestore";
-import { 
-  FaUser, 
-  FaHome, 
-  FaPhone, 
-  FaEnvelope, 
-  FaDollarSign, 
+import {
+  FaUser,
+  FaHome,
+  FaPhone,
+  FaEnvelope,
+  FaDollarSign,
   FaCalendar,
   FaEdit,
   FaTrash,
@@ -46,10 +49,10 @@ const Tenants = () => {
         where("status", "==", "active"),
         orderBy("createdAt", "desc")
       );
-      
+
       const snapshot = await getDocs(q);
       const tenantList = [];
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
         tenantList.push({
@@ -62,7 +65,7 @@ const Tenants = () => {
           initialPaymentDate: data.initialPaymentDate?.toDate(),
         });
       });
-      
+
       setTenants(tenantList);
     } catch (error) {
       console.error("Error fetching tenants:", error);
@@ -75,17 +78,50 @@ const Tenants = () => {
     if (!window.confirm(`Delete tenant ${tenantName}? This will free up their unit.`)) {
       return;
     }
-    
+
     try {
-      await deleteDoc(doc(db, "tenants", tenantId));
-      
+      // Find the tenant in our local state to get property/unit info
       const tenant = tenants.find(t => t.id === tenantId);
-      if (tenant?.unitId) {
-        // You might want to update the unit status here
-        // await updateDoc(doc(db, "units", tenant.unitId), { status: "vacant" });
+
+      if (tenant && tenant.propertyId && tenant.unitId) {
+        const { propertyId, unitId, monthlyRent } = tenant;
+
+        // 1. Update Unit Status
+        const unitRef = doc(db, `properties/${propertyId}/units`, unitId);
+        const unitSnap = await getDoc(unitRef);
+
+        if (unitSnap.exists()) {
+          const unitData = unitSnap.data();
+          const isMaintenance = unitData.maintenanceStatus === 'under_maintenance';
+
+          await updateDoc(unitRef, {
+            occupancyStatus: "vacant",
+            status: isMaintenance ? "maintenance" : "vacant", // Legacy support
+            tenantId: null,
+            tenantName: null,
+            tenantPhone: null,
+            tenantEmail: null,
+            leaseStart: null,
+            leaseEnd: null,
+            rentPaidUntil: null,
+            updatedAt: new Date()
+          });
+        }
+
+        // 2. Update Property Counts
+        const propertyRef = doc(db, "properties", propertyId);
+        await updateDoc(propertyRef, {
+          "unitDetails.vacantCount": increment(1),
+          "unitDetails.leasedCount": increment(-1),
+          totalTenants: increment(-1),
+          monthlyRevenue: increment(-(monthlyRent || 0))
+        });
       }
-      
-      alert("Tenant deleted successfully");
+
+      // 3. Delete Tenant Document
+      await deleteDoc(doc(db, "tenants", tenantId));
+
+      alert("Tenant deleted successfully and unit marked as vacant.");
       fetchTenants();
     } catch (error) {
       console.error("Error deleting tenant:", error);
@@ -94,17 +130,17 @@ const Tenants = () => {
   };
 
   const filteredTenants = tenants.filter(tenant => {
-    const matchesSearch = 
+    const matchesSearch =
       tenant.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.phone?.includes(searchTerm) ||
       tenant.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = 
-      filterStatus === "all" || 
+
+    const matchesStatus =
+      filterStatus === "all" ||
       tenant.status?.toLowerCase() === filterStatus.toLowerCase();
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -162,16 +198,16 @@ const Tenants = () => {
           <h1>Active Tenants Collection</h1>
           <p>Manage tenants who are paying monthly rent</p>
         </div>
-        
+
         <div className="tenant-header-right">
-          <button 
+          <button
             className="tenant-approved-btn"
             onClick={() => navigate("/approved-tenants")}
           >
             <FaCheckCircle /> View Approved (Pending Payment)
           </button>
-          
-          <button 
+
+          <button
             className="tenant-applications-btn"
             onClick={() => navigate("/applications")}
           >
@@ -192,7 +228,7 @@ const Tenants = () => {
             <small>Paying monthly rent</small>
           </div>
         </div>
-        
+
         <div className="tenant-stat-card monthly-revenue">
           <div className="tenant-stat-icon">
             <FaDollarSign />
@@ -203,7 +239,7 @@ const Tenants = () => {
             <small>From active tenants</small>
           </div>
         </div>
-        
+
         <div className="tenant-stat-card average-rent">
           <div className="tenant-stat-icon">
             <FaHome />
@@ -214,7 +250,7 @@ const Tenants = () => {
             <small>Per tenant per month</small>
           </div>
         </div>
-        
+
         <div className="tenant-stat-card properties">
           <div className="tenant-stat-icon">
             <FaCalendar />
@@ -238,10 +274,10 @@ const Tenants = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
+
         <div className="tenant-filter-box">
           <FaFilter />
-          <select 
+          <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           >
@@ -259,19 +295,19 @@ const Tenants = () => {
             <FaUser className="tenant-no-tenants-icon" />
             <h3>No active tenants found</h3>
             <p>
-              {searchTerm 
-                ? "Try a different search term" 
+              {searchTerm
+                ? "Try a different search term"
                 : "No tenants are currently paying monthly rent. Check approved tenants or applications."
               }
             </p>
             <div className="tenant-no-tenants-actions">
-              <button 
+              <button
                 className="tenant-approved-action-btn"
                 onClick={() => navigate("/approved-tenants")}
               >
                 <FaCheckCircle /> Check Approved Tenants
               </button>
-              <button 
+              <button
                 className="tenant-applications-action-btn"
                 onClick={() => navigate("/applications")}
               >
@@ -291,7 +327,7 @@ const Tenants = () => {
                   .toLocaleString()}
               </span>
             </div>
-            
+
             <div className="tenant-grid">
               {filteredTenants.map((tenant) => (
                 <div key={tenant.id} className="tenant-card">
@@ -326,21 +362,21 @@ const Tenants = () => {
                         {tenant.propertyName || `Property ${tenant.propertyId}`}
                       </span>
                     </div>
-                    
+
                     <div className="detail-row">
                       <span className="detail-label">Unit:</span>
                       <span className="detail-value">
                         {tenant.unitNumber || `Unit ${tenant.unitId}`}
                       </span>
                     </div>
-                    
+
                     <div className="detail-row">
                       <span className="detail-label"><FaDollarSign /> Rent:</span>
                       <span className="detail-value rent-amount">
                         KSh {(tenant.monthlyRent || 0).toLocaleString()}/month
                       </span>
                     </div>
-                    
+
                     <div className="detail-row">
                       <span className="detail-label"><FaCalendar /> Lease:</span>
                       <span className="detail-value">
@@ -348,7 +384,7 @@ const Tenants = () => {
                         {tenant.leaseTerm && <span className="lease-term"> ({tenant.leaseTerm} months)</span>}
                       </span>
                     </div>
-                    
+
                     {tenant.balance !== undefined && tenant.balance > 0 && (
                       <div className="detail-row balance-row">
                         <span className="detail-label">Balance:</span>
@@ -357,7 +393,7 @@ const Tenants = () => {
                         </span>
                       </div>
                     )}
-                    
+
                     {tenant.balance === 0 && (
                       <div className="detail-row balance-row">
                         <span className="detail-label">Balance:</span>
@@ -369,31 +405,31 @@ const Tenants = () => {
                   </div>
 
                   <div className="tenant-card-actions">
-                    <button 
+                    <button
                       className="btn-view"
                       onClick={() => navigate(`/tenants/${tenant.id}`)}
                       title="View tenant details"
                     >
                       <FaUser /> View
                     </button>
-                    
-                    <button 
+
+                    <button
                       className="btn-edit"
                       onClick={() => navigate(`/tenants/edit/${tenant.id}`)}
                       title="Edit tenant information"
                     >
                       <FaEdit /> Edit
                     </button>
-                    
-                    <button 
+
+                    <button
                       className="btn-collect"
                       onClick={() => navigate(`/payments/collect/${tenant.id}`)}
                       title="Collect payment"
                     >
                       <FaDollarSign /> Collect
                     </button>
-                    
-                    <button 
+
+                    <button
                       className="btn-delete"
                       onClick={() => handleDeleteTenant(tenant.id, tenant.fullName)}
                       title="Delete tenant"
