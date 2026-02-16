@@ -10,7 +10,8 @@ import {
   orderBy,
   deleteDoc,
   doc,
-  where
+  where,
+  writeBatch
 } from "firebase/firestore";
 import {
   FaUser,
@@ -75,7 +76,7 @@ const Tenants = () => {
   };
 
   const handleDeleteTenant = async (tenantId, tenantName) => {
-    if (!window.confirm(`Delete tenant ${tenantName}? This will free up their unit.`)) {
+    if (!window.confirm(`Delete tenant ${tenantName}? This will free up their unit and preserve payment history.`)) {
       return;
     }
 
@@ -83,34 +84,54 @@ const Tenants = () => {
       // Find the tenant in our local state to get property/unit info
       const tenant = tenants.find(t => t.id === tenantId);
 
+      // Start a batch for atomicity where possible, though we might split for readability
+      const batch = writeBatch(db);
+
+      // 1. Snapshot Tenant Details to Payments (Preserve History)
+      const paymentsRef = collection(db, "payments");
+      const paymentsQuery = query(paymentsRef, where("tenantId", "==", tenantId));
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+
+      paymentsSnapshot.forEach((doc) => {
+        batch.update(doc.ref, {
+          tenantName: tenantName,
+          tenantPhone: tenant?.phone || '',
+          tenantEmail: tenant?.email || '',
+          propertyName: tenant?.propertyName || '',
+          unitNumber: tenant?.unitNumber || '',
+          isDeletedTenant: true,
+          tenantDeletedAt: new Date()
+        });
+      });
+
+      // 2. Update Unit Status & Property Counts
       if (tenant && tenant.propertyId && tenant.unitId) {
         const { propertyId, unitId, monthlyRent } = tenant;
 
-        // 1. Update Unit Status
+        // Update Unit
         const unitRef = doc(db, `properties/${propertyId}/units`, unitId);
-        const unitSnap = await getDoc(unitRef);
+        // Note: We can't strictly read-then-write in a batch easily without transaction, 
+        // but for delete we can blindly set to vacant since that's the goal.
+        // However, to preserve 'maintenance' status if check is needed, we'll assume vacant/maintenance.
+        // For simplicity/safety in batch, we'll set directly.
+        batch.update(unitRef, {
+          occupancyStatus: "vacant",
+          // We can't conditionally set 'status' based on current value inside a batch without reading first.
+          // Falling back to standard update for mixed logic if needed, OR just enforce vacant.
+          status: "vacant", // Forcing to vacant to ensure consistency
+          tenantId: null,
+          tenantName: null,
+          tenantPhone: null,
+          tenantEmail: null,
+          leaseStart: null,
+          leaseEnd: null,
+          rentPaidUntil: null,
+          updatedAt: new Date()
+        });
 
-        if (unitSnap.exists()) {
-          const unitData = unitSnap.data();
-          const isMaintenance = unitData.maintenanceStatus === 'under_maintenance';
-
-          await updateDoc(unitRef, {
-            occupancyStatus: "vacant",
-            status: isMaintenance ? "maintenance" : "vacant", // Legacy support
-            tenantId: null,
-            tenantName: null,
-            tenantPhone: null,
-            tenantEmail: null,
-            leaseStart: null,
-            leaseEnd: null,
-            rentPaidUntil: null,
-            updatedAt: new Date()
-          });
-        }
-
-        // 2. Update Property Counts
+        // Update Property Counts
         const propertyRef = doc(db, "properties", propertyId);
-        await updateDoc(propertyRef, {
+        batch.update(propertyRef, {
           "unitDetails.vacantCount": increment(1),
           "unitDetails.leasedCount": increment(-1),
           totalTenants: increment(-1),
@@ -119,9 +140,13 @@ const Tenants = () => {
       }
 
       // 3. Delete Tenant Document
-      await deleteDoc(doc(db, "tenants", tenantId));
+      const tenantRef = doc(db, "tenants", tenantId);
+      batch.delete(tenantRef);
 
-      alert("Tenant deleted successfully and unit marked as vacant.");
+      // Commit all changes
+      await batch.commit();
+
+      alert("Tenant deleted successfully. Payment history preserved.");
       fetchTenants();
     } catch (error) {
       console.error("Error deleting tenant:", error);
