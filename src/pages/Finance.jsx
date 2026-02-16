@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, Chip, Typography,
@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  FilterList as FilterIcon,
   Download as DownloadIcon,
   Visibility as ViewIcon,
   Receipt as ReceiptIcon,
@@ -21,8 +20,7 @@ import {
   Email as EmailIcon,
   Home as HomeIcon,
   CalendarToday as CalendarIcon,
-  AccountCircle as AccountIcon,
-  Payment as PaymentHistoryIcon
+  AccountCircle as AccountIcon
 } from '@mui/icons-material';
 import { 
   collection, 
@@ -33,7 +31,8 @@ import {
   where,
   getDocs,
   doc,
-  getDoc
+  getDoc,
+  limit
 } from 'firebase/firestore';
 import { db } from '../pages/firebase/firebase';
 import '../styles/paymentPage.css';
@@ -62,110 +61,53 @@ const PaymentPage = () => {
   
   // Cache for tenant names to avoid repeated lookups
   const [tenantNameCache, setTenantNameCache] = useState({});
+  
+  // Refs to prevent infinite loops
+  const initialLoadDone = useRef(false);
+  const paymentsRef = useRef(payments);
+  const filterTimeoutRef = useRef(null);
 
-  // Real-time listener for payments
+  // Update ref when payments change
   useEffect(() => {
-    const paymentsRef = collection(db, 'payments');
-    const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+    paymentsRef.current = payments;
+  }, [payments]);
+
+  // OPTIMIZATION 1: Batch fetch tenant names
+  const batchFetchTenantNames = useCallback(async (tenantIds) => {
+    if (tenantIds.length === 0) return;
     
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      try {
-        const paymentsData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-            completedAt: data.completedAt?.toDate ? data.completedAt.toDate() : (data.completedAt ? new Date(data.completedAt) : null),
-            transactionDate: data.transactionDate?.toDate ? data.transactionDate.toDate() : (data.transactionDate ? new Date(data.transactionDate) : null)
-          };
+    const newCache = { ...tenantNameCache };
+    const uniqueIds = [...new Set(tenantIds)].filter(id => !tenantNameCache[id]);
+    
+    if (uniqueIds.length === 0) return;
+    
+    try {
+      // Fetch in batches of 10
+      const batchSize = 10;
+      for (let i = 0; i < uniqueIds.length; i += batchSize) {
+        const batch = uniqueIds.slice(i, i + batchSize);
+        
+        // Create a query to get multiple tenants at once
+        const tenantsRef = collection(db, 'tenants');
+        const q = query(tenantsRef, where('__name__', 'in', batch));
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach(doc => {
+          const tenantData = doc.data();
+          newCache[doc.id] = tenantData.fullName || tenantData.name || 'Unknown Tenant';
         });
         
-        setPayments(paymentsData);
-        filterPayments(paymentsData);
-        updateStatistics(paymentsData);
-        
-        // Fetch tenant names for payments that don't have tenantName
-        await fetchMissingTenantNames(paymentsData);
-        
-        setLoading(false);
-        
-        // Show notification for new payments
-        if (paymentsData.length > payments.length) {
-          const newPayments = paymentsData.length - payments.length;
-          if (newPayments > 0) {
-            setSnackbar({
-              open: true,
-              message: `🔄 ${newPayments} new payment(s) updated`,
-              severity: 'info'
-            });
+        // For IDs not found, mark as unknown
+        batch.forEach(id => {
+          if (!newCache[id]) {
+            newCache[id] = 'Unknown Tenant';
           }
-        }
-      } catch (error) {
-        console.error('Error processing snapshot:', error);
-        setLoading(false);
-      }
-    }, (error) => {
-      console.error('Firebase listener error:', error);
-      setSnackbar({
-        open: true,
-        message: 'Connection error. Showing cached data.',
-        severity: 'warning'
-      });
-      setLoading(false);
-    });
-
-    // Cleanup
-    return () => unsubscribe();
-  }, []);
-
-  // Fetch tenant names for payments that only have tenantId
-  const fetchMissingTenantNames = async (paymentsData) => {
-    try {
-      const paymentsNeedingNames = paymentsData.filter(p => 
-        p.tenantId && !p.tenantName && !tenantNameCache[p.tenantId]
-      );
-      
-      if (paymentsNeedingNames.length === 0) return;
-      
-      // Get unique tenant IDs
-      const tenantIds = [...new Set(paymentsNeedingNames.map(p => p.tenantId))];
-      
-      // Fetch tenant names in batch
-      const newCache = { ...tenantNameCache };
-      
-      for (const tenantId of tenantIds) {
-        if (!newCache[tenantId]) {
-          try {
-            const tenantRef = doc(db, 'tenants', tenantId);
-            const tenantSnap = await getDoc(tenantRef);
-            
-            if (tenantSnap.exists()) {
-              const tenantData = tenantSnap.data();
-              newCache[tenantId] = tenantData.fullName || tenantData.name || 'Unknown Tenant';
-            } else {
-              // Try alternative lookup
-              const tenantsRef = collection(db, 'tenants');
-              const q = query(tenantsRef, where('tenantId', '==', tenantId));
-              const querySnapshot = await getDocs(q);
-              
-              if (!querySnapshot.empty) {
-                const tenantData = querySnapshot.docs[0].data();
-                newCache[tenantId] = tenantData.fullName || tenantData.name || 'Unknown Tenant';
-              } else {
-                newCache[tenantId] = 'Unknown Tenant';
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching tenant ${tenantId}:`, error);
-            newCache[tenantId] = 'Unknown Tenant';
-          }
-        }
+        });
       }
       
       setTenantNameCache(newCache);
       
-      // Update payments with names
+      // Update payments with new names
       setPayments(prev => prev.map(payment => {
         if (payment.tenantId && newCache[payment.tenantId] && !payment.tenantName) {
           return {
@@ -177,11 +119,79 @@ const PaymentPage = () => {
       }));
       
     } catch (error) {
-      console.error('Error fetching tenant names:', error);
+      console.error('Error batch fetching tenants:', error);
     }
-  };
+  }, [tenantNameCache]);
 
-  // Real-time listener for admin stats
+  // OPTIMIZATION 2: Process tenant fetches with debounce
+  useEffect(() => {
+    const tenantIds = payments
+      .filter(p => p.tenantId && !p.tenantName && !tenantNameCache[p.tenantId])
+      .map(p => p.tenantId);
+    
+    if (tenantIds.length === 0) return;
+    
+    const timer = setTimeout(() => {
+      batchFetchTenantNames(tenantIds);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [payments, tenantNameCache, batchFetchTenantNames]);
+
+  // OPTIMIZATION 3: Initial load with real-time listener
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+    
+    let unsubscribe;
+    
+    const setupListener = async () => {
+      try {
+        const paymentsRef = collection(db, 'payments');
+        const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+        
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          const paymentsData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
+              completedAt: data.completedAt?.toDate ? data.completedAt.toDate() : (data.completedAt ? new Date(data.completedAt) : null),
+              transactionDate: data.transactionDate?.toDate ? data.transactionDate.toDate() : (data.transactionDate ? new Date(data.transactionDate) : null)
+            };
+          });
+          
+          setPayments(paymentsData);
+          setLoading(false);
+          initialLoadDone.current = true;
+          
+        }, (error) => {
+          console.error('Firebase listener error:', error);
+          setSnackbar({
+            open: true,
+            message: 'Connection error. Please refresh.',
+            severity: 'warning'
+          });
+          setLoading(false);
+          initialLoadDone.current = true;
+        });
+      } catch (error) {
+        console.error('Error setting up listener:', error);
+        setLoading(false);
+        initialLoadDone.current = true;
+      }
+    };
+    
+    setupListener();
+    
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  // OPTIMIZATION 4: Separate effect for admin stats
   useEffect(() => {
     const statsRef = collection(db, 'adminStats');
     const statsQuery = query(statsRef, where('id', '==', 'dashboard'));
@@ -201,52 +211,18 @@ const PaymentPage = () => {
     return () => unsubscribeStats();
   }, []);
 
-  // Filter payments
+  // OPTIMIZATION 5: Update statistics when payments change
   useEffect(() => {
-    filterPayments();
-  }, [searchTerm, statusFilter, monthFilter]);
-
-  const filterPayments = (data = payments) => {
-    let filtered = [...data];
-
-    // Search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(payment => {
-        const tenantName = payment.tenantName || tenantNameCache[payment.tenantId] || '';
-        return (
-          (payment.tenantId && payment.tenantId.toLowerCase().includes(term)) ||
-          (tenantName && tenantName.toLowerCase().includes(term)) ||
-          (payment.mpesaCode && payment.mpesaCode.toLowerCase().includes(term)) ||
-          (payment.phoneNumber && payment.phoneNumber.toLowerCase().includes(term)) ||
-          (payment.month && payment.month.toLowerCase().includes(term))
-        );
-      });
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(payment => payment.status === statusFilter);
-    }
-
-    // Month filter
-    if (monthFilter !== 'all') {
-      filtered = filtered.filter(payment => payment.month === monthFilter);
-    }
-
-    setFilteredPayments(filtered);
-  };
-
-  const updateStatistics = (paymentsData) => {
-    const completedAmount = paymentsData
+    if (payments.length === 0) return;
+    
+    const completedAmount = payments
       .filter(p => p.status === 'completed')
       .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
     
-    const pendingCount = paymentsData.filter(p => p.status === 'pending').length;
-    const completedCount = paymentsData.filter(p => p.status === 'completed').length;
-    const totalCount = paymentsData.length;
+    const pendingCount = payments.filter(p => p.status === 'pending').length;
+    const completedCount = payments.filter(p => p.status === 'completed').length;
+    const totalCount = payments.length;
 
-    // Update local stats if adminStats not available
     setStats(prev => ({
       ...prev,
       totalCollected: completedAmount,
@@ -254,14 +230,62 @@ const PaymentPage = () => {
       completedPayments: completedCount,
       totalPayments: totalCount
     }));
-  };
+  }, [payments]);
 
-  // Fetch tenant details from tenants collection
-  const fetchTenantDetails = async (tenantId) => {
+  // OPTIMIZATION 6: Debounced filter function
+  const applyFilters = useCallback(() => {
+    if (!paymentsRef.current.length) return;
+    
+    let filtered = [...paymentsRef.current];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(payment => {
+        const tenantName = payment.tenantName || tenantNameCache[payment.tenantId] || '';
+        return (
+          tenantName.toLowerCase().includes(term) ||
+          (payment.mpesaCode && payment.mpesaCode.toLowerCase().includes(term)) ||
+          (payment.phoneNumber && payment.phoneNumber.toLowerCase().includes(term)) ||
+          (payment.month && payment.month.toLowerCase().includes(term))
+        );
+      });
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.status === statusFilter);
+    }
+
+    if (monthFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.month === monthFilter);
+    }
+
+    setFilteredPayments(filtered);
+  }, [searchTerm, statusFilter, monthFilter, tenantNameCache]);
+
+  // OPTIMIZATION 7: Debounced filter effect
+  useEffect(() => {
+    if (filterTimeoutRef.current) {
+      clearTimeout(filterTimeoutRef.current);
+    }
+    
+    filterTimeoutRef.current = setTimeout(() => {
+      applyFilters();
+    }, 300);
+    
+    return () => {
+      if (filterTimeoutRef.current) {
+        clearTimeout(filterTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, statusFilter, monthFilter, payments, applyFilters]);
+
+  // OPTIMIZATION 8: Fetch tenant details
+  const fetchTenantDetails = useCallback(async (tenantId) => {
     if (!tenantId) return null;
     
     try {
       setLoadingTenant(true);
+      
       const tenantRef = doc(db, 'tenants', tenantId);
       const tenantSnap = await getDoc(tenantRef);
       
@@ -270,7 +294,6 @@ const PaymentPage = () => {
         return { 
           id: tenantSnap.id, 
           ...data,
-          // Ensure we use the correct field names from your tenants collection
           name: data.fullName || data.name || 'Unknown Tenant',
           phone: data.phone || data.phoneNumber || 'Not provided',
           email: data.email || 'Not provided',
@@ -278,88 +301,78 @@ const PaymentPage = () => {
           propertyName: data.propertyName || 'Not specified',
           monthlyRent: data.monthlyRent || data.rent || 0
         };
-      } else {
-        // Try to find tenant by other identifiers if direct ID doesn't work
-        const tenantsRef = collection(db, 'tenants');
-        const q = query(tenantsRef, where('tenantId', '==', tenantId));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          const data = doc.data();
-          return { 
-            id: doc.id, 
-            ...data,
-            name: data.fullName || data.name || 'Unknown Tenant',
-            phone: data.phone || data.phoneNumber || 'Not provided',
-            email: data.email || 'Not provided',
-            unit: data.unitNumber || data.unitId || 'Not specified',
-            propertyName: data.propertyName || 'Not specified',
-            monthlyRent: data.monthlyRent || data.rent || 0
-          };
-        }
-        return null;
       }
+      return null;
     } catch (error) {
       console.error('Error fetching tenant details:', error);
       return null;
     } finally {
       setLoadingTenant(false);
     }
-  };
+  }, []);
 
-  // Handle view tenant details
-  const handleViewTenantDetails = async (payment) => {
+  // OPTIMIZATION 9: View tenant handler
+  const handleViewTenantDetails = useCallback(async (payment) => {
     setSelectedTenant(payment);
     
-    // Get tenant name from cache or payment
-    const tenantName = payment.tenantName || tenantNameCache[payment.tenantId] || 'Unknown Tenant';
+    const tenantName = payment.tenantName || tenantNameCache[payment.tenantId] || 'Loading...';
     
-    // Basic info from payment
-    const tenantInfo = {
+    setTenantDetails({
       name: tenantName,
       phone: payment.phoneNumber || 'Not provided',
       unit: payment.unitNumber || payment.propertyId || 'Not specified',
       id: payment.tenantId || 'N/A'
-    };
+    });
     
-    setTenantDetails(tenantInfo);
+    setModalOpen(true);
     
-    // Fetch additional details from tenants collection
     if (payment.tenantId) {
       const fullDetails = await fetchTenantDetails(payment.tenantId);
       if (fullDetails) {
-        setTenantDetails({
-          ...tenantInfo,
-          ...fullDetails,
-          email: fullDetails.email || 'Not provided',
-          joinDate: fullDetails.createdAt || fullDetails.joinDate || 'Unknown',
-          rentAmount: fullDetails.monthlyRent || fullDetails.rent || 'Not specified',
-          propertyName: fullDetails.propertyName || 'Not specified',
-          unit: fullDetails.unit || tenantInfo.unit,
-          status: fullDetails.status || 'Active'
-        });
+        setTenantDetails(prev => ({
+          ...prev,
+          ...fullDetails
+        }));
       }
     }
-    
-    setModalOpen(true);
-  };
+  }, [tenantNameCache, fetchTenantDetails]);
 
-  const getStatusColor = (status) => {
+  // OPTIMIZATION 10: Helper functions with useCallback
+  const getTenantDisplayName = useCallback((payment) => {
+    if (payment.tenantName) return payment.tenantName;
+    if (payment.tenantId && tenantNameCache[payment.tenantId]) {
+      return tenantNameCache[payment.tenantId];
+    }
+    if (payment.tenantId) {
+      return 'Loading...';
+    }
+    return 'No Tenant';
+  }, [tenantNameCache]);
+
+  const isTenantNameLoading = useCallback((payment) => {
+    return payment.tenantId && !payment.tenantName && !tenantNameCache[payment.tenantId];
+  }, [tenantNameCache]);
+
+  const getTenantInitial = useCallback((payment) => {
+    const name = payment.tenantName || tenantNameCache[payment.tenantId];
+    return name && name !== 'Loading...' ? name.charAt(0).toUpperCase() : '?';
+  }, [tenantNameCache]);
+
+  const getStatusColor = useCallback((status) => {
     switch (status) {
       case 'completed': return 'success';
       case 'pending': return 'warning';
       case 'failed': return 'error';
       default: return 'default';
     }
-  };
+  }, []);
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = useCallback((amount) => {
     const numAmount = Number(amount) || 0;
     return `KSh ${numAmount.toLocaleString('en-KE')}`;
-  };
+  }, []);
 
-  const formatDate = (date) => {
+  const formatDate = useCallback((date) => {
     if (!date) return 'N/A';
     if (date instanceof Timestamp) {
       date = date.toDate();
@@ -376,14 +389,11 @@ const PaymentPage = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
+  }, []);
 
-  // NEW: Get display month from payment date when month field is missing
-  const getDisplayMonth = (payment) => {
-    // If month field exists, use it
+  const getDisplayMonth = useCallback((payment) => {
     if (payment.month) return payment.month;
     
-    // Otherwise, get month from payment date (createdAt)
     const paymentDate = payment.createdAt;
     if (!paymentDate) return 'Not specified';
     
@@ -399,19 +409,17 @@ const PaymentPage = () => {
     
     if (isNaN(dateObj.getTime())) return 'Invalid date';
     
-    // Format: "Jan 2024" - professional property management style
     return `${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
-  };
+  }, []);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     const headers = ['Tenant ID', 'Tenant Name', 'Month', 'Amount', 'Status', 'M-Pesa Code', 'Date', 'Phone'];
     const csvData = filteredPayments.map(p => {
       const tenantName = p.tenantName || tenantNameCache[p.tenantId] || 'Unknown Tenant';
-      const displayMonth = getDisplayMonth(p); // Use the new function
       return [
         p.tenantId || 'N/A',
         tenantName,
-        displayMonth,
+        getDisplayMonth(p),
         p.amount || 0,
         p.status || 'N/A',
         p.mpesaCode || 'N/A',
@@ -435,44 +443,31 @@ const PaymentPage = () => {
       message: `Exported ${filteredPayments.length} payments`,
       severity: 'success'
     });
-  };
+  }, [filteredPayments, tenantNameCache, getDisplayMonth, formatDate]);
 
-  const getUniqueMonths = () => {
-    // Use the display month function for consistency
+  const getUniqueMonths = useMemo(() => {
     const months = payments
       .map(p => getDisplayMonth(p))
       .filter(Boolean)
       .sort((a, b) => {
         const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        // Extract month name for comparison
         const monthA = a.split(' ')[0];
         const monthB = b.split(' ')[0];
         return monthsOrder.indexOf(monthA) - monthsOrder.indexOf(monthB);
       });
     return [...new Set(months)];
-  };
+  }, [payments, getDisplayMonth]);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalOpen(false);
     setSelectedTenant(null);
     setTenantDetails(null);
-  };
+  }, []);
 
-  const handleCloseSnackbar = () => {
+  const handleCloseSnackbar = useCallback(() => {
     setSnackbar({ ...snackbar, open: false });
-  };
-
-  // Get display name for tenant
-  const getTenantDisplayName = (payment) => {
-    return payment.tenantName || tenantNameCache[payment.tenantId] || 'Unknown Tenant';
-  };
-
-  // Get initial for avatar
-  const getTenantInitial = (payment) => {
-    const name = getTenantDisplayName(payment);
-    return name.charAt(0).toUpperCase();
-  };
+  }, [snackbar]);
 
   return (
     <div className="payment-page">
@@ -482,12 +477,14 @@ const PaymentPage = () => {
           <Typography variant="h4" fontWeight="bold" className="page-title">
             <PaymentIcon className="header-icon" sx={{ mr: 1 }} />
             Jesma Payments
-            <Chip 
-              label="LIVE" 
-              color="success" 
-              size="small" 
-              sx={{ ml: 2, fontSize: '0.7rem' }}
-            />
+            {!loading && (
+              <Chip 
+                label="LIVE" 
+                color="success" 
+                size="small" 
+                sx={{ ml: 2, fontSize: '0.7rem' }}
+              />
+            )}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Real-time payment monitoring dashboard
@@ -624,7 +621,7 @@ const PaymentPage = () => {
                 onChange={(e) => setMonthFilter(e.target.value)}
               >
                 <MenuItem value="all">All Months</MenuItem>
-                {getUniqueMonths().map((month, index) => (
+                {getUniqueMonths.map((month, index) => (
                   <MenuItem key={index} value={month}>{month}</MenuItem>
                 ))}
               </Select>
@@ -668,7 +665,7 @@ const PaymentPage = () => {
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ py: 5 }}>
                     <CircularProgress />
-                    <Typography sx={{ mt: 2 }}>Loading live payments...</Typography>
+                    <Typography sx={{ mt: 2 }}>Loading payments...</Typography>
                   </TableCell>
                 </TableRow>
               ) : filteredPayments.length === 0 ? (
@@ -682,7 +679,8 @@ const PaymentPage = () => {
               ) : (
                 filteredPayments.map((payment) => {
                   const tenantName = getTenantDisplayName(payment);
-                  const tenantInitial = getTenantInitial(payment);
+                  const isLoading = isTenantNameLoading(payment);
+                  const tenantInitial = !isLoading ? getTenantInitial(payment) : '?';
                   
                   return (
                     <TableRow 
@@ -693,29 +691,43 @@ const PaymentPage = () => {
                         borderBottom: '1px solid #e0e0e0'
                       }}
                     >
-                      {/* TENANT CELL - Now with actual names fetched from tenants collection */}
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          {/* Avatar/Initials */}
                           <Avatar 
                             sx={{ 
                               width: 36, 
                               height: 36, 
-                              bgcolor: '#1976d2',
+                              bgcolor: isLoading ? '#bdbdbd' : '#1976d2',
                               fontSize: '0.9rem'
                             }}
                           >
-                            {tenantInitial}
+                            {isLoading ? <CircularProgress size={20} color="inherit" /> : tenantInitial}
                           </Avatar>
                           
-                          {/* Name + Details */}
                           <Box>
-                            <Typography fontWeight="bold" fontSize="0.95rem">
-                              {tenantName}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography 
+                                fontWeight="bold" 
+                                fontSize="0.95rem"
+                                color={isLoading ? 'text.secondary' : 'text.primary'}
+                              >
+                                {tenantName}
+                              </Typography>
+                              {isLoading && (
+                                <Chip 
+                                  label="Loading..." 
+                                  size="small" 
+                                  sx={{ 
+                                    height: 20, 
+                                    fontSize: '0.7rem',
+                                    bgcolor: '#f5f5f5'
+                                  }}
+                                />
+                              )}
+                            </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <Typography variant="caption" color="text.secondary">
-                                ID: {payment.tenantId || 'N/A'}
+                                ID: {payment.tenantId ? payment.tenantId.substring(0, 8) + '...' : 'N/A'}
                               </Typography>
                               {payment.unitNumber && (
                                 <>
@@ -730,16 +742,14 @@ const PaymentPage = () => {
                         </Box>
                       </TableCell>
                       
-                      {/* MONTH CELL - NOW SHOWS PAYMENT DATE WHEN MONTH IS MISSING */}
-                      <TableCell>
-                        {getDisplayMonth(payment)}
-                      </TableCell>
+                      <TableCell>{getDisplayMonth(payment)}</TableCell>
                       
                       <TableCell>
                         <Typography fontWeight="bold" color="primary.main">
                           {formatCurrency(payment.amount)}
                         </Typography>
                       </TableCell>
+                      
                       <TableCell>
                         <Chip
                           label={payment.status || 'unknown'}
@@ -748,6 +758,7 @@ const PaymentPage = () => {
                           sx={{ fontWeight: 'bold' }}
                         />
                       </TableCell>
+                      
                       <TableCell>
                         {payment.mpesaCode ? (
                           <Chip
@@ -762,20 +773,24 @@ const PaymentPage = () => {
                           </Typography>
                         )}
                       </TableCell>
+                      
                       <TableCell>
                         {formatDate(payment.completedAt || payment.createdAt)}
                       </TableCell>
+                      
                       <TableCell>
                         {payment.phoneNumber ? 
                           payment.phoneNumber.replace('254', '0') : 'N/A'
                         }
                       </TableCell>
+                      
                       <TableCell>
                         <IconButton 
                           size="small" 
                           title="View Tenant Details"
                           onClick={() => handleViewTenantDetails(payment)}
                           sx={{ mr: 1 }}
+                          disabled={isLoading}
                         >
                           <ViewIcon fontSize="small" />
                         </IconButton>
@@ -795,11 +810,7 @@ const PaymentPage = () => {
       </Paper>
 
       {/* Tenant Details Modal */}
-      <Modal
-        open={modalOpen}
-        onClose={handleCloseModal}
-        aria-labelledby="tenant-details-modal"
-      >
+      <Modal open={modalOpen} onClose={handleCloseModal}>
         <Box sx={{
           position: 'absolute',
           top: '50%',
@@ -813,14 +824,7 @@ const PaymentPage = () => {
           maxHeight: '80vh',
           overflow: 'auto'
         }}>
-          {/* Modal Header */}
-          <Box sx={{ 
-            p: 3, 
-            bgcolor: '#1976d2', 
-            color: 'white',
-            borderTopLeftRadius: 8,
-            borderTopRightRadius: 8
-          }}>
+          <Box sx={{ p: 3, bgcolor: '#1976d2', color: 'white', borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Avatar sx={{ width: 60, height: 60, bgcolor: 'white', color: '#1976d2' }}>
                 {tenantDetails?.name ? tenantDetails.name.charAt(0).toUpperCase() : 'T'}
@@ -836,7 +840,6 @@ const PaymentPage = () => {
             </Box>
           </Box>
 
-          {/* Modal Content */}
           <Box sx={{ p: 3 }}>
             {loadingTenant ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -846,132 +849,62 @@ const PaymentPage = () => {
               <>
                 <List dense>
                   <ListItem>
-                    <ListItemIcon>
-                      <AccountIcon />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary="Tenant ID" 
-                      secondary={tenantDetails?.id || 'N/A'} 
-                    />
+                    <ListItemIcon><AccountIcon /></ListItemIcon>
+                    <ListItemText primary="Tenant ID" secondary={tenantDetails?.id || 'N/A'} />
                   </ListItem>
-                  
                   <ListItem>
-                    <ListItemIcon>
-                      <PhoneIcon />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary="Phone Number" 
-                      secondary={tenantDetails?.phone ? 
-                        tenantDetails.phone.replace('254', '0') : 
-                        (tenantDetails?.phoneNumber ? tenantDetails.phoneNumber.replace('254', '0') : 'Not provided')
-                      } 
-                    />
+                    <ListItemIcon><PhoneIcon /></ListItemIcon>
+                    <ListItemText primary="Phone Number" secondary={tenantDetails?.phone?.replace('254', '0') || 'Not provided'} />
                   </ListItem>
-                  
                   {tenantDetails?.email && tenantDetails.email !== 'Not provided' && (
                     <ListItem>
-                      <ListItemIcon>
-                        <EmailIcon />
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary="Email" 
-                        secondary={tenantDetails.email} 
-                      />
+                      <ListItemIcon><EmailIcon /></ListItemIcon>
+                      <ListItemText primary="Email" secondary={tenantDetails.email} />
                     </ListItem>
                   )}
-                  
                   <ListItem>
-                    <ListItemIcon>
-                      <HomeIcon />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary="Unit/Property" 
-                      secondary={
-                        tenantDetails?.unit && tenantDetails?.propertyName ? 
-                        `${tenantDetails.unit} • ${tenantDetails.propertyName}` :
-                        (tenantDetails?.unit || tenantDetails?.propertyName || 'Not specified')
-                      } 
-                    />
+                    <ListItemIcon><HomeIcon /></ListItemIcon>
+                    <ListItemText primary="Unit/Property" secondary={
+                      tenantDetails?.unit && tenantDetails?.propertyName ? 
+                      `${tenantDetails.unit} • ${tenantDetails.propertyName}` :
+                      (tenantDetails?.unit || tenantDetails?.propertyName || 'Not specified')
+                    } />
                   </ListItem>
-                  
                   {tenantDetails?.rentAmount && (
                     <ListItem>
-                      <ListItemIcon>
-                        <PaymentIcon />
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary="Monthly Rent" 
-                        secondary={formatCurrency(tenantDetails.rentAmount)} 
-                      />
-                    </ListItem>
-                  )}
-                  
-                  {tenantDetails?.joinDate && tenantDetails.joinDate !== 'Unknown' && (
-                    <ListItem>
-                      <ListItemIcon>
-                        <CalendarIcon />
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary="Joined" 
-                        secondary={formatDate(tenantDetails.joinDate)} 
-                      />
+                      <ListItemIcon><PaymentIcon /></ListItemIcon>
+                      <ListItemText primary="Monthly Rent" secondary={formatCurrency(tenantDetails.rentAmount)} />
                     </ListItem>
                   )}
                 </List>
 
                 <Divider sx={{ my: 2 }} />
                 
-                {/* Current Payment Info */}
                 {selectedTenant && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
                       Current Payment Details
                     </Typography>
                     <Box sx={{ pl: 2 }}>
-                      <Typography variant="body2">
-                        <strong>Amount:</strong> {formatCurrency(selectedTenant.amount)}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Month:</strong> {getDisplayMonth(selectedTenant)}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Status:</strong> 
-                        <Chip
-                          label={selectedTenant.status}
-                          color={getStatusColor(selectedTenant.status)}
-                          size="small"
-                          sx={{ ml: 1, height: 20 }}
-                        />
+                      <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(selectedTenant.amount)}</Typography>
+                      <Typography variant="body2"><strong>Month:</strong> {getDisplayMonth(selectedTenant)}</Typography>
+                      <Typography variant="body2"><strong>Status:</strong> 
+                        <Chip label={selectedTenant.status} color={getStatusColor(selectedTenant.status)} size="small" sx={{ ml: 1, height: 20 }} />
                       </Typography>
                       {selectedTenant.mpesaCode && (
-                        <Typography variant="body2">
-                          <strong>M-Pesa Code:</strong> {selectedTenant.mpesaCode}
-                        </Typography>
+                        <Typography variant="body2"><strong>M-Pesa Code:</strong> {selectedTenant.mpesaCode}</Typography>
                       )}
-                      <Typography variant="body2">
-                        <strong>Date:</strong> {formatDate(selectedTenant.completedAt || selectedTenant.createdAt)}
-                      </Typography>
                     </Box>
                   </Box>
                 )}
                 
-                {/* Action Buttons */}
                 <Box sx={{ mt: 3, display: 'flex', gap: 1 }}>
-                  {(tenantDetails?.phone || tenantDetails?.phoneNumber) && (
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<PhoneIcon />}
-                      onClick={() => window.open(`tel:${tenantDetails.phone || tenantDetails.phoneNumber}`)}
-                    >
+                  {tenantDetails?.phone && (
+                    <Button variant="outlined" fullWidth startIcon={<PhoneIcon />} onClick={() => window.open(`tel:${tenantDetails.phone}`)}>
                       Call Tenant
                     </Button>
                   )}
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    onClick={handleCloseModal}
-                  >
+                  <Button variant="contained" fullWidth onClick={handleCloseModal}>
                     Close
                   </Button>
                 </Box>
@@ -981,20 +914,15 @@ const PaymentPage = () => {
         </Box>
       </Modal>
 
-      {/* Live Update Indicator */}
+      {/* Performance Indicator */}
       <Box sx={{ mt: 2, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          ⚡ Live updates enabled • Last updated: {new Date().toLocaleTimeString()}
+          ⚡ Live updates • {filteredPayments.length} payments loaded
         </Typography>
       </Box>
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
         <Alert onClose={handleCloseSnackbar} severity={snackbar.severity}>
           {snackbar.message}
         </Alert>
