@@ -7,7 +7,10 @@ import {
   updateDoc,
   collection,
   getDocs,
-  Timestamp
+  Timestamp,
+  addDoc,
+  deleteDoc,
+  serverTimestamp
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import { uploadMultipleImages } from "../services/cloudinary"; // Import Cloudinary service
@@ -510,12 +513,153 @@ const EditProperty = () => {
       await updateDoc(propertyRef, propertyData);
 
       // 2. Propagate changes to Units Subcollection
-      // Fetch all units first
+      // Fetch all units first to verify count and update details
       const unitsRef = collection(db, `properties/${id}/units`);
       const unitsSnapshot = await getDocs(unitsRef);
+      const currentActualUnits = unitsSnapshot.size;
+      const targetUnits = Number(form.units);
+
+      console.log(`Syncing units: Current=${currentActualUnits}, Target=${targetUnits}`);
+
+      // --- HANDLE UNIT ADDITION/REMOVAL ---
+      if (targetUnits > currentActualUnits) {
+        // ADD NEW UNITS
+        const unitsToAdd = targetUnits - currentActualUnits;
+        const propertyPrefix = form.name
+          ? form.name.replace(/\s+/g, '').substring(0, 3).toUpperCase()
+          : 'APT';
+
+        let baseRent = 0;
+        switch (form.propertyType) {
+          case 'single': baseRent = parseFloat(form.pricing.single) || 0; break;
+          case 'bedsitter': baseRent = parseFloat(form.pricing.bedsitter) || 0; break;
+          case 'one-bedroom': baseRent = parseFloat(form.pricing.oneBedroom) || 0; break;
+          case 'two-bedroom': baseRent = parseFloat(form.pricing.twoBedroom) || 0; break;
+          case 'three-bedroom': baseRent = parseFloat(form.pricing.threeBedroom) || 0; break;
+          default: baseRent = parseFloat(form.rentAmount) || 0;
+        }
+
+        const addPromises = [];
+        for (let i = 1; i <= unitsToAdd; i++) {
+          const newUnitNum = currentActualUnits + i;
+          const unitNumber = newUnitNum.toString().padStart(3, '0');
+
+          // Determine specs for mixed type
+          let unitBedrooms = Number(form.bedrooms);
+          let unitBathrooms = Number(form.bathrooms);
+          let unitRent = baseRent;
+
+          if (form.propertyType === "one-two-bedroom") {
+            const isOneBedroom = newUnitNum % 2 === 1;
+            unitBedrooms = isOneBedroom ? 1 : 2;
+            unitBathrooms = isOneBedroom ? 1 : 2;
+            unitRent = isOneBedroom ?
+              (parseFloat(form.pricing.oneBedroom) || 0) :
+              (parseFloat(form.pricing.twoBedroom) || 0);
+          } else {
+            // For regular types, rely on property settings
+            // (already grabbed from form)
+          }
+
+          const newUnitData = {
+            unitId: `${propertyPrefix}-${unitNumber}`,
+            unitNumber: unitNumber,
+            unitName: `${form.name} - Unit ${unitNumber}`,
+            propertyId: id,
+            propertyName: form.name,
+            propertyAddress: form.address,
+            propertyType: form.propertyType,
+
+            // Specs
+            bedrooms: unitBedrooms,
+            bathrooms: unitBathrooms,
+            size: form.size || "",
+            amenities: form.amenities,
+            images: unitImages.length > 0 ? unitImages.map(img => img.url) : (form.images || []),
+
+            // Financials
+            rentAmount: unitRent,
+            applicationFee: propertyData.applicationFee,
+            securityDeposit: propertyData.securityDeposit,
+            petDeposit: propertyData.petDeposit,
+            leaseTerm: propertyData.leaseTerm,
+            noticePeriod: propertyData.noticePeriod,
+            latePaymentFee: propertyData.latePaymentFee,
+            gracePeriod: propertyData.gracePeriod,
+            feeDetails: propertyData.feeDetails,
+
+            // Status
+            status: "vacant",
+            isAvailable: true,
+            isActive: true,
+
+            // Empty Tenant Fields
+            tenantId: null,
+            tenantName: "",
+            tenantPhone: "",
+            tenantEmail: "",
+
+            maintenanceRequests: 0,
+            createdAt: serverTimestamp(), // Need to import this
+            updatedAt: serverTimestamp(),
+            unitOrder: newUnitNum,
+
+            searchKeywords: [
+              form.name.toLowerCase(),
+              `unit ${unitNumber}`.toLowerCase(),
+              "vacant"
+            ]
+          };
+
+          addPromises.push(addDoc(unitsRef, newUnitData)); // Need to import addDoc
+        }
+        await Promise.all(addPromises);
+        console.log(`Added ${unitsToAdd} new units.`);
+
+      } else if (targetUnits < currentActualUnits) {
+        // REMOVE UNITS (Latest first)
+        const unitsToRemove = currentActualUnits - targetUnits;
+
+        // Sort units by unitNumber descending to find the last created ones
+        const sortedUnits = unitsSnapshot.docs.sort((a, b) => {
+          const numA = parseInt(a.data().unitNumber) || 0;
+          const numB = parseInt(b.data().unitNumber) || 0;
+          return numB - numA;
+        });
+
+        const unitsToDelete = sortedUnits.slice(0, unitsToRemove);
+
+        // Check for occupancy
+        const occupiedUnits = unitsToDelete.filter(doc => {
+          const d = doc.data();
+          return d.status !== 'vacant' || d.tenantId;
+        });
+
+        if (occupiedUnits.length > 0) {
+          throw new Error(`Cannot reduce units to ${targetUnits}. The following high-numbered units are occupied: ${occupiedUnits.map(d => d.data().unitName).join(', ')}. Please vacant them or move tenants first.`);
+        }
+
+        const deletePromises = unitsToDelete.map(doc => deleteDoc(doc.ref)); // Need deleteDoc
+        await Promise.all(deletePromises);
+        console.log(`Removed ${unitsToRemove} vacant units.`);
+      }
+
+      // --- END UNIT SYNC ---
+
+      // Re-fetch units if we changed them, to ensure updates apply to all (including new ones if any, though new ones have latest data already)
+      // Actually, we can just update the *remaining* units from the original snapshot + the *new* ones are already correct.
+      // But for simplicity, let's just proceed to update the *originally existing* units that weren't deleted.
+      // If we added units, they are already up to date. If we deleted, they are gone.
+      // We only need to update the *surviving* units from the original snapshot.
 
       if (!unitsSnapshot.empty) {
         const batchUpdates = unitsSnapshot.docs.map(async (unitDoc) => {
+          // Skip if this doc was just deleted
+          if (targetUnits < currentActualUnits) {
+            const unitNum = parseInt(unitDoc.data().unitNumber);
+            if (unitNum > targetUnits) return; // This was deleted
+          }
+
           const unit = unitDoc.data();
           const unitRef = doc(db, `properties/${id}/units`, unitDoc.id);
 
@@ -534,7 +678,8 @@ const EditProperty = () => {
             propertyType: propertyData.propertyType,
             updatedAt: new Date().toISOString(),
             rentAmount: numPrice,
-            deposit: propertyData.securityDeposit
+            // Don't overwrite deposit if it was custom, but here we enforce property default for consistency or check logic
+            // The original code reset it: deposit: propertyData.securityDeposit
           };
 
           // NEW: Update unit images if provided
@@ -546,7 +691,7 @@ const EditProperty = () => {
         });
 
         await Promise.all(batchUpdates);
-        console.log(`Updated ${unitsSnapshot.size} units with property changes`);
+        console.log(`Updated existing units with property changes`);
       }
 
       alert("✅ Property and associated units updated successfully!");
