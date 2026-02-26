@@ -13,48 +13,58 @@ const PropertyStatusChart = () => {
   const fetchLiveData = async () => {
     try {
       setLoading(true);
+      // Fetch all maintenance requests
+      const maintenanceSnapshot = await getDocs(collection(db, "maintenance"));
+      let maintenanceRequestCount = 0;
+      maintenanceSnapshot.forEach(doc => {
+        const req = doc.data();
+        // Count only pending, in-progress, or on-hold
+        if (["pending", "in-progress", "on-hold"].includes((req.status || "").toLowerCase())) {
+          maintenanceRequestCount++;
+        }
+      });
+
+      // Fetch all units for total, leased, and maintenance
       const propertiesSnapshot = await getDocs(collection(db, "properties"));
       let totalUnits = 0;
       let leasedCount = 0;
-      let maintenanceCount = 0;
-      
+      let unitMaintenanceCount = 0;
       for (const prop of propertiesSnapshot.docs) {
         const units = await getDocs(collection(db, `properties/${prop.id}/units`));
         totalUnits += units.size;
-        
+        let leasedInThisProperty = 0;
+        let maintenanceInThisProperty = 0;
         units.forEach(u => {
           const unitData = u.data();
           const status = (unitData.status || 'vacant').toLowerCase();
-          
-          const isUnderMaintenance = status === 'maintenance' || status === 'repair';
           const isLeased = status === 'leased' || status === 'occupied' || status === 'rented';
-          
+          const isUnderMaintenance = status === 'maintenance' || status === 'repair';
+          if (isLeased) {
+            leasedInThisProperty++;
+          }
           if (isUnderMaintenance) {
-            maintenanceCount++;
-            if (isLeased || unitData.tenantId || unitData.leaseStatus === 'active') {
-              leasedCount++;  // Leased unit under maintenance
-            }
-          } else if (isLeased) {
-            leasedCount++;  // Regular leased unit
+            maintenanceInThisProperty++;
           }
         });
+        leasedCount += leasedInThisProperty;
+        unitMaintenanceCount += maintenanceInThisProperty;
       }
-      
-      // Vacant = Total - Leased (includes vacant units under maintenance)
       const vacantCount = Math.max(0, totalUnits - leasedCount);
-      
+
+      // Maintenance = units under maintenance + maintenance requests
+      const maintenanceCount = unitMaintenanceCount + maintenanceRequestCount;
+
       setData([
         { name: "Leased", value: leasedCount, color: "#4361ee" },
         { name: "Vacant", value: vacantCount, color: "#4cc9f0" },
         { name: "Maint", value: maintenanceCount, color: "#f72585" },
       ].filter(d => d.value > 0));
-      
       setTotal(totalUnits);
       setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    } catch (e) { 
-      console.error(e); 
-    } finally { 
-      setLoading(false); 
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 
