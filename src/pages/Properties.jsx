@@ -267,6 +267,16 @@ const Properties = () => {
       const querySnapshot = await getDocs(collection(db, "properties"));
       const propertiesData = [];
 
+      // Fetch all active tenants once
+      const tenantsSnapshot = await getDocs(collection(db, "tenants"));
+      const activeTenants = [];
+      tenantsSnapshot.forEach(doc => {
+        const tenant = doc.data();
+        if ((tenant.status || '').toLowerCase() === 'active' && tenant.unitId && tenant.propertyId) {
+          activeTenants.push({ unitId: tenant.unitId, propertyId: tenant.propertyId });
+        }
+      });
+
       for (const docItem of querySnapshot.docs) {
         const data = docItem.data();
         const propertyId = docItem.id;
@@ -276,40 +286,42 @@ const Properties = () => {
           const unitsRef = collection(db, `properties/${propertyId}/units`);
           const unitsSnapshot = await getDocs(unitsRef);
 
-          // Calculate counts with FIXED logic
-          const {
-            totalUnits,
-            vacantCount,
-            leasedCount,
-            maintenanceCount,
-            leasedUnderMaintenance,
-            vacantUnderMaintenance
-          } = calculateUnitCountsFromSubcollection(unitsSnapshot);
+          // Build all units for this property
+          let allUnits = [];
+          let unitMaintenanceCount = 0;
+          unitsSnapshot.forEach(unitDoc => {
+            const unitData = unitDoc.data();
+            const status = (unitData.status || 'vacant').toLowerCase();
+            const isUnderMaintenance = status === 'maintenance' || status === 'repair';
+            if (isUnderMaintenance) unitMaintenanceCount++;
+            allUnits.push({ id: unitDoc.id, ...unitData });
+          });
 
-          // Debug logging
-          console.log(`Property: ${data.name || propertyId}`);
-          console.log(`  Total Units: ${totalUnits}`);
-          console.log(`  Leased: ${leasedCount} (${leasedUnderMaintenance} under maintenance)`);
-          console.log(`  Vacant: ${vacantCount} (${vacantUnderMaintenance} under maintenance)`);
-          console.log(`  TOTAL Under Maintenance: ${maintenanceCount}`);
+          // Leased count = units with a matching active tenant
+          const leasedUnitSet = new Set(
+            activeTenants
+              .filter(t => t.propertyId === propertyId)
+              .map(t => t.unitId)
+          );
+          const leasedCount = allUnits.filter(u => leasedUnitSet.has(u.id)).length;
+          const totalUnits = allUnits.length;
+          const vacantCount = Math.max(0, totalUnits - leasedCount);
+          const maintenanceCount = unitMaintenanceCount;
 
-          // Create normalized unit details
-          const unitDetails = data.unitDetails || {};
-
+          // TODO: If you want to break down leasedUnderMaintenance/vacantUnderMaintenance, add logic here
           const normalizedUnitDetails = {
             totalUnits: totalUnits,
-            vacantCount: vacantCount,  // Total - Leased
-            leasedCount: leasedCount,  // Includes leased under maintenance
-            maintenanceCount: maintenanceCount,  // TOTAL maintenance
-            leasedUnderMaintenance: leasedUnderMaintenance,
-            vacantUnderMaintenance: vacantUnderMaintenance,
+            vacantCount: vacantCount,
+            leasedCount: leasedCount,
+            maintenanceCount: maintenanceCount,
+            leasedUnderMaintenance: 0, // Optional: add logic if needed
+            vacantUnderMaintenance: 0, // Optional: add logic if needed
             occupancyRate: totalUnits > 0 ? Math.round((leasedCount / totalUnits) * 100) : 0,
-            units: unitDetails.units || []
+            units: []
           };
 
           // Determine overall property status
           let overallStatus = data.status || 'available';
-
           if (leasedCount === totalUnits) {
             overallStatus = 'leased';
           } else if (leasedCount === 0) {

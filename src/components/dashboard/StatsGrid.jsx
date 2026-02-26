@@ -90,54 +90,58 @@ const StatsGrid = () => {
 
   const fetchStats = async () => {
     try {
+
       setLoading(true);
 
       // 1. Fetch Properties (for property-based stats)
       const propertiesSnapshot = await getDocs(collection(db, "properties"));
       const properties = [];
-
       let totalUnits = 0;
-      let occupiedUnits = 0;
-      // We no longer calculate revenue from properties
+      let allUnits = [];
+      propertiesSnapshot.forEach((doc) => {
+        const property = { ...doc.data(), id: doc.id };
+        properties.push(property);
+        const unitsCount = property.units || property.unitDetails?.totalUnits || 0;
+        totalUnits += unitsCount;
+        // We'll fetch actual units below
+      });
 
+      // Fetch all units for all properties
+      for (const property of properties) {
+        const propertyId = property.id || property.propertyId;
+        if (!propertyId) continue;
+        const unitsRef = collection(db, `properties/${propertyId}/units`);
+        const unitsSnapshot = await getDocs(unitsRef);
+        unitsSnapshot.forEach(unitDoc => {
+          allUnits.push({
+            id: unitDoc.id,
+            propertyId: propertyId,
+            ...unitDoc.data()
+          });
+        });
+      }
+
+      // Fetch total active maintenance (units + requests)
       const totalActiveMaintenance = await fetchTotalActiveMaintenance();
 
-      propertiesSnapshot.forEach((doc) => {
-        const property = doc.data();
-        properties.push(property);
 
-        totalUnits += property.units || 0;
-
-        if (property.leasedCount !== undefined) {
-          occupiedUnits += property.leasedCount;
-        } else if (property.unitDetails?.leasedCount !== undefined) {
-          occupiedUnits += property.unitDetails.leasedCount;
-        } else if (property.occupiedUnits !== undefined) {
-          occupiedUnits += property.occupiedUnits;
-        } else if (property.occupied !== undefined) {
-          occupiedUnits += property.occupied;
-        } else if (property.leasedUnits !== undefined) {
-          occupiedUnits += property.leasedUnits;
-        } else {
-          occupiedUnits += property.status === "leased" ? property.units || 0 : 0;
-        }
-      });
-
-      // 2. Fetch Active Tenants (for monthly revenue)
-      // This ensures we only count actual, active rental income
+      // Fetch all active tenants (for both leased units and monthly revenue)
       const tenantsRef = collection(db, "tenants");
-      // We can't use simple query here easily if we want to be safe about case sensitivity, 
-      // but 'active' is standard. Let's fetch all and filter to be safe, or use query.
-      // Using query is better for performance.
       const q = query(tenantsRef, where("status", "==", "active"));
       const tenantsSnapshot = await getDocs(q);
-
+      const activeTenants = [];
       let monthlyRevenue = 0;
-      tenantsSnapshot.forEach((doc) => {
+      tenantsSnapshot.forEach(doc => {
         const tenant = doc.data();
-        // Sum up monthly rent
+        if (tenant.unitId && tenant.propertyId) {
+          activeTenants.push({ unitId: tenant.unitId, propertyId: tenant.propertyId });
+        }
         monthlyRevenue += (parseFloat(tenant.monthlyRent) || 0);
       });
+
+      // Occupied units = units with a matching active tenant
+      const leasedUnitSet = new Set(activeTenants.map(t => `${t.propertyId}__${t.unitId}`));
+      const occupiedUnits = allUnits.filter(u => leasedUnitSet.has(`${u.propertyId}__${u.id}`)).length;
 
       const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 

@@ -24,33 +24,43 @@ const PropertyStatusChart = () => {
         }
       });
 
-      // Fetch all units for total, leased, and maintenance
+      // Fetch all units for total and maintenance
       const propertiesSnapshot = await getDocs(collection(db, "properties"));
       let totalUnits = 0;
-      let leasedCount = 0;
       let unitMaintenanceCount = 0;
+      let allUnits = [];
       for (const prop of propertiesSnapshot.docs) {
         const units = await getDocs(collection(db, `properties/${prop.id}/units`));
         totalUnits += units.size;
-        let leasedInThisProperty = 0;
-        let maintenanceInThisProperty = 0;
         units.forEach(u => {
           const unitData = u.data();
           const status = (unitData.status || 'vacant').toLowerCase();
-          const isLeased = status === 'leased' || status === 'occupied' || status === 'rented';
           const isUnderMaintenance = status === 'maintenance' || status === 'repair';
-          if (isLeased) {
-            leasedInThisProperty++;
-          }
           if (isUnderMaintenance) {
-            maintenanceInThisProperty++;
+            unitMaintenanceCount++;
           }
+          allUnits.push({
+            id: u.id,
+            propertyId: prop.id,
+            ...unitData
+          });
         });
-        leasedCount += leasedInThisProperty;
-        unitMaintenanceCount += maintenanceInThisProperty;
       }
-      const vacantCount = Math.max(0, totalUnits - leasedCount);
 
+      // Fetch all active tenants
+      const tenantsSnapshot = await getDocs(collection(db, "tenants"));
+      const activeTenants = [];
+      tenantsSnapshot.forEach(doc => {
+        const tenant = doc.data();
+        if ((tenant.status || '').toLowerCase() === 'active' && tenant.unitId && tenant.propertyId) {
+          activeTenants.push({ unitId: tenant.unitId, propertyId: tenant.propertyId });
+        }
+      });
+
+      // Count leased units as units that have an active tenant
+      const leasedUnitSet = new Set(activeTenants.map(t => `${t.propertyId}__${t.unitId}`));
+      const leasedCount = allUnits.filter(u => leasedUnitSet.has(`${u.propertyId}__${u.id}`)).length;
+      const vacantCount = Math.max(0, totalUnits - leasedCount);
       // Maintenance = units under maintenance + maintenance requests
       const maintenanceCount = unitMaintenanceCount + maintenanceRequestCount;
 
