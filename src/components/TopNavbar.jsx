@@ -27,7 +27,7 @@ const TopNavbar = () => {
     const user = auth.currentUser;
     if (!user) return;
 
-    const unsubscribe = listenForNotifications(user.uid, (notifs) => {
+    const unsubscribe = listenForNotifications("admin", (notifs) => {
       setNotifications(notifs);
       const unread = notifs.filter(n => !n.read).length;
       setUnreadCount(unread);
@@ -190,7 +190,7 @@ const TopNavbar = () => {
     const user = auth.currentUser;
     if (!user) return;
     
-    await markAllAsRead(user.uid);
+    await markAllAsRead("admin");
     const updatedNotifications = notifications.map(n => ({ ...n, read: true }));
     setNotifications(updatedNotifications);
     setUnreadCount(0);

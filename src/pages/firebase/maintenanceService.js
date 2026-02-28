@@ -11,7 +11,8 @@ import {
   where,
   orderBy,
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from './firebase'; // Import auth too
@@ -108,6 +109,27 @@ export const submitMaintenanceRequest = async (requestData) => {
     };
 
     const docRef = await addDoc(collection(db, 'maintenance'), request);
+
+    // Create a notification for the admin
+    const notification = {
+      type: 'maintenance_request',
+      title: 'New Maintenance Request',
+      message: `[${requestData.propertyName || 'Property'} - ${requestData.unitName || 'Unit'}] ${role.charAt(0).toUpperCase() + role.slice(1)} reported: ${requestData.title || requestData.description || "an issue"}`,
+      recipientId: "admin",
+      recipientType: "admin",
+      read: false,
+      priority: requestData.priority === "high" || requestData.priority === "emergency" ? "high" : "medium",
+      metadata: {
+        requestId: docRef.id,
+        propertyId: requestData.propertyId,
+        unitId: requestData.unitId,
+        issue: requestData.title || requestData.description,
+      },
+      createdAt: Timestamp.now(),
+      expiresAt: Timestamp.fromDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)) // 14 days
+    };
+    await addDoc(collection(db, 'notifications'), notification);
+
     return { id: docRef.id, ...request };
   } catch (error) {
     console.error('Error submitting request:', error);

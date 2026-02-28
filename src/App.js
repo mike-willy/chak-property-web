@@ -12,8 +12,8 @@ import Properties from "./pages/Properties";
 import AddProperty from "./pages/AddProperty";
 import Tenants from "./pages/Tenants";
 import Landlords from "./pages/Landlords";
-import AddLandlord from "./pages/AddLandlord"; 
-import Messages from "./pages/Messages"; 
+import AddLandlord from "./pages/AddLandlord";
+import Messages from "./pages/Messages";
 import Maintenance from "./pages/Maintenance";
 import Finance from "./pages/Finance";
 import Settings from "./pages/Settings";
@@ -27,12 +27,15 @@ import EditLandlord from "./pages/EditLandlord";
 import Units from "./pages/Units";
 import AssignTenant from "./pages/AssignTenant";
 import ApprovedTenants from './pages/ApprovedTenants';
-import AllActivities from './pages/AllActivities'; 
+import AllActivities from './pages/AllActivities';
 import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard';
 import AnalyticsTest from './components/analytics/AnalyticsTest';
 
 // NEW: Import SearchResultsPage
 import SearchResultsPage from "./pages/SearchResultsPage";
+
+// NEW: Import Notifications Page
+import Notifications from "./pages/Notifications";
 
 // Wrapper component for admin pages with layout
 const AdminPage = ({ children }) => {
@@ -253,6 +256,16 @@ function App() {
         element={
           <AdminPage>
             <Support />
+          </AdminPage>
+        }
+      />
+
+      {/* NEW ROUTE: Notifications Page */}
+      <Route
+        path="/notifications"
+        element={
+          <AdminPage>
+            <Notifications />
           </AdminPage>
         }
       />

@@ -1,10 +1,10 @@
 // services/notificationService.js
 import { db } from "../pages/firebase/firebase";
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
+import {
+  collection,
+  addDoc,
+  query,
+  where,
   orderBy,
   onSnapshot,
   updateDoc,
@@ -23,7 +23,8 @@ export const NOTIFICATION_TYPES = {
   SYSTEM_ALERT: "system_alert",
   TENANT_MESSAGE: "tenant_message",
   INVOICE_DUE: "invoice_due",
-  PROPERTY_ALERT: "property_alert"
+  PROPERTY_ALERT: "property_alert",
+  LANDLORD_MESSAGE: "landlord_message"
 };
 
 // Priority levels
@@ -139,7 +140,7 @@ export const createPaymentNotification = async (paymentData) => {
 export const createLeaseExpiryNotification = async (leaseData) => {
   try {
     const daysRemaining = leaseData.daysRemaining || 7;
-    
+
     const notification = {
       type: NOTIFICATION_TYPES.LEASE_EXPIRY,
       title: "Lease Expiring Soon",
@@ -167,6 +168,37 @@ export const createLeaseExpiryNotification = async (leaseData) => {
   }
 };
 
+/**
+ * Create a landlord message notification
+ */
+export const createLandlordMessageNotification = async (messageData) => {
+  try {
+    const notification = {
+      type: NOTIFICATION_TYPES.LANDLORD_MESSAGE,
+      title: "New Message from Landlord",
+      message: `${messageData.landlordName || "Landlord"}: ${messageData.subject || "Sent a message"}`,
+      recipientId: "admin",
+      recipientType: "admin",
+      read: false,
+      priority: PRIORITY_LEVELS.MEDIUM,
+      metadata: {
+        messageId: messageData.id,
+        landlordId: messageData.landlordId,
+        landlordName: messageData.landlordName,
+        subject: messageData.subject
+      },
+      createdAt: Timestamp.now(),
+      expiresAt: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // 30 days
+    };
+
+    const docRef = await addDoc(collection(db, "notifications"), notification);
+    return { success: true, id: docRef.id };
+  } catch (error) {
+    console.error("Error creating landlord message notification:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 // ====================
 // NOTIFICATION QUERIES
 // ====================
@@ -177,7 +209,7 @@ export const createLeaseExpiryNotification = async (leaseData) => {
 export const listenForNotifications = (userId, callback) => {
   if (!userId) {
     console.error("No user ID provided for notification listener");
-    return () => {};
+    return () => { };
   }
 
   const q = query(
@@ -213,7 +245,7 @@ export const getUnreadCount = async (userId) => {
       where("recipientId", "==", userId),
       where("read", "==", false)
     );
-    
+
     const snapshot = await getDocs(q);
     return snapshot.size;
   } catch (error) {
@@ -248,15 +280,15 @@ export const markAllAsRead = async (userId) => {
       where("recipientId", "==", userId),
       where("read", "==", false)
     );
-    
+
     const snapshot = await getDocs(q);
-    const updates = snapshot.docs.map(docSnapshot => 
+    const updates = snapshot.docs.map(docSnapshot =>
       updateDoc(doc(db, "notifications", docSnapshot.id), {
         read: true,
         readAt: Timestamp.now()
       })
     );
-    
+
     await Promise.all(updates);
     return { success: true, count: snapshot.size };
   } catch (error) {
@@ -274,12 +306,12 @@ export const deleteExpiredNotifications = async () => {
       collection(db, "notifications"),
       where("expiresAt", "<", Timestamp.now())
     );
-    
+
     const snapshot = await getDocs(q);
-    const deletions = snapshot.docs.map(docSnapshot => 
+    const deletions = snapshot.docs.map(docSnapshot =>
       deleteDoc(doc(db, "notifications", docSnapshot.id))
     );
-    
+
     await Promise.all(deletions);
     return { success: true, deleted: snapshot.size };
   } catch (error) {

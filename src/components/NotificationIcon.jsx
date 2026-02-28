@@ -1,12 +1,12 @@
 import React from "react";
-import { 
+import {
   FaUserPlus, FaWrench, FaMoneyBill, FaFileContract,
-  FaExclamationTriangle, FaEnvelope, FaBell, FaReceipt, FaHome
+  FaExclamationTriangle, FaEnvelope, FaBell, FaReceipt, FaHome, FaUserTie
 } from "react-icons/fa";
 
 const NotificationIcon = ({ type, size = 20 }) => {
   const iconProps = { size };
-  
+
   switch (type) {
     case "tenant_application":
       return <FaUserPlus {...iconProps} style={{ color: "#3b82f6" }} />;
@@ -24,6 +24,8 @@ const NotificationIcon = ({ type, size = 20 }) => {
       return <FaReceipt {...iconProps} style={{ color: "#f97316" }} />;
     case "property_alert":
       return <FaHome {...iconProps} style={{ color: "#06b6d4" }} />;
+    case "landlord_message":
+      return <FaUserTie {...iconProps} style={{ color: "#2196F3" }} />;
     default:
       return <FaBell {...iconProps} style={{ color: "#6b7280" }} />;
   }
