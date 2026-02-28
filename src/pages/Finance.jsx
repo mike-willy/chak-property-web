@@ -6,7 +6,7 @@ import {
   IconButton, Select, MenuItem, FormControl,
   InputLabel, Grid, Card, CardContent,
   CircularProgress, Alert, Snackbar,
-  Modal, Avatar, List, ListItem, 
+  Modal, Avatar, List, ListItem,
   ListItemText, ListItemIcon, Divider
 } from '@mui/material';
 import {
@@ -22,11 +22,11 @@ import {
   CalendarToday as CalendarIcon,
   AccountCircle as AccountIcon
 } from '@mui/icons-material';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  onSnapshot, 
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
   Timestamp,
   where,
   getDocs,
@@ -35,6 +35,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { db } from '../pages/firebase/firebase';
+import MpesaPaymentModal from '../components/payment/MpesaPaymentModal';
 import '../styles/paymentPage.css';
 
 const PaymentPage = () => {
@@ -52,16 +53,17 @@ const PaymentPage = () => {
     totalPayments: 0
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-  
+
   // Tenant Modal State
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantDetails, setTenantDetails] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [mpesaModalOpen, setMpesaModalOpen] = useState(false);
   const [loadingTenant, setLoadingTenant] = useState(false);
-  
+
   // Cache for tenant names to avoid repeated lookups
   const [tenantNameCache, setTenantNameCache] = useState({});
-  
+
   // Refs to prevent infinite loops
   const initialLoadDone = useRef(false);
   const paymentsRef = useRef(payments);
@@ -75,28 +77,28 @@ const PaymentPage = () => {
   // OPTIMIZATION 1: Batch fetch tenant names
   const batchFetchTenantNames = useCallback(async (tenantIds) => {
     if (tenantIds.length === 0) return;
-    
+
     const newCache = { ...tenantNameCache };
     const uniqueIds = [...new Set(tenantIds)].filter(id => !tenantNameCache[id]);
-    
+
     if (uniqueIds.length === 0) return;
-    
+
     try {
       // Fetch in batches of 10
       const batchSize = 10;
       for (let i = 0; i < uniqueIds.length; i += batchSize) {
         const batch = uniqueIds.slice(i, i + batchSize);
-        
+
         // Create a query to get multiple tenants at once
         const tenantsRef = collection(db, 'tenants');
         const q = query(tenantsRef, where('__name__', 'in', batch));
         const querySnapshot = await getDocs(q);
-        
+
         querySnapshot.forEach(doc => {
           const tenantData = doc.data();
           newCache[doc.id] = tenantData.fullName || tenantData.name || 'Unknown Tenant';
         });
-        
+
         // For IDs not found, mark as unknown
         batch.forEach(id => {
           if (!newCache[id]) {
@@ -104,9 +106,9 @@ const PaymentPage = () => {
           }
         });
       }
-      
+
       setTenantNameCache(newCache);
-      
+
       // Update payments with new names
       setPayments(prev => prev.map(payment => {
         if (payment.tenantId && newCache[payment.tenantId] && !payment.tenantName) {
@@ -117,7 +119,7 @@ const PaymentPage = () => {
         }
         return payment;
       }));
-      
+
     } catch (error) {
       console.error('Error batch fetching tenants:', error);
     }
@@ -128,27 +130,27 @@ const PaymentPage = () => {
     const tenantIds = payments
       .filter(p => p.tenantId && !p.tenantName && !tenantNameCache[p.tenantId])
       .map(p => p.tenantId);
-    
+
     if (tenantIds.length === 0) return;
-    
+
     const timer = setTimeout(() => {
       batchFetchTenantNames(tenantIds);
     }, 500);
-    
+
     return () => clearTimeout(timer);
   }, [payments, tenantNameCache, batchFetchTenantNames]);
 
   // OPTIMIZATION 3: Initial load with real-time listener
   useEffect(() => {
     if (initialLoadDone.current) return;
-    
+
     let unsubscribe;
-    
+
     const setupListener = async () => {
       try {
         const paymentsRef = collection(db, 'payments');
         const q = query(paymentsRef, orderBy('createdAt', 'desc'));
-        
+
         unsubscribe = onSnapshot(q, (snapshot) => {
           const paymentsData = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -160,11 +162,11 @@ const PaymentPage = () => {
               transactionDate: data.transactionDate?.toDate ? data.transactionDate.toDate() : (data.transactionDate ? new Date(data.transactionDate) : null)
             };
           });
-          
+
           setPayments(paymentsData);
           setLoading(false);
           initialLoadDone.current = true;
-          
+
         }, (error) => {
           console.error('Firebase listener error:', error);
           setSnackbar({
@@ -181,9 +183,9 @@ const PaymentPage = () => {
         initialLoadDone.current = true;
       }
     };
-    
+
     setupListener();
-    
+
     return () => {
       if (unsubscribe) {
         unsubscribe();
@@ -195,7 +197,7 @@ const PaymentPage = () => {
   useEffect(() => {
     const statsRef = collection(db, 'adminStats');
     const statsQuery = query(statsRef, where('id', '==', 'dashboard'));
-    
+
     const unsubscribeStats = onSnapshot(statsQuery, (snapshot) => {
       if (!snapshot.empty) {
         const statsData = snapshot.docs[0].data();
@@ -207,18 +209,18 @@ const PaymentPage = () => {
         });
       }
     });
-    
+
     return () => unsubscribeStats();
   }, []);
 
   // OPTIMIZATION 5: Update statistics when payments change
   useEffect(() => {
     if (payments.length === 0) return;
-    
+
     const completedAmount = payments
       .filter(p => p.status === 'completed')
       .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
-    
+
     const pendingCount = payments.filter(p => p.status === 'pending').length;
     const completedCount = payments.filter(p => p.status === 'completed').length;
     const totalCount = payments.length;
@@ -235,7 +237,7 @@ const PaymentPage = () => {
   // OPTIMIZATION 6: Debounced filter function
   const applyFilters = useCallback(() => {
     if (!paymentsRef.current.length) return;
-    
+
     let filtered = [...paymentsRef.current];
 
     if (searchTerm) {
@@ -267,11 +269,11 @@ const PaymentPage = () => {
     if (filterTimeoutRef.current) {
       clearTimeout(filterTimeoutRef.current);
     }
-    
+
     filterTimeoutRef.current = setTimeout(() => {
       applyFilters();
     }, 300);
-    
+
     return () => {
       if (filterTimeoutRef.current) {
         clearTimeout(filterTimeoutRef.current);
@@ -282,17 +284,17 @@ const PaymentPage = () => {
   // OPTIMIZATION 8: Fetch tenant details
   const fetchTenantDetails = useCallback(async (tenantId) => {
     if (!tenantId) return null;
-    
+
     try {
       setLoadingTenant(true);
-      
+
       const tenantRef = doc(db, 'tenants', tenantId);
       const tenantSnap = await getDoc(tenantRef);
-      
+
       if (tenantSnap.exists()) {
         const data = tenantSnap.data();
-        return { 
-          id: tenantSnap.id, 
+        return {
+          id: tenantSnap.id,
           ...data,
           name: data.fullName || data.name || 'Unknown Tenant',
           phone: data.phone || data.phoneNumber || 'Not provided',
@@ -314,18 +316,18 @@ const PaymentPage = () => {
   // OPTIMIZATION 9: View tenant handler
   const handleViewTenantDetails = useCallback(async (payment) => {
     setSelectedTenant(payment);
-    
+
     const tenantName = payment.tenantName || tenantNameCache[payment.tenantId] || 'Loading...';
-    
+
     setTenantDetails({
       name: tenantName,
       phone: payment.phoneNumber || 'Not provided',
       unit: payment.unitNumber || payment.propertyId || 'Not specified',
       id: payment.tenantId || 'N/A'
     });
-    
+
     setModalOpen(true);
-    
+
     if (payment.tenantId) {
       const fullDetails = await fetchTenantDetails(payment.tenantId);
       if (fullDetails) {
@@ -379,9 +381,9 @@ const PaymentPage = () => {
     } else if (typeof date === 'string') {
       date = new Date(date);
     }
-    
+
     if (isNaN(date.getTime())) return 'Invalid Date';
-    
+
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -393,22 +395,22 @@ const PaymentPage = () => {
 
   const getDisplayMonth = useCallback((payment) => {
     if (payment.month) return payment.month;
-    
+
     const paymentDate = payment.createdAt;
     if (!paymentDate) return 'Not specified';
-    
+
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
     let dateObj = paymentDate;
     if (dateObj instanceof Timestamp) {
       dateObj = dateObj.toDate();
     } else if (typeof dateObj === 'string') {
       dateObj = new Date(dateObj);
     }
-    
+
     if (isNaN(dateObj.getTime())) return 'Invalid date';
-    
+
     return `${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
   }, []);
 
@@ -427,7 +429,7 @@ const PaymentPage = () => {
         p.phoneNumber?.replace('254', '0') || 'N/A'
       ].join(',');
     });
-    
+
     const csv = [headers.join(','), ...csvData].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -437,7 +439,7 @@ const PaymentPage = () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    
+
     setSnackbar({
       open: true,
       message: `Exported ${filteredPayments.length} payments`,
@@ -450,8 +452,8 @@ const PaymentPage = () => {
       .map(p => getDisplayMonth(p))
       .filter(Boolean)
       .sort((a, b) => {
-        const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthA = a.split(' ')[0];
         const monthB = b.split(' ')[0];
         return monthsOrder.indexOf(monthA) - monthsOrder.indexOf(monthB);
@@ -461,8 +463,8 @@ const PaymentPage = () => {
 
   const handleCloseModal = useCallback(() => {
     setModalOpen(false);
-    setSelectedTenant(null);
-    setTenantDetails(null);
+    // Don't clear selectedTenant immediately here, as MpesaPaymentModal relies on it.
+    // It will be replaced when a new tenant is clicked.
   }, []);
 
   const handleCloseSnackbar = useCallback(() => {
@@ -478,10 +480,10 @@ const PaymentPage = () => {
             <PaymentIcon className="header-icon" sx={{ mr: 1 }} />
             Jesma Payments
             {!loading && (
-              <Chip 
-                label="LIVE" 
-                color="success" 
-                size="small" 
+              <Chip
+                label="LIVE"
+                color="success"
+                size="small"
                 sx={{ ml: 2, fontSize: '0.7rem' }}
               />
             )}
@@ -527,7 +529,7 @@ const PaymentPage = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ bgcolor: '#fff3e0', height: '100%' }}>
             <CardContent>
@@ -543,7 +545,7 @@ const PaymentPage = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ bgcolor: '#e3f2fd', height: '100%' }}>
             <CardContent>
@@ -559,7 +561,7 @@ const PaymentPage = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ bgcolor: '#f5f5f5', height: '100%' }}>
             <CardContent>
@@ -595,7 +597,7 @@ const PaymentPage = () => {
               }}
             />
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth>
               <InputLabel>Status</InputLabel>
@@ -611,7 +613,7 @@ const PaymentPage = () => {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth>
               <InputLabel>Month</InputLabel>
@@ -627,7 +629,7 @@ const PaymentPage = () => {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} md={1}>
             <Button
               fullWidth
@@ -681,44 +683,44 @@ const PaymentPage = () => {
                   const tenantName = getTenantDisplayName(payment);
                   const isLoading = isTenantNameLoading(payment);
                   const tenantInitial = !isLoading ? getTenantInitial(payment) : '?';
-                  
+
                   return (
-                    <TableRow 
-                      key={payment.id} 
+                    <TableRow
+                      key={payment.id}
                       hover
-                      sx={{ 
+                      sx={{
                         '&:hover': { bgcolor: '#fafafa' },
                         borderBottom: '1px solid #e0e0e0'
                       }}
                     >
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Avatar 
-                            sx={{ 
-                              width: 36, 
-                              height: 36, 
+                          <Avatar
+                            sx={{
+                              width: 36,
+                              height: 36,
                               bgcolor: isLoading ? '#bdbdbd' : '#1976d2',
                               fontSize: '0.9rem'
                             }}
                           >
                             {isLoading ? <CircularProgress size={20} color="inherit" /> : tenantInitial}
                           </Avatar>
-                          
+
                           <Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography 
-                                fontWeight="bold" 
+                              <Typography
+                                fontWeight="bold"
                                 fontSize="0.95rem"
                                 color={isLoading ? 'text.secondary' : 'text.primary'}
                               >
                                 {tenantName}
                               </Typography>
                               {isLoading && (
-                                <Chip 
-                                  label="Loading..." 
-                                  size="small" 
-                                  sx={{ 
-                                    height: 20, 
+                                <Chip
+                                  label="Loading..."
+                                  size="small"
+                                  sx={{
+                                    height: 20,
                                     fontSize: '0.7rem',
                                     bgcolor: '#f5f5f5'
                                   }}
@@ -741,15 +743,15 @@ const PaymentPage = () => {
                           </Box>
                         </Box>
                       </TableCell>
-                      
+
                       <TableCell>{getDisplayMonth(payment)}</TableCell>
-                      
+
                       <TableCell>
                         <Typography fontWeight="bold" color="primary.main">
                           {formatCurrency(payment.amount)}
                         </Typography>
                       </TableCell>
-                      
+
                       <TableCell>
                         <Chip
                           label={payment.status || 'unknown'}
@@ -758,7 +760,7 @@ const PaymentPage = () => {
                           sx={{ fontWeight: 'bold' }}
                         />
                       </TableCell>
-                      
+
                       <TableCell>
                         {payment.mpesaCode ? (
                           <Chip
@@ -773,20 +775,20 @@ const PaymentPage = () => {
                           </Typography>
                         )}
                       </TableCell>
-                      
+
                       <TableCell>
                         {formatDate(payment.completedAt || payment.createdAt)}
                       </TableCell>
-                      
+
                       <TableCell>
-                        {payment.phoneNumber ? 
+                        {payment.phoneNumber ?
                           payment.phoneNumber.replace('254', '0') : 'N/A'
                         }
                       </TableCell>
-                      
+
                       <TableCell>
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           title="View Tenant Details"
                           onClick={() => handleViewTenantDetails(payment)}
                           sx={{ mr: 1 }}
@@ -865,9 +867,9 @@ const PaymentPage = () => {
                   <ListItem>
                     <ListItemIcon><HomeIcon /></ListItemIcon>
                     <ListItemText primary="Unit/Property" secondary={
-                      tenantDetails?.unit && tenantDetails?.propertyName ? 
-                      `${tenantDetails.unit} • ${tenantDetails.propertyName}` :
-                      (tenantDetails?.unit || tenantDetails?.propertyName || 'Not specified')
+                      tenantDetails?.unit && tenantDetails?.propertyName ?
+                        `${tenantDetails.unit} • ${tenantDetails.propertyName}` :
+                        (tenantDetails?.unit || tenantDetails?.propertyName || 'Not specified')
                     } />
                   </ListItem>
                   {tenantDetails?.rentAmount && (
@@ -879,7 +881,7 @@ const PaymentPage = () => {
                 </List>
 
                 <Divider sx={{ my: 2 }} />
-                
+
                 {selectedTenant && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
@@ -888,7 +890,7 @@ const PaymentPage = () => {
                     <Box sx={{ pl: 2 }}>
                       <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(selectedTenant.amount)}</Typography>
                       <Typography variant="body2"><strong>Month:</strong> {getDisplayMonth(selectedTenant)}</Typography>
-                      <Typography variant="body2"><strong>Status:</strong> 
+                      <Typography variant="body2"><strong>Status:</strong>
                         <Chip label={selectedTenant.status} color={getStatusColor(selectedTenant.status)} size="small" sx={{ ml: 1, height: 20 }} />
                       </Typography>
                       {selectedTenant.mpesaCode && (
@@ -897,13 +899,26 @@ const PaymentPage = () => {
                     </Box>
                   </Box>
                 )}
-                
+
                 <Box sx={{ mt: 3, display: 'flex', gap: 1 }}>
                   {tenantDetails?.phone && (
                     <Button variant="outlined" fullWidth startIcon={<PhoneIcon />} onClick={() => window.open(`tel:${tenantDetails.phone}`)}>
                       Call Tenant
                     </Button>
                   )}
+
+                  <Button
+                    variant="contained"
+                    color="success"
+                    fullWidth
+                    onClick={() => {
+                      setModalOpen(false); // Only close the first modal, leaving state intact
+                      setMpesaModalOpen(true);
+                    }}
+                  >
+                    Request Payment
+                  </Button>
+
                   <Button variant="contained" fullWidth onClick={handleCloseModal}>
                     Close
                   </Button>
@@ -913,6 +928,22 @@ const PaymentPage = () => {
           </Box>
         </Box>
       </Modal>
+
+      {/* M-Pesa Payment Modal */}
+      {selectedTenant && (
+        <MpesaPaymentModal
+          open={mpesaModalOpen}
+          onClose={() => setMpesaModalOpen(false)}
+          tenant={{
+            id: tenantDetails?.id || selectedTenant.tenantId,
+            name: tenantDetails?.name || selectedTenant.tenantName,
+            phone: tenantDetails?.phone || selectedTenant.phoneNumber,
+            unit: tenantDetails?.unit || selectedTenant.unitNumber,
+            propertyId: selectedTenant.propertyId,
+            monthlyRent: tenantDetails?.rentAmount || selectedTenant.amount
+          }}
+        />
+      )}
 
       {/* Performance Indicator */}
       <Box sx={{ mt: 2, textAlign: 'center' }}>

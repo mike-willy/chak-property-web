@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Select, MenuItem, FormControl,
   InputLabel, CircularProgress, Alert, Typography
 } from '@mui/material';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../pages/firebase';
+import { collection, getDocs, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../pages/firebase/firebase';
 
 const MpesaPaymentModal = ({ open, onClose, tenant }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [tenantName, setTenantName] = useState(tenant?.name || '');
   const [formData, setFormData] = useState({
     phoneNumber: tenant?.phone || '',
     amount: tenant?.monthlyRent || '',
@@ -20,8 +21,53 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
     unit: tenant?.unit || ''
   });
 
+  // Reset state when a new tenant is passed in
+  useEffect(() => {
+    if (tenant) {
+      setTenantName(tenant.name || '');
+      setFormData(prev => ({
+        ...prev,
+        phoneNumber: tenant.phone || '',
+        amount: tenant.monthlyRent || '',
+        propertyId: tenant.propertyId || '',
+        unit: tenant.unit || ''
+      }));
+      setSuccess('');
+      setError('');
+    }
+  }, [tenant]);
+
   // Fetch available months for payment
   const [months, setMonths] = useState([formData.month]);
+
+  // Fetch tenant name from DB if it's missing or says "Unknown Tenant"
+  useEffect(() => {
+    const fetchTenantDetails = async () => {
+      if (!tenant?.id) return;
+
+      // If we don't have a good name, fetch it
+      if (!tenantName || tenantName === 'Unknown Tenant' || tenantName === 'Loading...') {
+        try {
+          const tenantRef = doc(db, 'tenants', tenant.id);
+          const tenantSnap = await getDoc(tenantRef);
+
+          if (tenantSnap.exists()) {
+            const data = tenantSnap.data();
+            const realName = data.fullName || data.name;
+            if (realName) {
+              setTenantName(realName);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching tenant name:', err);
+        }
+      }
+    };
+
+    if (open) {
+      fetchTenantDetails();
+    }
+  }, [open, tenant, tenantName]);
 
   const handleChange = (e) => {
     setFormData({
@@ -51,7 +97,8 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
         },
         body: JSON.stringify({
           ...formData,
-          tenantId: tenant.id
+          tenantId: tenant.id,
+          tenantName: tenantName
         })
       });
 
@@ -77,10 +124,32 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
       try {
         const response = await fetch(`http://localhost:5000/api/mpesa/status/${checkoutId}`);
         const payment = await response.json();
-        
+
         if (payment.status === 'completed') {
           clearInterval(pollInterval);
           setSuccess('Payment completed successfully!');
+
+          // Create admin notification
+          try {
+            await addDoc(collection(db, 'notifications'), {
+              type: 'rent_payment',
+              title: 'Payment Received',
+              message: `Payment of ${formData.amount} for ${tenantName} (${tenant.unit}) has been recorded.`,
+              recipientId: 'admin',
+              recipientType: 'admin',
+              read: false,
+              priority: 'high',
+              metadata: {
+                tenantId: tenant.id,
+                amount: formData.amount,
+                unit: tenant.unit
+              },
+              createdAt: serverTimestamp()
+            });
+          } catch (notifErr) {
+            console.error('Failed to create notification', notifErr);
+          }
+
           // Refresh page or update UI after 3 seconds
           setTimeout(() => {
             window.location.reload();
@@ -102,17 +171,17 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
           M-Pesa Payment
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {tenant?.name} - {tenant?.unit}
+          {tenantName || 'Tenant'} - {tenant?.unit || 'No Unit'}
         </Typography>
       </DialogTitle>
-      
+
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}
-        
+
         {success && (
           <Alert severity="success" sx={{ mb: 2 }}>
             {success}
