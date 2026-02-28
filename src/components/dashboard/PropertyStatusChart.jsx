@@ -35,7 +35,7 @@ const PropertyStatusChart = () => {
         units.forEach(u => {
           const unitData = u.data();
           const status = (unitData.status || 'vacant').toLowerCase();
-          const isUnderMaintenance = status === 'maintenance' || status === 'repair';
+          const isUnderMaintenance = status === 'maintenance' || status === 'repair' || status === 'under_repair';
           if (isUnderMaintenance) {
             unitMaintenanceCount++;
           }
