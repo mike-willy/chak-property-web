@@ -1,10 +1,10 @@
 // src/services/analyticsService.js - FIXED VERSION
 import { db } from "../pages/firebase/firebase";
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
   orderBy,
   limit,
   Timestamp,
@@ -13,12 +13,12 @@ import {
   doc,
   getDoc
 } from 'firebase/firestore';
-import { 
+import {
   calculateCollectionRate,
   calculateVacancyRate,
   calculateTenantRiskScore,
   analyzePaymentPatterns,
-  generateInsights 
+  generateInsights
 } from './analyticsCalculations';
 
 // Import jsPDF for PDF generation
@@ -29,7 +29,38 @@ import 'jspdf-autotable';
  * Main Analytics Service - FIXED WITH SINGLE PDF DOWNLOAD
  */
 class AnalyticsService {
-  
+  constructor() {
+    this.cache = {
+      properties: null,
+      units: null,
+      tenants: null,
+      payments: null,
+      timestamp: null,
+      CACHE_DURATION_MS: 5 * 60 * 1000 // 5 minutes
+    };
+  }
+
+  /**
+   * Clears the internal cache
+   */
+  clearCache() {
+    this.cache = {
+      properties: null,
+      units: null,
+      tenants: null,
+      payments: null,
+      timestamp: null,
+      CACHE_DURATION_MS: 5 * 60 * 1000
+    };
+  }
+
+  /**
+   * Checks if cache is valid
+   */
+  _isCacheValid() {
+    return this.cache.timestamp && (Date.now() - this.cache.timestamp < this.cache.CACHE_DURATION_MS);
+  }
+
   /**
    * Get Rent Collection Analytics - FIXED
    */
@@ -38,24 +69,24 @@ class AnalyticsService {
       // 1. Get all properties and units - USING YOUR STRUCTURE
       const properties = await this._getAllProperties();
       const totalUnits = properties.reduce((sum, prop) => sum + (prop.units || 0), 0);
-      
+
       // 2. Get occupied units (tenants with status = 'active')
       const occupiedUnits = await this._getOccupiedUnits();
-      
+
       // 3. Get payments for the timeframe - USING YOUR PAYMENT STRUCTURE
       const payments = await this._getPaymentsForTimeframe(timeframe, startDate, endDate);
-      
+
       // 4. Calculate expected rent (based on tenant monthlyRent)
       const expectedRent = await this._calculateExpectedRent(occupiedUnits, timeframe);
-      
+
       // 5. Calculate collected rent (completed payments only)
       const collectedRent = payments
         .filter(p => p.status === 'completed')
         .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
-      
+
       // 6. Get overdue payments (pending payments)
       const overduePayments = payments.filter(p => p.status === 'pending');
-      
+
       return {
         summary: {
           totalUnits,
@@ -84,70 +115,75 @@ class AnalyticsService {
       throw error;
     }
   }
-  
+
   /**
-   * Get Vacancy Rate Analytics - FIXED WITH CORRECT VACANCY COUNTING
+   * Get Vacancy Rate Analytics - FIXED WITH CONCURRENT FETCHING
    */
   async getVacancyRateAnalytics() {
     try {
       // 1. Get all properties
       const properties = await this._getAllProperties();
-      const allUnits = [];
-      
-      // 2. Get units from each property subcollection
-      for (const property of properties) {
-        try {
-          const unitsRef = collection(db, `properties/${property.id}/units`);
-          const unitsSnapshot = await getDocs(unitsRef);
-          
-          unitsSnapshot.forEach((unitDoc) => {
-            const unitData = unitDoc.data();
-            
-            // Check occupancy using YOUR dual status system
-            const occupancyStatus = unitData.occupancyStatus || 
-                                   (unitData.status && unitData.status.toLowerCase() === 'leased' ? 'leased' : 'vacant');
-            const maintenanceStatus = unitData.maintenanceStatus || 'normal';
-            
-            const isOccupied = occupancyStatus === 'leased';
-            const isUnderMaintenance = maintenanceStatus === 'under_maintenance';
-            
-            allUnits.push({
-              id: unitDoc.id,
-              propertyId: property.id,
-              propertyName: property.name,
-              unitNumber: unitData.unitNumber || unitData.unitName || `Unit ${unitDoc.id.substring(0, 8)}`,
-              occupancyStatus,
-              maintenanceStatus,
-              tenantId: unitData.tenantId,
-              tenantName: unitData.tenantName,
-              rentAmount: unitData.rentAmount || unitData.monthlyRent || 0,
-              isOccupied,
-              isUnderMaintenance,
-              // FIXED: A unit is vacant if occupancyStatus is "vacant" (regardless of maintenance status)
-              isVacant: occupancyStatus === 'vacant',
-              displayStatus: isUnderMaintenance 
-                ? (isOccupied ? 'LEASED & UNDER MAINTENANCE' : 'VACANT & UNDER MAINTENANCE')
-                : occupancyStatus.toUpperCase()
+
+      // 2. Get units from each property subcollection CONCURRENTLY
+      const allUnitsArrays = await Promise.all(
+        properties.map(async (property) => {
+          try {
+            const unitsRef = collection(db, `properties/${property.id}/units`);
+            const unitsSnapshot = await getDocs(unitsRef);
+
+            const propertyUnits = [];
+            unitsSnapshot.forEach((unitDoc) => {
+              const unitData = unitDoc.data();
+
+              // Check occupancy using YOUR dual status system
+              const occupancyStatus = unitData.occupancyStatus ||
+                (unitData.status && unitData.status.toLowerCase() === 'leased' ? 'leased' : 'vacant');
+              const maintenanceStatus = unitData.maintenanceStatus || 'normal';
+
+              const isOccupied = occupancyStatus === 'leased';
+              const isUnderMaintenance = maintenanceStatus === 'under_maintenance';
+
+              propertyUnits.push({
+                id: unitDoc.id,
+                propertyId: property.id,
+                propertyName: property.name,
+                unitNumber: unitData.unitNumber || unitData.unitName || `Unit ${unitDoc.id.substring(0, 8)}`,
+                occupancyStatus,
+                maintenanceStatus,
+                tenantId: unitData.tenantId,
+                tenantName: unitData.tenantName,
+                rentAmount: unitData.rentAmount || unitData.monthlyRent || 0,
+                isOccupied,
+                isUnderMaintenance,
+                isVacant: occupancyStatus === 'vacant',
+                displayStatus: isUnderMaintenance
+                  ? (isOccupied ? 'LEASED & UNDER MAINTENANCE' : 'VACANT & UNDER MAINTENANCE')
+                  : occupancyStatus.toUpperCase()
+              });
             });
-          });
-          
-        } catch (error) {
-          console.log(`No units found for property ${property.name}:`, error.message);
-        }
-      }
-      
+            return propertyUnits;
+          } catch (error) {
+            console.log(`No units found for property ${property.name}:`, error.message);
+            return [];
+          }
+        })
+      );
+
+      // Flatten the array of arrays
+      const allUnits = allUnitsArrays.flat();
+
       // 3. Categorize units - FIXED VERSION
       const vacantUnits = allUnits.filter(unit => unit.occupancyStatus === "vacant");
       const occupiedUnits = allUnits.filter(unit => unit.occupancyStatus === "leased");
       const maintenanceUnits = allUnits.filter(unit => unit.maintenanceStatus === "under_maintenance");
-      
+
       // Calculate intersection counts for detailed insights
       const vacantUnderMaintenance = vacantUnits.filter(unit => unit.isUnderMaintenance).length;
       const leasedUnderMaintenance = occupiedUnits.filter(unit => unit.isUnderMaintenance).length;
-      
+
       // 4. Calculate vacancy durations
       const vacancyDurations = this._calculateVacancyDurations(vacantUnits);
-      
+
       return {
         summary: {
           totalUnits: allUnits.length,
@@ -159,7 +195,7 @@ class AnalyticsService {
           vacantUnderMaintenance: vacantUnderMaintenance,
           leasedNormal: occupiedUnits.length - leasedUnderMaintenance,
           leasedUnderMaintenance: leasedUnderMaintenance,
-          
+
           vacancyRate: calculateVacancyRate(vacantUnits.length, allUnits.length),
           occupancyRate: calculateVacancyRate(occupiedUnits.length, allUnits.length),
           maintenanceRate: calculateVacancyRate(maintenanceUnits.length, allUnits.length),
@@ -181,7 +217,7 @@ class AnalyticsService {
       throw error;
     }
   }
-  
+
   /**
    * Get Tenant Payment Behavior Analytics - FIXED
    */
@@ -189,13 +225,13 @@ class AnalyticsService {
     try {
       // 1. Get all ACTIVE tenants (status = 'active')
       const tenants = await this._getAllTenants();
-      
+
       // 2. Get payment history for each tenant
       const tenantAnalytics = await Promise.all(
         tenants.map(async (tenant) => {
           const payments = await this._getTenantPayments(tenant.id);
           const overduePayments = payments.filter(p => p.status === 'pending');
-          
+
           return {
             tenantId: tenant.id,
             tenantName: tenant.fullName || tenant.email,
@@ -217,10 +253,10 @@ class AnalyticsService {
           };
         })
       );
-      
+
       // 3. Generate insights from tenant data
       const insights = generateInsights(tenantAnalytics);
-      
+
       return {
         summary: {
           totalTenants: tenantAnalytics.length,
@@ -243,23 +279,33 @@ class AnalyticsService {
       throw error;
     }
   }
-  
+
   /**
    * Generate Analytics Insights (Rule-based) - UPDATED WITH FIXED DATA STRUCTURE
    */
   async generateAnalyticsInsights() {
     try {
+      // CLEAR CACHE before full generation to ensure fresh data
+      this.clearCache();
+
+      // The individual get* calls will now use the cache populated by the first call or themselves.
+      // But because Promise.all initiates them concurrently, we should fetch base collections once first.
+      await Promise.all([
+        this._getAllProperties(),
+        this._getAllTenants(),
+      ]);
+
       // Get all three analytics datasets
       const [rentData, vacancyData, tenantData] = await Promise.all([
         this.getRentCollectionAnalytics(),
         this.getVacancyRateAnalytics(),
         this.getTenantBehaviorAnalytics()
       ]);
-      
+
       // Apply rule-based intelligence
       const insights = [];
       const timestamp = Date.now();
-      
+
       // Rule 1: Low collection rate alert
       if (rentData.summary.collectionRate < 0.85) {
         insights.push({
@@ -282,7 +328,7 @@ class AnalyticsService {
           tenants: []
         });
       }
-      
+
       // Rule 2: High vacancy rate alert
       if (vacancyData.summary.vacancyRate > 0.15) {
         insights.push({
@@ -305,13 +351,13 @@ class AnalyticsService {
           tenants: []
         });
       }
-      
+
       // Rule 3: High-risk tenants alert
       const highRiskTenants = tenantData.details.tenants.filter(t => t.riskScore > 70);
       if (highRiskTenants.length > 0) {
         // Extract tenant names only (not full objects)
         const highRiskTenantNames = highRiskTenants.map(t => t.tenantName || 'Unknown Tenant');
-        
+
         insights.push({
           id: `insight_${timestamp}_3`,
           type: 'alert',
@@ -331,14 +377,14 @@ class AnalyticsService {
           tenants: highRiskTenantNames.slice(0, 5) // Limit to 5 names
         });
       }
-      
+
       // Rule 4: Units under maintenance
       if (vacancyData.summary.maintenanceUnits > 0) {
         // Get unit numbers/names for display
         const maintenanceUnitNames = vacancyData.details.maintenanceUnits
           .slice(0, 3)
           .map(unit => unit.unitNumber || `Unit ${unit.id.substring(0, 8)}`);
-        
+
         insights.push({
           id: `insight_${timestamp}_4`,
           type: 'maintenance',
@@ -357,7 +403,7 @@ class AnalyticsService {
           tenants: maintenanceUnitNames
         });
       }
-      
+
       // Rule 5: Vacant units under maintenance
       if (vacancyData.summary.vacantUnderMaintenance > 0) {
         // Get unit numbers for vacant units under maintenance
@@ -365,7 +411,7 @@ class AnalyticsService {
           .filter(unit => unit.isUnderMaintenance)
           .slice(0, 3)
           .map(unit => unit.unitNumber || `Unit ${unit.id.substring(0, 8)}`);
-        
+
         insights.push({
           id: `insight_${timestamp}_5`,
           type: 'maintenance',
@@ -384,7 +430,7 @@ class AnalyticsService {
           tenants: vacantMaintenanceUnits
         });
       }
-      
+
       // Rule 6: Positive insight - Good collection rate
       if (rentData.summary.collectionRate >= 0.95) {
         insights.push({
@@ -405,7 +451,7 @@ class AnalyticsService {
           tenants: []
         });
       }
-      
+
       // Rule 7: Low vacancy rate (positive)
       if (vacancyData.summary.vacancyRate < 0.05) {
         insights.push({
@@ -427,9 +473,9 @@ class AnalyticsService {
           tenants: []
         });
       }
-      
+
       // Add more rules as needed...
-      
+
       return insights;
     } catch (error) {
       console.error('Error generating insights:', error);
@@ -446,40 +492,40 @@ class AnalyticsService {
   async exportAnalyticsToCSV(analyticsType, data, customFilename = null) {
     try {
       console.log(`Exporting ${analyticsType} data as CSV...`);
-      
+
       let csvContent = '';
       let filename = '';
-      
+
       switch (analyticsType) {
         case 'rent-collection':
           csvContent = this._generateRentCollectionCSV(data);
-          filename = customFilename || `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
           break;
-        
+
         case 'tenant-behavior':
           csvContent = this._generateTenantBehaviorCSV(data);
-          filename = customFilename || `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
           break;
-        
+
         case 'vacancy-rate':
           csvContent = this._generateVacancyRateCSV(data);
-          filename = customFilename || `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
           break;
-        
+
         case 'analytics-insights':
           csvContent = this._generateInsightsCSV(data);
-          filename = customFilename || `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
           break;
-        
+
         default:
           throw new Error(`Unknown analytics type: ${analyticsType}`);
       }
-      
+
       // Trigger immediate download
       this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         message: `CSV download started: ${filename}`,
         filename: filename,
         format: 'csv'
@@ -497,7 +543,7 @@ class AnalyticsService {
     try {
       let reportData = {};
       let filename = '';
-      
+
       // Collect all analytics data for the report
       switch (reportType) {
         case 'full':
@@ -507,7 +553,7 @@ class AnalyticsService {
             this.getTenantBehaviorAnalytics(),
             this.generateAnalyticsInsights()
           ]);
-          
+
           reportData = {
             rentCollection: rentData,
             vacancyRate: vacancyData,
@@ -516,70 +562,70 @@ class AnalyticsService {
             generatedAt: new Date(),
             timeframe: timeframe
           };
-          
+
           if (format === 'csv') {
-            filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
             const csvContent = this._generateFullReportCSV(reportData);
             this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'pdf') {
-            filename = `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
             // FIXED: Use the corrected method that doesn't call save multiple times
             await this._generateFullReportPDF(reportData, filename);
           }
           break;
-        
+
         case 'rent':
           reportData = await this.getRentCollectionAnalytics(timeframe);
           if (format === 'csv') {
-            filename = `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
             const rentCSV = this._generateRentCollectionCSV(reportData);
             this._triggerFileDownload(rentCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'pdf') {
-            filename = `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateRentCollectionPDF(reportData, filename);
           }
           break;
-        
+
         case 'vacancy':
           reportData = await this.getVacancyRateAnalytics();
           if (format === 'csv') {
-            filename = `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
             const vacancyCSV = this._generateVacancyRateCSV(reportData);
             this._triggerFileDownload(vacancyCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'pdf') {
-            filename = `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateVacancyRatePDF(reportData, filename);
           }
           break;
-        
+
         case 'tenants':
           reportData = await this.getTenantBehaviorAnalytics();
           if (format === 'csv') {
-            filename = `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
             const tenantCSV = this._generateTenantBehaviorCSV(reportData);
             this._triggerFileDownload(tenantCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'pdf') {
-            filename = `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateTenantBehaviorPDF(reportData, filename);
           }
           break;
-        
+
         case 'insights':
           reportData = await this.generateAnalyticsInsights();
           if (format === 'csv') {
-            filename = `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
             const insightsCSV = this._generateInsightsCSV(reportData);
             this._triggerFileDownload(insightsCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'pdf') {
-            filename = `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateInsightsPDF(reportData, filename);
           }
           break;
-        
+
         default:
           throw new Error(`Unknown report type: ${reportType}`);
       }
-      
+
       return {
         success: true,
         message: `${format.toUpperCase()} Report downloaded: ${filename}`,
@@ -602,36 +648,44 @@ class AnalyticsService {
       let reportData = {};
       let title = '';
       let filename = customFilename || '';
-      
+
       switch (reportType) {
         case 'rent-collection':
           reportData = await this.getRentCollectionAnalytics(timeframe);
           title = 'Rent Collection Report';
-          filename = filename || `Rent_Collection_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
           await this._generateRentCollectionPDF(reportData, filename);
           break;
-        
+
         case 'vacancy-rate':
           reportData = await this.getVacancyRateAnalytics();
           title = 'Vacancy Rate Report';
-          filename = filename || `Vacancy_Rate_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
           await this._generateVacancyRatePDF(reportData, filename);
           break;
-        
+
         case 'tenant-behavior':
           reportData = await this.getTenantBehaviorAnalytics();
           title = 'Tenant Behavior Report';
-          filename = filename || `Tenant_Behavior_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
+
+          // SAFEGUARD: Large tenant list PDF generation
+          if (reportData.summary.totalTenants > 200) {
+            console.warn('Large dataset detected: Generating PDF for >200 tenants may take a few moments.');
+            // This is a service class, so toast might not be directly available, but we log the warning.
+            // A better place is in the component that calls it, but we can emit a small delay or break it up if needed in the future.
+          }
+
           await this._generateTenantBehaviorPDF(reportData, filename);
           break;
-        
+
         case 'analytics-insights':
           reportData = await this.generateAnalyticsInsights();
           title = 'Analytics Insights Report';
-          filename = filename || `Analytics_Insights_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
           await this._generateInsightsPDF(reportData, filename);
           break;
-        
+
         case 'full':
           const [rentData, vacancyData, tenantData, insights] = await Promise.all([
             this.getRentCollectionAnalytics(timeframe),
@@ -639,7 +693,7 @@ class AnalyticsService {
             this.getTenantBehaviorAnalytics(),
             this.generateAnalyticsInsights()
           ]);
-          
+
           reportData = {
             rentCollection: rentData,
             vacancyRate: vacancyData,
@@ -649,14 +703,20 @@ class AnalyticsService {
             timeframe: timeframe
           };
           title = 'Complete Analytics Report';
-          filename = filename || `Complete_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+          // SAFEGUARD: Large total dataset
+          if (tenantData.summary.totalTenants > 200 || rentData.summary.totalUnits > 400) {
+            console.warn('Extremely large dataset detected. Browser thread may block during PDF generation.');
+          }
+
           await this._generateFullReportPDF(reportData, filename);
           break;
-        
+
         default:
           throw new Error(`Unknown report type: ${reportType}`);
       }
-      
+
       return {
         success: true,
         message: `PDF Report downloaded: ${filename}`,
@@ -683,7 +743,7 @@ class AnalyticsService {
         else if (analyticsType === 'tenant-behavior') reportType = 'tenant-behavior';
         else if (analyticsType === 'vacancy-rate') reportType = 'vacancy-rate';
         else if (analyticsType === 'analytics-insights') reportType = 'analytics-insights';
-        
+
         return await this.generatePDFReport(reportType, 'monthly', customFilename);
       } else {
         throw new Error(`Unsupported format: ${format}. Use 'csv' or 'pdf'`);
@@ -706,7 +766,7 @@ class AnalyticsService {
       }
 
       const tenant = tenantDoc.data();
-      
+
       // Create reminder notification
       const reminderData = {
         tenantId,
@@ -719,14 +779,14 @@ class AnalyticsService {
 
       // Save reminder to database
       await addDoc(collection(db, 'reminders'), reminderData);
-      
+
       // TODO: Integrate with SMS/Email service here
       console.log(`Reminder sent to ${tenant.fullName || tenant.email}`);
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         message: `Reminder sent to ${tenant.fullName || tenant.email}`,
-        reminderId: reminderData.id 
+        reminderId: reminderData.id
       };
     } catch (error) {
       console.error('Error sending payment reminder:', error);
@@ -740,7 +800,7 @@ class AnalyticsService {
   async sendBulkReminders(tenantIds, reminderType = 'standard') {
     try {
       const results = [];
-      
+
       for (const tenantId of tenantIds) {
         try {
           const result = await this.sendPaymentReminder(tenantId, reminderType);
@@ -749,7 +809,7 @@ class AnalyticsService {
           results.push({ tenantId, success: false, error: error.message });
         }
       }
-      
+
       return {
         success: results.some(r => r.success),
         total: tenantIds.length,
@@ -786,7 +846,7 @@ class AnalyticsService {
       };
 
       await addDoc(collection(db, 'tenant_flags'), flagData);
-      
+
       return { success: true, message: 'Tenant flagged for review' };
     } catch (error) {
       console.error('Error flagging tenant:', error);
@@ -807,7 +867,7 @@ class AnalyticsService {
       };
 
       await addDoc(collection(db, 'insight_acknowledgements'), acknowledgementData);
-      
+
       return { success: true, message: 'Insight acknowledged' };
     } catch (error) {
       console.error('Error acknowledging insight:', error);
@@ -827,10 +887,10 @@ class AnalyticsService {
 
       const tenantData = tenantDoc.data();
       const payments = await this._getTenantPayments(tenantId);
-      const propertyDoc = tenantData.propertyId 
+      const propertyDoc = tenantData.propertyId
         ? await getDoc(doc(db, 'properties', tenantData.propertyId))
         : null;
-      const unitDoc = tenantData.unitId 
+      const unitDoc = tenantData.unitId
         ? await getDoc(doc(db, `properties/${tenantData.propertyId}/units`, tenantData.unitId))
         : null;
 
@@ -871,26 +931,26 @@ class AnalyticsService {
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
       doc.text('RENT COLLECTION REPORT', pageWidth / 2, yPosition, { align: 'center' });
-      
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       yPosition += 10;
       doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
-      
+
       yPosition += 8;
       doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-      
+
       yPosition += 15;
-      
+
       // Summary Section
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('SUMMARY', 20, yPosition);
-      
+
       yPosition += 10;
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
-      
+
       const summaryData = [
         ['Total Units', data.summary.totalUnits],
         ['Occupied Units', data.summary.occupiedUnits],
@@ -901,7 +961,7 @@ class AnalyticsService {
         ['Late Payments', data.summary.latePaymentsCount],
         ['Completed Payments', data.summary.completedPaymentsCount]
       ];
-      
+
       // Check if autoTable is available
       if (typeof doc.autoTable === 'function') {
         doc.autoTable({
@@ -909,10 +969,10 @@ class AnalyticsService {
           head: [['Metric', 'Value']],
           body: summaryData,
           theme: 'grid',
-          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+          headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold' },
           margin: { left: 20, right: 20 }
         });
-        
+
         yPosition = doc.lastAutoTable.finalY + 15;
       } else {
         // Fallback: Simple table without autoTable
@@ -923,34 +983,36 @@ class AnalyticsService {
         });
         yPosition += 10;
       }
-      
+
       // Overdue Payments Section (if any)
       if (data.details.overduePayments.length > 0) {
         if (yPosition > pageHeight - 50) {
           doc.addPage();
           yPosition = 20;
         }
-        
+
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.text('OVERDUE PAYMENTS', 20, yPosition);
-        
+
         yPosition += 10;
-        
+
         const overdueTableData = data.details.overduePayments.slice(0, 10).map(payment => [
           payment.tenantName || 'Unknown',
+          payment.propertyName || 'N/A',
+          payment.unitNumber || payment.unitId || 'N/A',
           `KES ${this._formatNumber(payment.amount)}`,
           payment.month || 'N/A',
           payment.status || 'pending'
         ]);
-        
+
         if (typeof doc.autoTable === 'function') {
           doc.autoTable({
             startY: yPosition,
-            head: [['Tenant', 'Amount', 'Month', 'Status']],
+            head: [['Tenant', 'Property', 'Unit', 'Amount', 'Month', 'Status']],
             body: overdueTableData,
             theme: 'grid',
-            headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+            headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold' },
             margin: { left: 20, right: 20 }
           });
         } else {
@@ -971,7 +1033,7 @@ class AnalyticsService {
           });
         }
       }
-      
+
       // Footer
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
@@ -979,9 +1041,9 @@ class AnalyticsService {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Property Management System', 20, pageHeight - 10);
+        doc.text('Jesma Investments', 20, pageHeight - 10);
       }
-      
+
       doc.save(filename);
     } catch (error) {
       console.error('Error in _generateRentCollectionPDF:', error);
@@ -1000,21 +1062,21 @@ class AnalyticsService {
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
       doc.text('TENANT BEHAVIOR REPORT', pageWidth / 2, yPosition, { align: 'center' });
-      
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       yPosition += 10;
       doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-      
+
       yPosition += 15;
-      
+
       // Summary Section
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('SUMMARY', 20, yPosition);
-      
+
       yPosition += 10;
-      
+
       const summaryData = [
         ['Total Tenants', data.summary.totalTenants],
         ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
@@ -1023,17 +1085,17 @@ class AnalyticsService {
         ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
         ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
       ];
-      
+
       if (typeof doc.autoTable === 'function') {
         doc.autoTable({
           startY: yPosition,
           head: [['Metric', 'Value']],
           body: summaryData,
           theme: 'grid',
-          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+          headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold' },
           margin: { left: 20, right: 20 }
         });
-        
+
         yPosition = doc.lastAutoTable.finalY + 15;
       } else {
         summaryData.forEach((row, index) => {
@@ -1043,35 +1105,36 @@ class AnalyticsService {
         });
         yPosition += 10;
       }
-      
+
       // High-Risk Tenants Section
       if (data.details.topTenants.length > 0) {
         if (yPosition > pageHeight - 50) {
           doc.addPage();
           yPosition = 20;
         }
-        
+
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.text('HIGH-RISK TENANTS', 20, yPosition);
-        
+
         yPosition += 10;
-        
+
         const highRiskData = data.details.topTenants.slice(0, 5).map(tenant => [
           tenant.tenantName || 'Unknown',
+          tenant.propertyName ? `${tenant.propertyName} / ${tenant.unitNumber || ''}` : 'N/A',
+          tenant.status || 'Active',
           tenant.riskScore.toFixed(1),
-          `KES ${this._formatNumber(tenant.monthlyRent)}`,
           `KES ${this._formatNumber(tenant.balance)}`,
           tenant.overduePayments?.length || 0
         ]);
-        
+
         if (typeof doc.autoTable === 'function') {
           doc.autoTable({
             startY: yPosition,
-            head: [['Tenant Name', 'Risk Score', 'Monthly Rent', 'Balance', 'Overdue']],
+            head: [['Tenant Name', 'Property/Unit', 'Status', 'Risk Score', 'Balance', 'Overdue']],
             body: highRiskData,
             theme: 'grid',
-            headStyles: { fillColor: [231, 76, 60], textColor: 255, fontStyle: 'bold' },
+            headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold' },
             margin: { left: 20, right: 20 }
           });
         } else {
@@ -1088,7 +1151,7 @@ class AnalyticsService {
           });
         }
       }
-      
+
       // Footer
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
@@ -1096,9 +1159,9 @@ class AnalyticsService {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Property Management System', 20, pageHeight - 10);
+        doc.text('Jesma Investments', 20, pageHeight - 10);
       }
-      
+
       doc.save(filename);
     } catch (error) {
       console.error('Error in _generateTenantBehaviorPDF:', error);
@@ -1117,21 +1180,21 @@ class AnalyticsService {
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
       doc.text('VACANCY RATE REPORT', pageWidth / 2, yPosition, { align: 'center' });
-      
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       yPosition += 10;
       doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
-      
+
       yPosition += 15;
-      
+
       // Summary Section
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('SUMMARY', 20, yPosition);
-      
+
       yPosition += 10;
-      
+
       const summaryData = [
         ['Total Units', data.summary.totalUnits],
         ['Occupied Units', data.summary.occupiedUnits],
@@ -1142,14 +1205,14 @@ class AnalyticsService {
         ['Avg Vacancy Days', data.summary.avgVacancyDays],
         ['Longest Vacancy', data.summary.longestVacancy]
       ];
-      
+
       if (typeof doc.autoTable === 'function') {
         doc.autoTable({
           startY: yPosition,
           head: [['Metric', 'Value']],
           body: summaryData,
           theme: 'grid',
-          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+          headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold' },
           margin: { left: 20, right: 20 }
         });
       } else {
@@ -1159,7 +1222,7 @@ class AnalyticsService {
           yPosition += 8;
         });
       }
-      
+
       // Footer
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
@@ -1167,9 +1230,9 @@ class AnalyticsService {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Property Management System', 20, pageHeight - 10);
+        doc.text('Jesma Investments', 20, pageHeight - 10);
       }
-      
+
       doc.save(filename);
     } catch (error) {
       console.error('Error in _generateVacancyRatePDF:', error);
@@ -1188,16 +1251,16 @@ class AnalyticsService {
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
       doc.text('ANALYTICS INSIGHTS REPORT', pageWidth / 2, yPosition, { align: 'center' });
-      
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       yPosition += 10;
       doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 8;
       doc.text(`Total Insights: ${data.length}`, pageWidth / 2, yPosition, { align: 'center' });
-      
+
       yPosition += 15;
-      
+
       if (data.length === 0) {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'italic');
@@ -1209,33 +1272,33 @@ class AnalyticsService {
             doc.addPage();
             yPosition = 20;
           }
-          
+
           // Set color based on priority
           const colors = {
             high: [231, 76, 60],
             medium: [243, 156, 18],
             low: [46, 204, 113]
           };
-          
+
           doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...colors[insight.priority] || [0, 0, 0]);
           doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
           doc.setTextColor(0, 0, 0);
-          
+
           yPosition += 7;
           doc.setFontSize(10);
           doc.setFont('helvetica', 'normal');
           const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
           doc.text(descriptionLines, 25, yPosition);
           yPosition += (descriptionLines.length * 5) + 5;
-          
+
           doc.setFont('helvetica', 'italic');
           doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
           yPosition += 10;
         });
       }
-      
+
       // Footer
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
@@ -1243,9 +1306,9 @@ class AnalyticsService {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Property Management System', 20, pageHeight - 10);
+        doc.text('Jesma Investments', 20, pageHeight - 10);
       }
-      
+
       doc.save(filename);
     } catch (error) {
       console.error('Error in _generateInsightsPDF:', error);
@@ -1253,534 +1316,538 @@ class AnalyticsService {
     }
   }
 
- // FIXED: Full report now uses same structure and styling as individual reports
-_generateFullReportPDF(reportData, filename) {
-  try {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // Title Page (same as before but better styling)
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(33, 150, 243); // Blue color
-    doc.text('COMPLETE ANALYTICS REPORT', pageWidth / 2, 80, { align: 'center' });
-    
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Property Management System', pageWidth / 2, 100, { align: 'center' });
-    
-    doc.setFontSize(14);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Time Period: ${reportData.timeframe}`, pageWidth / 2, 120, { align: 'center' });
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, 130, { align: 'center' });
-    
-    // Add decorative line
-    doc.setDrawColor(33, 150, 243);
-    doc.setLineWidth(1);
-    doc.line(50, 145, pageWidth - 50, 145);
-    
-    // Add page numbers to title page
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Page 1', pageWidth - 20, pageHeight - 10, { align: 'right' });
-    doc.text('Property Management System', 20, pageHeight - 10);
-    
-    // Table of Contents Page
-    doc.addPage();
-    this._addTableOfContents(doc, reportData);
-    
-    // Rent Collection Section - WITH TABLES AND STYLING
-    doc.addPage();
-    this._addRentCollectionSectionWithTables(doc, reportData.rentCollection);
-    
-    // Vacancy Rate Section - WITH TABLES AND STYLING
-    doc.addPage();
-    this._addVacancyRateSectionWithTables(doc, reportData.vacancyRate);
-    
-    // Tenant Behavior Section - WITH TABLES AND STYLING
-    doc.addPage();
-    this._addTenantBehaviorSectionWithTables(doc, reportData.tenantBehavior);
-    
-    // Insights Section - WITH STYLING
-    doc.addPage();
-    this._addInsightsSectionWithStyling(doc, reportData.insights);
-    
-    // Update all page numbers
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
+  // FIXED: Full report now uses same structure and styling as individual reports
+  _generateFullReportPDF(reportData, filename) {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Title Page (same as before but better styling)
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(26, 54, 93); // Blue color
+      doc.text('COMPLETE ANALYTICS REPORT', pageWidth / 2, 80, { align: 'center' });
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Jesma Investments', pageWidth / 2, 100, { align: 'center' });
+
+      doc.setFontSize(14);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Time Period: ${reportData.timeframe}`, pageWidth / 2, 120, { align: 'center' });
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-KE')}`, pageWidth / 2, 130, { align: 'center' });
+
+      // Add decorative line
+      doc.setDrawColor(26, 54, 93);
+      doc.setLineWidth(1);
+      doc.line(50, 145, pageWidth - 50, 145);
+
+      // Add page numbers to title page
       doc.setFontSize(10);
       doc.setFont('helvetica', 'italic');
       doc.setTextColor(100, 100, 100);
-      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-      if (i !== 1) {
-        doc.text('Property Management System', 20, pageHeight - 10);
+      doc.text('Page 1', pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.text('Jesma Investments', 20, pageHeight - 10);
+
+      // Table of Contents Page
+      doc.addPage();
+      this._addTableOfContents(doc, reportData);
+
+      // Rent Collection Section - WITH TABLES AND STYLING
+      doc.addPage();
+      this._addRentCollectionSectionWithTables(doc, reportData.rentCollection);
+
+      // Vacancy Rate Section - WITH TABLES AND STYLING
+      doc.addPage();
+      this._addVacancyRateSectionWithTables(doc, reportData.vacancyRate);
+
+      // Tenant Behavior Section - WITH TABLES AND STYLING
+      doc.addPage();
+      this._addTenantBehaviorSectionWithTables(doc, reportData.tenantBehavior);
+
+      // Insights Section - WITH STYLING
+      doc.addPage();
+      this._addInsightsSectionWithStyling(doc, reportData.insights);
+
+      // Update all page numbers
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+        if (i !== 1) {
+          doc.text('Jesma Investments', 20, pageHeight - 10);
+        }
       }
+
+      // Save only once
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error in _generateFullReportPDF:', error);
+      throw error;
     }
-    
-    // Save only once
-    doc.save(filename);
-  } catch (error) {
-    console.error('Error in _generateFullReportPDF:', error);
-    throw error;
   }
-}
 
-// Table of Contents
-_addTableOfContents(doc, reportData) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  let yPosition = 40;
+  // Table of Contents
+  _addTableOfContents(doc, reportData) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPosition = 40;
 
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(33, 150, 243);
-  doc.text('TABLE OF CONTENTS', pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 20;
-  doc.setFontSize(14);
-  doc.setTextColor(0, 0, 0);
-  
-  const sections = [
-    '1. Rent Collection Analysis',
-    '2. Vacancy Rate Analysis',
-    '3. Tenant Behavior Analysis',
-    '4. Insights & Recommendations'
-  ];
-  
-  sections.forEach((section, index) => {
-    doc.text(section, 60, yPosition);
-    doc.text(`...... Page ${index + 3}`, pageWidth - 60, yPosition, { align: 'right' });
-    yPosition += 15;
-  });
-}
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 54, 93);
+    doc.text('TABLE OF CONTENTS', pageWidth / 2, yPosition, { align: 'center' });
 
-// Rent Collection with tables and styling (matches individual report)
-_addRentCollectionSectionWithTables(doc, data) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  let yPosition = 30;
+    yPosition += 20;
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
 
-  // Section Header
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(33, 150, 243);
-  doc.text('1. RENT COLLECTION ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
-  
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  yPosition += 10;
-  doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 15;
-  
-  // Summary Section with table
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text('SUMMARY', 20, yPosition);
-  
-  yPosition += 10;
-  
-  const summaryData = [
-    ['Total Units', data.summary.totalUnits],
-    ['Occupied Units', data.summary.occupiedUnits],
-    ['Expected Rent', `KES ${this._formatNumber(data.summary.expectedRent)}`],
-    ['Collected Rent', `KES ${this._formatNumber(data.summary.collectedRent)}`],
-    ['Collection Rate', `${(data.summary.collectionRate * 100).toFixed(1)}%`],
-    ['Outstanding Amount', `KES ${this._formatNumber(data.summary.outstandingAmount)}`],
-    ['Late Payments', data.summary.latePaymentsCount],
-    ['Completed Payments', data.summary.completedPaymentsCount]
-  ];
-  
-  if (typeof doc.autoTable === 'function') {
-    doc.autoTable({
-      startY: yPosition,
-      head: [['Metric', 'Value']],
-      body: summaryData,
-      theme: 'grid',
-      headStyles: { 
-        fillColor: [41, 128, 185], 
-        textColor: 255, 
-        fontStyle: 'bold',
-        fontSize: 11
-      },
-      bodyStyles: { fontSize: 10 },
-      margin: { left: 20, right: 20 }
+    const sections = [
+      '1. Rent Collection Analysis',
+      '2. Vacancy Rate Analysis',
+      '3. Tenant Behavior Analysis',
+      '4. Insights & Recommendations'
+    ];
+
+    sections.forEach((section, index) => {
+      doc.text(section, 60, yPosition);
+      doc.text(`...... Page ${index + 3}`, pageWidth - 60, yPosition, { align: 'right' });
+      yPosition += 15;
     });
-    
-    yPosition = doc.lastAutoTable.finalY + 15;
-  } else {
-    // Fallback
-    doc.setFontSize(11);
+  }
+
+  // Rent Collection with tables and styling (matches individual report)
+  _addRentCollectionSectionWithTables(doc, data) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 30;
+
+    // Section Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 54, 93);
+    doc.text('1. RENT COLLECTION ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
+
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    summaryData.forEach((row) => {
-      doc.text(`${row[0]}:`, 25, yPosition);
-      doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
-      yPosition += 8;
-    });
+    doc.setTextColor(100, 100, 100);
     yPosition += 10;
-  }
-  
-  // Overdue Payments Section (if any)
-  if (data.details.overduePayments.length > 0 && yPosition < pageHeight - 100) {
+    doc.text(`Time Period: ${data.timeframe}`, pageWidth / 2, yPosition, { align: 'center' });
+
+    yPosition += 15;
+
+    // Summary Section with table
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('OVERDUE PAYMENTS', 20, yPosition);
-    
+    doc.setTextColor(0, 0, 0);
+    doc.text('SUMMARY', 20, yPosition);
+
     yPosition += 10;
-    
-    const overdueTableData = data.details.overduePayments.slice(0, 8).map(payment => [
-      payment.tenantName || 'Unknown',
-      `KES ${this._formatNumber(payment.amount)}`,
-      payment.month || 'N/A',
-      payment.status || 'pending'
-    ]);
-    
+
+    const summaryData = [
+      ['Total Units', data.summary.totalUnits],
+      ['Occupied Units', data.summary.occupiedUnits],
+      ['Expected Rent', `KES ${this._formatNumber(data.summary.expectedRent)}`],
+      ['Collected Rent', `KES ${this._formatNumber(data.summary.collectedRent)}`],
+      ['Collection Rate', `${(data.summary.collectionRate * 100).toFixed(1)}%`],
+      ['Outstanding Amount', `KES ${this._formatNumber(data.summary.outstandingAmount)}`],
+      ['Late Payments', data.summary.latePaymentsCount],
+      ['Completed Payments', data.summary.completedPaymentsCount]
+    ];
+
     if (typeof doc.autoTable === 'function') {
       doc.autoTable({
         startY: yPosition,
-        head: [['Tenant', 'Amount', 'Month', 'Status']],
-        body: overdueTableData,
+        head: [['Metric', 'Value']],
+        body: summaryData,
         theme: 'grid',
-        headStyles: { 
-          fillColor: [231, 76, 60], 
-          textColor: 255, 
+        headStyles: {
+          fillColor: [26, 54, 93],
+          textColor: 255,
           fontStyle: 'bold',
           fontSize: 11
         },
-        bodyStyles: { fontSize: 9 },
+        bodyStyles: { fontSize: 10 },
         margin: { left: 20, right: 20 }
       });
-    }
-  }
-}
 
-// Vacancy Rate with tables and styling
-_addVacancyRateSectionWithTables(doc, data) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  let yPosition = 30;
-
-  // Section Header
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(76, 175, 80); // Green color
-  doc.text('2. VACANCY RATE ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 15;
-  
-  // Summary Section with table
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text('SUMMARY', 20, yPosition);
-  
-  yPosition += 10;
-  
-  const summaryData = [
-    ['Total Units', data.summary.totalUnits],
-    ['Occupied Units', data.summary.occupiedUnits],
-    ['Vacant Units', data.summary.vacantUnits],
-    ['Under Maintenance', data.summary.maintenanceUnits],
-    ['Vacancy Rate', `${(data.summary.vacancyRate * 100).toFixed(1)}%`],
-    ['Occupancy Rate', `${(data.summary.occupancyRate * 100).toFixed(1)}%`],
-    ['Avg Vacancy Days', data.summary.avgVacancyDays],
-    ['Longest Vacancy', data.summary.longestVacancy]
-  ];
-  
-  if (typeof doc.autoTable === 'function') {
-    doc.autoTable({
-      startY: yPosition,
-      head: [['Metric', 'Value']],
-      body: summaryData,
-      theme: 'grid',
-      headStyles: { 
-        fillColor: [76, 175, 80], 
-        textColor: 255, 
-        fontStyle: 'bold',
-        fontSize: 11
-      },
-      bodyStyles: { fontSize: 10 },
-      margin: { left: 20, right: 20 }
-    });
-    
-    yPosition = doc.lastAutoTable.finalY + 15;
-  }
-  
-  // Property Breakdown (if space)
-  if (data.details.byProperty.length > 0 && yPosition < pageHeight - 100) {
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PROPERTY BREAKDOWN', 20, yPosition);
-    
-    yPosition += 10;
-    
-    const propertyData = data.details.byProperty.slice(0, 5).map(property => [
-      property.propertyName,
-      property.totalUnits,
-      property.occupiedUnits,
-      property.vacantUnits,
-      `${(property.vacancyRate * 100).toFixed(1)}%`,
-      `${(property.occupancyRate * 100).toFixed(1)}%`
-    ]);
-    
-    if (typeof doc.autoTable === 'function') {
-      doc.autoTable({
-        startY: yPosition,
-        head: [['Property', 'Total', 'Occupied', 'Vacant', 'Vacancy %', 'Occupancy %']],
-        body: propertyData,
-        theme: 'grid',
-        headStyles: { 
-          fillColor: [52, 152, 219], 
-          textColor: 255, 
-          fontStyle: 'bold',
-          fontSize: 10
-        },
-        bodyStyles: { fontSize: 9 },
-        margin: { left: 20, right: 20 }
+      yPosition = doc.lastAutoTable.finalY + 15;
+    } else {
+      // Fallback
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      summaryData.forEach((row) => {
+        doc.text(`${row[0]}:`, 25, yPosition);
+        doc.text(row[1], pageWidth - 30, yPosition, { align: 'right' });
+        yPosition += 8;
       });
+      yPosition += 10;
+    }
+
+    // Overdue Payments Section (if any)
+    if (data.details.overduePayments.length > 0 && yPosition < pageHeight - 100) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('OVERDUE PAYMENTS', 20, yPosition);
+
+      yPosition += 10;
+
+      const overdueTableData = data.details.overduePayments.slice(0, 8).map(payment => [
+        payment.tenantName || 'Unknown',
+        payment.propertyName || 'N/A',
+        payment.unitNumber || payment.unitId || 'N/A',
+        `KES ${this._formatNumber(payment.amount)}`,
+        payment.month || 'N/A',
+        payment.status || 'pending'
+      ]);
+
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Tenant', 'Property', 'Unit', 'Amount', 'Month', 'Status']],
+          body: overdueTableData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [26, 54, 93],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 11
+          },
+          bodyStyles: { fontSize: 9 },
+          margin: { left: 20, right: 20 }
+        });
+      }
     }
   }
-}
 
-// Tenant Behavior with tables and styling
-_addTenantBehaviorSectionWithTables(doc, data) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  let yPosition = 30;
+  // Vacancy Rate with tables and styling
+  _addVacancyRateSectionWithTables(doc, data) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 30;
 
-  // Section Header
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(156, 39, 176); // Purple color
-  doc.text('3. TENANT BEHAVIOR ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 15;
-  
-  // Summary Section with table
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text('SUMMARY', 20, yPosition);
-  
-  yPosition += 10;
-  
-  const summaryData = [
-    ['Total Tenants', data.summary.totalTenants],
-    ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
-    ['On-Time Payers', data.summary.onTimePayers],
-    ['Frequent Late Payers', data.summary.frequentLatePayers],
-    ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
-    ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
-  ];
-  
-  if (typeof doc.autoTable === 'function') {
-    doc.autoTable({
-      startY: yPosition,
-      head: [['Metric', 'Value']],
-      body: summaryData,
-      theme: 'grid',
-      headStyles: { 
-        fillColor: [156, 39, 176], 
-        textColor: 255, 
-        fontStyle: 'bold',
-        fontSize: 11
-      },
-      bodyStyles: { fontSize: 10 },
-      margin: { left: 20, right: 20 }
-    });
-    
-    yPosition = doc.lastAutoTable.finalY + 15;
-  }
-  
-  // Top High-Risk Tenants (if space)
-  if (data.details.topTenants.length > 0 && yPosition < pageHeight - 100) {
+    // Section Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 54, 93); // Green color
+    doc.text('2. VACANCY RATE ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
+
+    yPosition += 15;
+
+    // Summary Section with table
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(231, 76, 60); // Red for high risk
-    doc.text('TOP HIGH-RISK TENANTS', 20, yPosition);
     doc.setTextColor(0, 0, 0);
-    
+    doc.text('SUMMARY', 20, yPosition);
+
     yPosition += 10;
-    
-    const highRiskData = data.details.topTenants.slice(0, 5).map(tenant => [
-      tenant.tenantName || 'Unknown',
-      tenant.riskScore.toFixed(1),
-      `KES ${this._formatNumber(tenant.monthlyRent)}`,
-      `KES ${this._formatNumber(tenant.balance)}`,
-      tenant.overduePayments?.length || 0
-    ]);
-    
+
+    const summaryData = [
+      ['Total Units', data.summary.totalUnits],
+      ['Occupied Units', data.summary.occupiedUnits],
+      ['Vacant Units', data.summary.vacantUnits],
+      ['Under Maintenance', data.summary.maintenanceUnits],
+      ['Vacancy Rate', `${(data.summary.vacancyRate * 100).toFixed(1)}%`],
+      ['Occupancy Rate', `${(data.summary.occupancyRate * 100).toFixed(1)}%`],
+      ['Avg Vacancy Days', data.summary.avgVacancyDays],
+      ['Longest Vacancy', data.summary.longestVacancy]
+    ];
+
     if (typeof doc.autoTable === 'function') {
       doc.autoTable({
         startY: yPosition,
-        head: [['Tenant Name', 'Risk Score', 'Monthly Rent', 'Balance', 'Overdue']],
-        body: highRiskData,
+        head: [['Metric', 'Value']],
+        body: summaryData,
         theme: 'grid',
-        headStyles: { 
-          fillColor: [231, 76, 60], 
-          textColor: 255, 
+        headStyles: {
+          fillColor: [26, 54, 93],
+          textColor: 255,
           fontStyle: 'bold',
-          fontSize: 10
+          fontSize: 11
         },
-        bodyStyles: { fontSize: 9 },
+        bodyStyles: { fontSize: 10 },
         margin: { left: 20, right: 20 }
       });
+
+      yPosition = doc.lastAutoTable.finalY + 15;
+    }
+
+    // Property Breakdown (if space)
+    if (data.details.byProperty.length > 0 && yPosition < pageHeight - 100) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PROPERTY BREAKDOWN', 20, yPosition);
+
+      yPosition += 10;
+
+      const propertyData = data.details.byProperty.slice(0, 5).map(property => [
+        property.propertyName,
+        property.totalUnits,
+        property.occupiedUnits,
+        property.vacantUnits,
+        property.maintenanceUnits || 0,
+        `${(property.vacancyRate * 100).toFixed(1)}%`,
+        `${(property.occupancyRate * 100).toFixed(1)}%`
+      ]);
+
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Property', 'Total', 'Occupied', 'Vacant', 'Maintenance', 'Vacancy %', 'Occupancy %']],
+          body: propertyData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [26, 54, 93],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 10
+          },
+          bodyStyles: { fontSize: 9 },
+          margin: { left: 20, right: 20 }
+        });
+      }
     }
   }
-}
 
-// Insights with styling
-_addInsightsSectionWithStyling(doc, insights) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  let yPosition = 30;
+  // Tenant Behavior with tables and styling
+  _addTenantBehaviorSectionWithTables(doc, data) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 30;
 
-  // Section Header
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(243, 156, 18); // Orange color
-  doc.text('4. INSIGHTS & RECOMMENDATIONS', pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 15;
-  
-  if (insights.length === 0) {
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('No insights generated. All systems are performing optimally.', pageWidth / 2, yPosition, { align: 'center' });
-  } else {
-    // Group by priority for better organization
-    const highPriority = insights.filter(i => i.priority === 'high');
-    const mediumPriority = insights.filter(i => i.priority === 'medium');
-    const lowPriority = insights.filter(i => i.priority === 'low');
-    
-    // High Priority Insights
-    if (highPriority.length > 0) {
-      if (yPosition > pageHeight - 80) {
-        doc.addPage();
-        yPosition = 30;
-      }
-      
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(231, 76, 60); // Red
-      doc.text(`HIGH PRIORITY (${highPriority.length})`, 20, yPosition);
-      
-      yPosition += 10;
-      
-      highPriority.forEach((insight, index) => {
-        if (yPosition > pageHeight - 60) {
-          doc.addPage();
-          yPosition = 30;
-        }
-        
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(231, 76, 60);
-        doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
-        
-        yPosition += 7;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-        const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
-        doc.text(descriptionLines, 25, yPosition);
-        yPosition += (descriptionLines.length * 5) + 5;
-        
-        doc.setFont('helvetica', 'italic');
-        doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
-        yPosition += 10;
+    // Section Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 54, 93); // Purple color
+    doc.text('3. TENANT BEHAVIOR ANALYSIS', pageWidth / 2, yPosition, { align: 'center' });
+
+    yPosition += 15;
+
+    // Summary Section with table
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('SUMMARY', 20, yPosition);
+
+    yPosition += 10;
+
+    const summaryData = [
+      ['Total Tenants', data.summary.totalTenants],
+      ['Average Risk Score', data.summary.averageRiskScore.toFixed(1)],
+      ['On-Time Payers', data.summary.onTimePayers],
+      ['Frequent Late Payers', data.summary.frequentLatePayers],
+      ['Total Monthly Rent', `KES ${this._formatNumber(data.summary.totalMonthlyRent)}`],
+      ['Total Outstanding', `KES ${this._formatNumber(data.summary.totalOutstandingBalance)}`]
+    ];
+
+    if (typeof doc.autoTable === 'function') {
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Metric', 'Value']],
+        body: summaryData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [26, 54, 93],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 11
+        },
+        bodyStyles: { fontSize: 10 },
+        margin: { left: 20, right: 20 }
       });
-      
-      yPosition += 5;
+
+      yPosition = doc.lastAutoTable.finalY + 15;
     }
-    
-    // Medium Priority Insights
-    if (mediumPriority.length > 0) {
-      if (yPosition > pageHeight - 80) {
-        doc.addPage();
-        yPosition = 30;
-      }
-      
-      doc.setFontSize(14);
+
+    // Top High-Risk Tenants (if space)
+    if (data.details.topTenants.length > 0 && yPosition < pageHeight - 100) {
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(243, 156, 18); // Orange
-      doc.text(`MEDIUM PRIORITY (${mediumPriority.length})`, 20, yPosition);
-      
+      doc.setTextColor(231, 76, 60); // Red for high risk
+      doc.text('TOP HIGH-RISK TENANTS', 20, yPosition);
+      doc.setTextColor(0, 0, 0);
+
       yPosition += 10;
-      
-      mediumPriority.forEach((insight, index) => {
-        if (yPosition > pageHeight - 60) {
-          doc.addPage();
-          yPosition = 30;
-        }
-        
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(243, 156, 18);
-        doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
-        
-        yPosition += 7;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-        const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
-        doc.text(descriptionLines, 25, yPosition);
-        yPosition += (descriptionLines.length * 5) + 5;
-        
-        doc.setFont('helvetica', 'italic');
-        doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
-        yPosition += 10;
-      });
-      
-      yPosition += 5;
-    }
-    
-    // Low Priority Insights
-    if (lowPriority.length > 0) {
-      if (yPosition > pageHeight - 80) {
-        doc.addPage();
-        yPosition = 30;
+
+      const highRiskData = data.details.topTenants.slice(0, 5).map(tenant => [
+        tenant.tenantName || 'Unknown',
+        tenant.propertyName ? `${tenant.propertyName} / ${tenant.unitNumber || ''}` : 'N/A',
+        tenant.status || 'Active',
+        tenant.riskScore.toFixed(1),
+        `KES ${this._formatNumber(tenant.balance)}`,
+        tenant.overduePayments?.length || 0
+      ]);
+
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Tenant Name', 'Property/Unit', 'Status', 'Risk Score', 'Balance', 'Overdue']],
+          body: highRiskData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [26, 54, 93],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 10
+          },
+          bodyStyles: { fontSize: 9 },
+          margin: { left: 20, right: 20 }
+        });
       }
-      
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(46, 204, 113); // Green
-      doc.text(`LOW PRIORITY (${lowPriority.length})`, 20, yPosition);
-      
-      yPosition += 10;
-      
-      lowPriority.forEach((insight, index) => {
-        if (yPosition > pageHeight - 60) {
-          doc.addPage();
-          yPosition = 30;
-        }
-        
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(46, 204, 113);
-        doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
-        
-        yPosition += 7;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-        const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
-        doc.text(descriptionLines, 25, yPosition);
-        yPosition += (descriptionLines.length * 5) + 5;
-        
-        doc.setFont('helvetica', 'italic');
-        doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
-        yPosition += 10;
-      });
     }
   }
-}
+
+  // Insights with styling
+  _addInsightsSectionWithStyling(doc, insights) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 30;
+
+    // Section Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 54, 93); // Orange color
+    doc.text('4. INSIGHTS & RECOMMENDATIONS', pageWidth / 2, yPosition, { align: 'center' });
+
+    yPosition += 15;
+
+    if (insights.length === 0) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text('No insights generated. All systems are performing optimally.', pageWidth / 2, yPosition, { align: 'center' });
+    } else {
+      // Group by priority for better organization
+      const highPriority = insights.filter(i => i.priority === 'high');
+      const mediumPriority = insights.filter(i => i.priority === 'medium');
+      const lowPriority = insights.filter(i => i.priority === 'low');
+
+      // High Priority Insights
+      if (highPriority.length > 0) {
+        if (yPosition > pageHeight - 80) {
+          doc.addPage();
+          yPosition = 30;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(231, 76, 60); // Red
+        doc.text(`HIGH PRIORITY (${highPriority.length})`, 20, yPosition);
+
+        yPosition += 10;
+
+        highPriority.forEach((insight, index) => {
+          if (yPosition > pageHeight - 60) {
+            doc.addPage();
+            yPosition = 30;
+          }
+
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(231, 76, 60);
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(0, 0, 0);
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+
+        yPosition += 5;
+      }
+
+      // Medium Priority Insights
+      if (mediumPriority.length > 0) {
+        if (yPosition > pageHeight - 80) {
+          doc.addPage();
+          yPosition = 30;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(26, 54, 93); // Orange
+        doc.text(`MEDIUM PRIORITY (${mediumPriority.length})`, 20, yPosition);
+
+        yPosition += 10;
+
+        mediumPriority.forEach((insight, index) => {
+          if (yPosition > pageHeight - 60) {
+            doc.addPage();
+            yPosition = 30;
+          }
+
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(26, 54, 93);
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(0, 0, 0);
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+
+        yPosition += 5;
+      }
+
+      // Low Priority Insights
+      if (lowPriority.length > 0) {
+        if (yPosition > pageHeight - 80) {
+          doc.addPage();
+          yPosition = 30;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(46, 204, 113); // Green
+        doc.text(`LOW PRIORITY (${lowPriority.length})`, 20, yPosition);
+
+        yPosition += 10;
+
+        lowPriority.forEach((insight, index) => {
+          if (yPosition > pageHeight - 60) {
+            doc.addPage();
+            yPosition = 30;
+          }
+
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(46, 204, 113);
+          doc.text(`${index + 1}. ${insight.title}`, 20, yPosition);
+
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(0, 0, 0);
+          const descriptionLines = doc.splitTextToSize(insight.description, pageWidth - 40);
+          doc.text(descriptionLines, 25, yPosition);
+          yPosition += (descriptionLines.length * 5) + 5;
+
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Recommendation: ${insight.recommendation}`, 25, yPosition);
+          yPosition += 10;
+        });
+      }
+    }
+  }
 
   // ============ CSV GENERATION METHODS (UNCHANGED) ============
 
@@ -1795,7 +1862,7 @@ _addInsightsSectionWithStyling(doc, insights) {
       payment.method || 'N/A',
       payment.id || 'N/A'
     ]);
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   }
 
@@ -1803,10 +1870,10 @@ _addInsightsSectionWithStyling(doc, insights) {
     const headers = ['Tenant Name', 'Property', 'Unit', 'Risk Score', 'Risk Level', 'Monthly Rent (KES)', 'Balance (KES)', 'On-Time Rate %', 'Avg Days Late', 'Status', 'Last Payment'];
     const rows = data.details.tenants.map(tenant => {
       const riskLevel = tenant.riskScore <= 30 ? 'Low' : tenant.riskScore <= 70 ? 'Medium' : 'High';
-      const lastPaymentDate = tenant.lastPayment 
+      const lastPaymentDate = tenant.lastPayment
         ? (tenant.lastPayment.toDate ? tenant.lastPayment.toDate().toLocaleDateString('en-KE') : tenant.lastPayment)
         : 'Never';
-      
+
       return [
         `"${tenant.tenantName}"`,
         `"${tenant.propertyName || 'N/A'}"`,
@@ -1821,7 +1888,7 @@ _addInsightsSectionWithStyling(doc, insights) {
         lastPaymentDate
       ];
     });
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   }
 
@@ -1837,7 +1904,7 @@ _addInsightsSectionWithStyling(doc, insights) {
       `${(property.occupancyRate * 100).toFixed(1)}`,
       Math.floor(Math.random() * 90) + 1 // Mock vacancy days
     ]);
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   }
 
@@ -1852,19 +1919,19 @@ _addInsightsSectionWithStyling(doc, insights) {
       `"${insight.recommendation}"`,
       new Date().toLocaleDateString('en-KE')
     ]);
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   }
 
   _generateFullReportCSV(reportData) {
     let csvContent = '';
     const date = new Date().toLocaleDateString('en-KE');
-    
+
     // Report Header
     csvContent += `COMPLETE PROPERTY MANAGEMENT ANALYTICS REPORT\n`;
     csvContent += `Generated: ${date}\n`;
     csvContent += `===============================================\n\n`;
-    
+
     // Rent Collection Summary
     const rent = reportData.rentCollection.summary;
     csvContent += `RENT COLLECTION SUMMARY\n`;
@@ -1877,7 +1944,7 @@ _addInsightsSectionWithStyling(doc, insights) {
     csvContent += `Outstanding Amount,KES ${rent.outstandingAmount.toLocaleString('en-KE')}\n`;
     csvContent += `Late Payments,${rent.latePaymentsCount}\n`;
     csvContent += `Completed Payments,${rent.completedPaymentsCount}\n\n`;
-    
+
     // Vacancy Summary
     const vacancy = reportData.vacancyRate.summary;
     csvContent += `VACANCY SUMMARY\n`;
@@ -1888,7 +1955,7 @@ _addInsightsSectionWithStyling(doc, insights) {
     csvContent += `Occupancy Rate,${(vacancy.occupancyRate * 100).toFixed(1)}%\n`;
     csvContent += `Under Maintenance,${vacancy.maintenanceUnits}\n`;
     csvContent += `Average Vacancy Days,${vacancy.avgVacancyDays}\n\n`;
-    
+
     // Tenant Behavior Summary
     const tenant = reportData.tenantBehavior.summary;
     csvContent += `TENANT BEHAVIOR SUMMARY\n`;
@@ -1898,13 +1965,13 @@ _addInsightsSectionWithStyling(doc, insights) {
     csvContent += `Frequent Late Payers,${tenant.frequentLatePayers}\n`;
     csvContent += `Total Monthly Rent,KES ${tenant.totalMonthlyRent.toLocaleString('en-KE')}\n`;
     csvContent += `Total Outstanding,KES ${tenant.totalOutstandingBalance.toLocaleString('en-KE')}\n\n`;
-    
+
     // Key Insights
     csvContent += `KEY INSIGHTS & RECOMMENDATIONS\n`;
     reportData.insights.forEach((insight, index) => {
       csvContent += `Insight ${index + 1},${insight.priority.toUpperCase()},${insight.title},${insight.recommendation}\n`;
     });
-    
+
     return csvContent;
   }
 
@@ -1912,16 +1979,16 @@ _addInsightsSectionWithStyling(doc, insights) {
     // Create blob with proper MIME type
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
-    
+
     // Create download link
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
-    
+
     // Append to body, click, and remove
     document.body.appendChild(link);
     link.click();
-    
+
     // Clean up
     setTimeout(() => {
       document.body.removeChild(link);
@@ -1935,7 +2002,7 @@ _addInsightsSectionWithStyling(doc, insights) {
       overdue: `Hello ${tenant.fullName}, your rent payment is overdue. Please make your payment of KSh ${tenant.balance?.toLocaleString() || tenant.monthlyRent?.toLocaleString() || '0'} as soon as possible.`,
       final: `Hello ${tenant.fullName}, this is a final reminder that your rent payment is overdue. Please contact us immediately to avoid further action.`
     };
-    
+
     return templates[type] || templates.standard;
   }
 
@@ -1944,48 +2011,69 @@ _addInsightsSectionWithStyling(doc, insights) {
   }
 
   // ============ EXISTING PRIVATE HELPER METHODS ============
-  
+
   async _getAllProperties() {
     try {
+      if (this._isCacheValid() && this.cache.properties) {
+        return this.cache.properties;
+      }
+
       const querySnapshot = await getDocs(collection(db, "properties"));
       const properties = [];
-      
+
       querySnapshot.forEach((doc) => {
         properties.push({
           id: doc.id,
           ...doc.data()
         });
       });
-      
+
+      this.cache.properties = properties;
+      this.cache.timestamp = Date.now();
       return properties;
     } catch (error) {
       console.error('Error fetching properties:', error);
       return [];
     }
   }
-  
+
   async _getOccupiedUnits() {
     try {
+      if (this._isCacheValid() && this.cache.units) {
+        return this.cache.units;
+      }
+
       const occupiedUnits = [];
-      
-      // Get all ACTIVE tenants from tenants collection
-      const tenantsQuery = query(
-        collection(db, "tenants"),
-        where("status", "==", "active")
-      );
-      const tenantsSnapshot = await getDocs(tenantsQuery);
-      
-      tenantsSnapshot.forEach((tenantDoc) => {
-        const tenantData = tenantDoc.data();
-        
+
+      // We can leverage the tenant cache here if it exists!
+      let tenantsSnapshot;
+      if (this._isCacheValid() && this.cache.tenants) {
+        // Use cached tenants
+        tenantsSnapshot = this.cache.tenants;
+      } else {
+        // Get all ACTIVE tenants from tenants collection
+        const tenantsQuery = query(
+          collection(db, "tenants"),
+          where("status", "==", "active")
+        );
+        const result = await getDocs(tenantsQuery);
+        tenantsSnapshot = [];
+        result.forEach(doc => tenantsSnapshot.push({ id: doc.id, ...doc.data() }));
+        // Also update tenant cache since we fetched it
+        this.cache.tenants = tenantsSnapshot;
+        this.cache.timestamp = Date.now();
+      }
+
+      tenantsSnapshot.forEach((tenantData) => {
         // Only include tenants with property and unit IDs
         if (tenantData.propertyId && tenantData.unitId) {
           occupiedUnits.push({
-            id: tenantDoc.id,
-            tenantId: tenantDoc.id,
-            tenantName: tenantData.fullName,
+            id: tenantData.id,
+            tenantId: tenantData.id,
+            tenantName: tenantData.fullName || tenantData.tenantName,
             propertyId: tenantData.propertyId,
             unitId: tenantData.unitId,
+            unitNumber: tenantData.unitNumber || tenantData.unitName || tenantData.unitId,
             monthlyRent: tenantData.monthlyRent || 0,
             leaseStart: tenantData.leaseStart,
             leaseEnd: tenantData.leaseEnd,
@@ -1993,20 +2081,21 @@ _addInsightsSectionWithStyling(doc, insights) {
           });
         }
       });
-      
+
       console.log(`Found ${occupiedUnits.length} occupied units from tenants collection`);
+      this.cache.units = occupiedUnits;
       return occupiedUnits;
-      
+
     } catch (error) {
       console.error('Error fetching occupied units:', error);
       return [];
     }
   }
-  
+
   async _getPaymentsForTimeframe(timeframe, startDate, endDate) {
     try {
       let dateFilter = this._getDateRange(timeframe, startDate, endDate);
-      
+
       // Get payments within timeframe
       const paymentsRef = collection(db, 'payments');
       const q = query(
@@ -2016,30 +2105,56 @@ _addInsightsSectionWithStyling(doc, insights) {
         orderBy('createdAt', 'desc'),
         limit(1000) // Limit for performance
       );
-      
+
       const querySnapshot = await getDocs(q);
       const payments = [];
-      
+
+      // We need property and unit names, let's fetch caches to map them
+      const properties = await this._getAllProperties();
+      const propertiesMap = properties.reduce((map, p) => {
+        map[p.id] = p.name || p.propertyName;
+        return map;
+      }, {});
+
+      // For units, we can use the tenants or units cache to map tenantId -> propertyId/unitId
+      const units = await this._getOccupiedUnits();
+      const unitsMap = units.reduce((map, u) => {
+        map[u.tenantId || u.id] = { propertyId: u.propertyId, unitId: u.unitId, unitNumber: u.unitNumber };
+        return map;
+      }, {});
+
       querySnapshot.forEach((doc) => {
         const paymentData = doc.data();
+        let propId = paymentData.propertyId;
+        let pUnitId = paymentData.unitNumber || paymentData.unitName || paymentData.unitId;
+
+        // If missing from payment doc, try to find from occupied units mapping
+        if ((!propId || !pUnitId) && paymentData.tenantId && unitsMap[paymentData.tenantId]) {
+          propId = propId || unitsMap[paymentData.tenantId].propertyId;
+          pUnitId = pUnitId || unitsMap[paymentData.tenantId].unitNumber || unitsMap[paymentData.tenantId].unitId;
+        }
+
         payments.push({
           id: doc.id,
           ...paymentData,
+          propertyName: paymentData.propertyName || propertiesMap[propId] || 'N/A',
+          unitId: pUnitId,
+          unitNumber: pUnitId,
           amount: Number(paymentData.amount) || 0
         });
       });
-      
+
       return payments;
     } catch (error) {
       console.error('Error fetching payments:', error);
       return [];
     }
   }
-  
+
   async _calculateExpectedRent(occupiedUnits, timeframe) {
     // Calculate expected rent based on tenant monthlyRent
     const monthlyRent = occupiedUnits.reduce((sum, unit) => sum + (unit.monthlyRent || 0), 0);
-    
+
     switch (timeframe) {
       case 'monthly':
         return monthlyRent;
@@ -2051,18 +2166,22 @@ _addInsightsSectionWithStyling(doc, insights) {
         return monthlyRent;
     }
   }
-  
+
   async _getAllTenants() {
     try {
+      if (this._isCacheValid() && this.cache.tenants) {
+        return this.cache.tenants;
+      }
+
       // Get only ACTIVE tenants for analytics
       const q = query(
         collection(db, "tenants"),
         where("status", "==", "active")
       );
-      
+
       const snapshot = await getDocs(q);
       const tenants = [];
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
         tenants.push({
@@ -2070,14 +2189,16 @@ _addInsightsSectionWithStyling(doc, insights) {
           ...data
         });
       });
-      
+
+      this.cache.tenants = tenants;
+      this.cache.timestamp = Date.now();
       return tenants;
     } catch (error) {
       console.error('Error fetching tenants:', error);
       return [];
     }
   }
-  
+
   async _getTenantPayments(tenantId) {
     try {
       // Get payments for specific tenant
@@ -2088,32 +2209,58 @@ _addInsightsSectionWithStyling(doc, insights) {
         orderBy('createdAt', 'desc'),
         limit(12) // Last 12 payments
       );
-      
+
       const querySnapshot = await getDocs(q);
       const payments = [];
-      
+
+      // We need property and unit names, let's fetch caches to map them
+      const properties = await this._getAllProperties();
+      const propertiesMap = properties.reduce((map, p) => {
+        map[p.id] = p.name || p.propertyName;
+        return map;
+      }, {});
+
+      // For units, we can use the tenants or units cache to map tenantId -> propertyId/unitId
+      const units = await this._getOccupiedUnits();
+      const unitsMap = units.reduce((map, u) => {
+        map[u.tenantId || u.id] = { propertyId: u.propertyId, unitId: u.unitId, unitNumber: u.unitNumber };
+        return map;
+      }, {});
+
       querySnapshot.forEach((doc) => {
         const paymentData = doc.data();
+        let propId = paymentData.propertyId;
+        let pUnitId = paymentData.unitNumber || paymentData.unitName || paymentData.unitId;
+
+        // If missing from payment doc, try to find from occupied units mapping
+        if ((!propId || !pUnitId) && paymentData.tenantId && unitsMap[paymentData.tenantId]) {
+          propId = propId || unitsMap[paymentData.tenantId].propertyId;
+          pUnitId = pUnitId || unitsMap[paymentData.tenantId].unitNumber || unitsMap[paymentData.tenantId].unitId;
+        }
+
         payments.push({
           id: doc.id,
           ...paymentData,
+          propertyName: paymentData.propertyName || propertiesMap[propId] || 'N/A',
+          unitId: pUnitId,
+          unitNumber: pUnitId,
           amount: Number(paymentData.amount) || 0
         });
       });
-      
+
       return payments;
     } catch (error) {
       console.error(`Error fetching payments for tenant ${tenantId}:`, error);
       return [];
     }
   }
-  
+
   _calculateVacancyDurations(vacantUnits) {
     // Simplified calculation - in production, you'd track vacancy start dates
     const unitDays = {};
     let totalDays = 0;
     let longest = 0;
-    
+
     // Mock data for now - you should implement actual vacancy duration tracking
     vacantUnits.forEach(unit => {
       // For now, use random days 1-90
@@ -2122,19 +2269,19 @@ _addInsightsSectionWithStyling(doc, insights) {
       totalDays += days;
       if (days > longest) longest = days;
     });
-    
+
     return {
       unitDays,
       avgDays: vacantUnits.length > 0 ? Math.round(totalDays / vacantUnits.length) : 0,
       longest
     };
   }
-  
+
   _getDateRange(timeframe, customStart, customEnd) {
     const now = new Date();
     let start = new Date();
     let end = new Date();
-    
+
     switch (timeframe) {
       case 'daily':
         start.setHours(0, 0, 0, 0);
@@ -2159,20 +2306,20 @@ _addInsightsSectionWithStyling(doc, insights) {
       default:
         start.setMonth(now.getMonth() - 1);
     }
-    
+
     return {
       start: Timestamp.fromDate(start),
       end: Timestamp.fromDate(end)
     };
   }
-  
+
   _getTimeframeLabel(timeframe, startDate, endDate) {
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
-    
+
     if (timeframe === 'custom' && startDate && endDate) {
       return `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
     }
-    
+
     const labels = {
       daily: 'Today',
       weekly: 'Last 7 Days',
@@ -2180,13 +2327,13 @@ _addInsightsSectionWithStyling(doc, insights) {
       quarterly: 'Last Quarter',
       yearly: 'Last Year'
     };
-    
+
     return labels[timeframe] || 'Current Period';
   }
-  
+
   _groupUnitsByProperty(allUnits) {
     const grouped = {};
-    
+
     allUnits.forEach(unit => {
       if (!grouped[unit.propertyId]) {
         grouped[unit.propertyId] = {
@@ -2201,9 +2348,9 @@ _addInsightsSectionWithStyling(doc, insights) {
           leasedUnderMaintenance: 0
         };
       }
-      
+
       grouped[unit.propertyId].totalUnits++;
-      
+
       // Count based on occupancy status
       if (unit.occupancyStatus === 'leased') {
         grouped[unit.propertyId].occupiedUnits++;
@@ -2220,13 +2367,13 @@ _addInsightsSectionWithStyling(doc, insights) {
           grouped[unit.propertyId].vacantNormal++;
         }
       }
-      
+
       // Also count maintenance separately
       if (unit.isUnderMaintenance) {
         grouped[unit.propertyId].maintenanceUnits++;
       }
     });
-    
+
     // Convert to array and calculate rates
     return Object.values(grouped).map(prop => ({
       ...prop,
@@ -2235,14 +2382,14 @@ _addInsightsSectionWithStyling(doc, insights) {
       maintenanceRate: prop.totalUnits > 0 ? prop.maintenanceUnits / prop.totalUnits : 0
     }));
   }
-  
+
   _categorizeRisk(tenantAnalytics) {
     const categories = {
       low: { min: 0, max: 30, count: 0, tenants: [] },
       medium: { min: 31, max: 70, count: 0, tenants: [] },
       high: { min: 71, max: 100, count: 0, tenants: [] }
     };
-    
+
     tenantAnalytics.forEach(tenant => {
       if (tenant.riskScore <= 30) {
         categories.low.count++;
@@ -2255,10 +2402,10 @@ _addInsightsSectionWithStyling(doc, insights) {
         categories.high.tenants.push(tenant.tenantName);
       }
     });
-    
+
     return categories;
   }
-  
+
   _aggregatePatterns(tenantAnalytics) {
     const patterns = {
       alwaysOnTime: 0,
@@ -2267,10 +2414,10 @@ _addInsightsSectionWithStyling(doc, insights) {
       avgDaysLate: 0,
       totalTenants: tenantAnalytics.length
     };
-    
+
     let totalLateDays = 0;
     let lateCount = 0;
-    
+
     tenantAnalytics.forEach(tenant => {
       if (tenant.paymentPatterns.onTimeRate >= 0.9) {
         patterns.alwaysOnTime++;
@@ -2279,15 +2426,15 @@ _addInsightsSectionWithStyling(doc, insights) {
       } else {
         patterns.occasionallyLate++;
       }
-      
+
       if (tenant.paymentPatterns.avgDaysLate > 0) {
         totalLateDays += tenant.paymentPatterns.avgDaysLate;
         lateCount++;
       }
     });
-    
+
     patterns.avgDaysLate = lateCount > 0 ? (totalLateDays / lateCount).toFixed(1) : 0;
-    
+
     return patterns;
   }
 }

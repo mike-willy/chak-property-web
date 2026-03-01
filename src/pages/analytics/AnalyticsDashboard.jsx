@@ -7,12 +7,12 @@ import VacancyRateAnalysis from './VacancyRateAnalysis';
 import TenantBehaviorAnalysis from './TenantBehaviorAnalysis';
 import AnalyticsInsights from './AnalyticsInsights';
 import MetricCard from '../../components/analytics/MetricCard';
-import { 
-  FaChartLine, 
-  FaHome, 
-  FaUsers, 
-  FaLightbulb, 
-  FaSync, 
+import {
+  FaChartLine,
+  FaHome,
+  FaUsers,
+  FaLightbulb,
+  FaSync,
   FaFilter,
   FaCalendar,
   FaDollarSign,
@@ -74,7 +74,7 @@ const AnalyticsDashboard = () => {
 
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
-    
+
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
@@ -97,7 +97,7 @@ const AnalyticsDashboard = () => {
   const loadOverviewMetrics = async () => {
     try {
       setLoading(true);
-      
+
       const [rentData, vacancyData, tenantData] = await Promise.all([
         analyticsService.getRentCollectionAnalytics(timeframe),
         analyticsService.getVacancyRateAnalytics(),
@@ -112,7 +112,7 @@ const AnalyticsDashboard = () => {
         pendingPayments: rentData.summary.latePaymentsCount,
         vacantUnits: vacancyData.summary.vacantUnits
       });
-      
+
     } catch (error) {
       console.error('Error loading overview metrics:', error);
       toast.error('Failed to load dashboard metrics');
@@ -147,8 +147,13 @@ const AnalyticsDashboard = () => {
   const handleExportReport = async (format = 'csv', reportType = 'full') => {
     try {
       setExportDropdownOpen(false);
-      toast.info(`Generating ${format.toUpperCase()} report...`);
-      
+
+      if (format === 'pdf' && reportType === 'full') {
+        toast.info(`Generating ${format.toUpperCase()} report... this may take a moment for large datasets.`, { autoClose: 4000 });
+      } else {
+        toast.info(`Generating ${format.toUpperCase()} report...`);
+      }
+
       // Map reportType to match service expectations
       let serviceReportType = 'full';
       if (reportType === 'current') {
@@ -161,12 +166,21 @@ const AnalyticsDashboard = () => {
         };
         serviceReportType = tabMap[activeTab] || 'full';
       }
-      
-      await analyticsService.generateComprehensiveReport(serviceReportType, timeframe, format);
-      toast.success(`${format.toUpperCase()} report downloaded successfully!`);
+
+      // We wrap the heavy sync operation (jsPDF) in a brief timeout to allow the toast to render
+      setTimeout(async () => {
+        try {
+          await analyticsService.generateComprehensiveReport(serviceReportType, timeframe, format);
+          toast.success(`${format.toUpperCase()} report downloaded successfully!`);
+        } catch (innerError) {
+          console.error('Export inner failed:', innerError);
+          toast.error(`Failed to generate ${format} report: ${innerError.message}`);
+        }
+      }, 100);
+
     } catch (error) {
       console.error('Export failed:', error);
-      toast.error(`Failed to generate ${format} report: ${error.message}`);
+      toast.error(`Failed to prepare ${format} report: ${error.message}`);
     }
   };
 
@@ -175,7 +189,7 @@ const AnalyticsDashboard = () => {
     try {
       setExportDropdownOpen(false);
       toast.info(`Exporting ${sectionType} as ${format.toUpperCase()}...`);
-      
+
       await analyticsService.generatePDFReport(sectionType, timeframe);
       toast.success(`${sectionType} exported as ${format.toUpperCase()}!`);
     } catch (error) {
@@ -216,12 +230,12 @@ const AnalyticsDashboard = () => {
           </h1>
           <p className="subtitle">Data-driven insights for better property management decisions</p>
         </div>
-        
+
         <div className="analytics-header-right">
           <div className="timeframe-selector">
             <FaCalendar />
-            <select 
-              value={timeframe} 
+            <select
+              value={timeframe}
               onChange={(e) => handleTimeframeChange(e.target.value)}
               className="timeframe-select"
               disabled={refreshing}
@@ -233,9 +247,9 @@ const AnalyticsDashboard = () => {
               <option value="yearly">This Year</option>
             </select>
           </div>
-          
-          <button 
-            className="refresh-btn" 
+
+          <button
+            className="refresh-btn"
             onClick={handleRefresh}
             disabled={refreshing}
           >
@@ -252,24 +266,24 @@ const AnalyticsDashboard = () => {
 
           {/* UPDATED: Export Dropdown */}
           <div className="export-dropdown-container" ref={exportDropdownRef}>
-            <button 
+            <button
               className="export-btn"
               onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
             >
               <FaDownload /> Export <FaChevronDown className="dropdown-arrow" />
             </button>
-            
+
             {exportDropdownOpen && (
               <div className="export-dropdown-menu">
                 <div className="dropdown-section">
                   <div className="dropdown-section-title">Full Report</div>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportReport('csv', 'full')}
                   >
                     <FaFileExcel className="excel-icon" /> Excel (Full Report)
                   </button>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportReport('pdf', 'full')}
                   >
@@ -281,13 +295,13 @@ const AnalyticsDashboard = () => {
 
                 <div className="dropdown-section">
                   <div className="dropdown-section-title">Current Tab</div>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportReport('csv', 'current')}
                   >
                     <FaFileExcel /> Export Current Tab (Excel)
                   </button>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportReport('pdf', 'current')}
                   >
@@ -299,25 +313,25 @@ const AnalyticsDashboard = () => {
 
                 <div className="dropdown-section">
                   <div className="dropdown-section-title">Individual Reports (PDF)</div>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportSection('rent-collection')}
                   >
                     <FaDollarSign /> Rent Collection
                   </button>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportSection('vacancy-rate')}
                   >
                     <FaHome /> Vacancy Rate
                   </button>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportSection('tenant-behavior')}
                   >
                     <FaUsers /> Tenant Behavior
                   </button>
-                  <button 
+                  <button
                     className="export-option"
                     onClick={() => handleExportSection('analytics-insights')}
                   >
@@ -340,7 +354,7 @@ const AnalyticsDashboard = () => {
           subtitle={`${timeframe} performance`}
           color="primary"
         />
-        
+
         <MetricCard
           title="Vacancy Rate"
           value={formatPercent(overviewMetrics.vacancyRate)}
@@ -349,7 +363,7 @@ const AnalyticsDashboard = () => {
           subtitle={`${overviewMetrics.vacantUnits} vacant units`}
           color="warning"
         />
-        
+
         <MetricCard
           title="Active Tenants"
           value={overviewMetrics.totalTenants}
@@ -358,7 +372,7 @@ const AnalyticsDashboard = () => {
           subtitle="Currently paying rent"
           color="success"
         />
-        
+
         <MetricCard
           title="Total Revenue"
           value={formatCurrency(overviewMetrics.totalRevenue)}
@@ -367,7 +381,7 @@ const AnalyticsDashboard = () => {
           subtitle={`${timeframe} collected`}
           color="info"
         />
-        
+
         <MetricCard
           title="Pending Payments"
           value={overviewMetrics.pendingPayments}
@@ -380,28 +394,28 @@ const AnalyticsDashboard = () => {
 
       {/* Navigation Tabs */}
       <div className="analytics-tabs">
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'rent-collection' ? 'active' : ''}`}
           onClick={() => handleTabChange('rent-collection')}
         >
           <FaDollarSign /> Rent Collection
         </button>
-        
-        <button 
+
+        <button
           className={`tab-btn ${activeTab === 'vacancy-rates' ? 'active' : ''}`}
           onClick={() => handleTabChange('vacancy-rates')}
         >
           <FaHome /> Vacancy Rates
         </button>
-        
-        <button 
+
+        <button
           className={`tab-btn ${activeTab === 'tenant-behavior' ? 'active' : ''}`}
           onClick={() => handleTabChange('tenant-behavior')}
         >
           <FaUsers /> Tenant Behavior
         </button>
-        
-        <button 
+
+        <button
           className={`tab-btn ${activeTab === 'insights' ? 'active' : ''}`}
           onClick={() => handleTabChange('insights')}
         >
@@ -414,15 +428,15 @@ const AnalyticsDashboard = () => {
         {activeTab === 'rent-collection' && (
           <RentCollectionAnalysis timeframe={timeframe} />
         )}
-        
+
         {activeTab === 'vacancy-rates' && (
           <VacancyRateAnalysis />
         )}
-        
+
         {activeTab === 'tenant-behavior' && (
           <TenantBehaviorAnalysis />
         )}
-        
+
         {activeTab === 'insights' && (
           <AnalyticsInsights />
         )}
@@ -441,8 +455,8 @@ const AnalyticsDashboard = () => {
           <button className="action-btn" onClick={() => navigate('/tenants')}>
             <FaUsers /> View Tenants
           </button>
-          <button 
-            className="action-btn" 
+          <button
+            className="action-btn"
             onClick={handleRefresh}
             disabled={refreshing}
           >
