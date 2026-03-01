@@ -59,6 +59,7 @@ const PaymentPage = () => {
   const [tenantDetails, setTenantDetails] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [mpesaModalOpen, setMpesaModalOpen] = useState(false);
+  const [globalMpesaModalOpen, setGlobalMpesaModalOpen] = useState(false);
   const [loadingTenant, setLoadingTenant] = useState(false);
 
   // Cache for tenant names to avoid repeated lookups
@@ -504,6 +505,15 @@ const PaymentPage = () => {
           </Button>
           <Button
             variant="contained"
+            color="success"
+            startIcon={<PaymentIcon />}
+            onClick={() => setGlobalMpesaModalOpen(true)}
+            sx={{ mr: 1 }}
+          >
+            Initiate Payment
+          </Button>
+          <Button
+            variant="contained"
             startIcon={<RefreshIcon />}
             onClick={() => window.location.reload()}
           >
@@ -907,18 +917,6 @@ const PaymentPage = () => {
                     </Button>
                   )}
 
-                  <Button
-                    variant="contained"
-                    color="success"
-                    fullWidth
-                    onClick={() => {
-                      setModalOpen(false); // Only close the first modal, leaving state intact
-                      setMpesaModalOpen(true);
-                    }}
-                  >
-                    Request Payment
-                  </Button>
-
                   <Button variant="contained" fullWidth onClick={handleCloseModal}>
                     Close
                   </Button>
@@ -944,6 +942,13 @@ const PaymentPage = () => {
           }}
         />
       )}
+
+      {/* Global M-Pesa Payment Modal */}
+      <MpesaPaymentModal
+        open={globalMpesaModalOpen}
+        onClose={() => setGlobalMpesaModalOpen(false)}
+        tenant={null}
+      />
 
       {/* Performance Indicator */}
       <Box sx={{ mt: 2, textAlign: 'center' }}>

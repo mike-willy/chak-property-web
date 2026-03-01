@@ -12,6 +12,8 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [tenantName, setTenantName] = useState(tenant?.name || '');
+  const [properties, setProperties] = useState([]);
+  const [units, setUnits] = useState([]);
   const [formData, setFormData] = useState({
     phoneNumber: tenant?.phone || '',
     amount: tenant?.monthlyRent || '',
@@ -34,11 +36,59 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
       }));
       setSuccess('');
       setError('');
+    } else if (open) {
+      setTenantName('');
+      setFormData(prev => ({
+        ...prev,
+        phoneNumber: '',
+        amount: '',
+        propertyId: '',
+        unit: ''
+      }));
+      setSuccess('');
+      setError('');
     }
-  }, [tenant]);
+  }, [tenant, open]);
 
   // Fetch available months for payment
   const [months, setMonths] = useState([formData.month]);
+
+  // Fetch properties for walk-ins
+  useEffect(() => {
+    if (!tenant && open) {
+      const fetchProperties = async () => {
+        try {
+          const snap = await getDocs(collection(db, 'properties'));
+          const propsData = snap.docs.map(doc => ({ id: doc.id, name: doc.data().name || doc.id }));
+          setProperties(propsData);
+        } catch (err) {
+          console.error("Error fetching properties:", err);
+        }
+      };
+      fetchProperties();
+    }
+  }, [tenant, open]);
+
+  // Fetch units when property changes
+  useEffect(() => {
+    if (!tenant && formData.propertyId) {
+      const fetchUnits = async () => {
+        try {
+          const snap = await getDocs(collection(db, `properties/${formData.propertyId}/units`));
+          const unitsData = snap.docs.map(doc => ({
+            id: doc.id,
+            unitName: doc.data().unitName || doc.data().unitNumber || doc.id
+          }));
+          setUnits(unitsData);
+        } catch (err) {
+          console.error("Error fetching units:", err);
+        }
+      };
+      fetchUnits();
+    } else {
+      setUnits([]);
+    }
+  }, [tenant, formData.propertyId]);
 
   // Fetch tenant name from DB if it's missing or says "Unknown Tenant"
   useEffect(() => {
@@ -70,10 +120,12 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
   }, [open, tenant, tenantName]);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'propertyId' ? { unit: '' } : {}) // Reset unit when property changes
+    }));
   };
 
   const initiatePayment = async () => {
@@ -83,7 +135,7 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
       setSuccess('');
 
       // Validation
-      if (!formData.phoneNumber || !formData.amount || !formData.month) {
+      if (!formData.phoneNumber || !formData.amount || !formData.month || (!tenant && !tenantName.trim())) {
         setError('Please fill all required fields');
         setLoading(false);
         return;
@@ -97,8 +149,9 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
         },
         body: JSON.stringify({
           ...formData,
-          tenantId: tenant.id,
-          tenantName: tenantName
+          tenantId: tenant?.id || 'walk-in',
+          tenantName: tenantName || 'Walk-in',
+          propertyName: properties.find(p => p.id === formData.propertyId)?.name || ''
         })
       });
 
@@ -134,15 +187,15 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
             await addDoc(collection(db, 'notifications'), {
               type: 'rent_payment',
               title: 'Payment Received',
-              message: `Payment of ${formData.amount} for ${tenantName} (${tenant.unit}) has been recorded.`,
+              message: `Payment of ${formData.amount} for ${tenantName || 'Walk-in'} (${tenant?.unit || 'N/A'}) has been recorded.`,
               recipientId: 'admin',
               recipientType: 'admin',
               read: false,
               priority: 'high',
               metadata: {
-                tenantId: tenant.id,
+                tenantId: tenant?.id || 'walk-in',
                 amount: formData.amount,
-                unit: tenant.unit
+                unit: tenant?.unit || 'N/A'
               },
               createdAt: serverTimestamp()
             });
@@ -171,7 +224,7 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
           M-Pesa Payment
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {tenantName || 'Tenant'} - {tenant?.unit || 'No Unit'}
+          {tenantName || 'Walk-in'} - {tenant?.unit || 'No Unit'}
         </Typography>
       </DialogTitle>
 
@@ -186,6 +239,52 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
           <Alert severity="success" sx={{ mb: 2 }}>
             {success}
           </Alert>
+        )}
+
+        {!tenant && (
+          <>
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Name / Reference"
+              name="tenantName"
+              value={tenantName}
+              onChange={(e) => setTenantName(e.target.value)}
+              placeholder="e.g. John Doe - Walk In"
+              required
+            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Property (Optional)</InputLabel>
+              <Select
+                name="propertyId"
+                value={formData.propertyId}
+                onChange={handleChange}
+                label="Property (Optional)"
+              >
+                <MenuItem value=""><em>None</em></MenuItem>
+                {properties.map(p => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {formData.propertyId && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Unit (Optional)</InputLabel>
+                <Select
+                  name="unit"
+                  value={formData.unit}
+                  onChange={handleChange}
+                  label="Unit (Optional)"
+                >
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {units.map(u => (
+                    <MenuItem key={u.id} value={u.unitName}>{u.unitName}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </>
         )}
 
         <FormControl fullWidth margin="normal">
