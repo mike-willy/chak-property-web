@@ -29,7 +29,7 @@ import AssignTenant from "./pages/AssignTenant";
 import ApprovedTenants from './pages/ApprovedTenants';
 import AllActivities from './pages/AllActivities';
 import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard';
-import AnalyticsTest from './components/analytics/AnalyticsTest';
+
 
 // NEW: Import SearchResultsPage
 import SearchResultsPage from "./pages/SearchResultsPage";
@@ -84,8 +84,6 @@ function App() {
       />
 
       <Route path="/activities" element={<AllActivities />} />
-
-      <Route path="/test-analytics" element={<AnalyticsTest />} />
       <Route path="/metric-card" element={<MetricCard />} />
 
       <Route
