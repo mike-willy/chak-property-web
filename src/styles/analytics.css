@@ -2198,6 +2198,7 @@
 .step-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .no-critical-actions {
@@ -2406,6 +2407,7 @@
   display: flex;
   gap: 12px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* ============ BREAKDOWN SECTION ============ */
@@ -3407,6 +3409,28 @@
   .patterns-summary,
   .breakdown-grid {
     grid-template-columns: 1fr;
+  }
+
+  .plan-step {
+    flex-direction: column;
+    padding: 15px;
+  }
+
+  .step-number {
+    margin-bottom: 12px;
+  }
+
+  .summary-content {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .summary-actions .action-btn {
+    width: 100%;
   }
 
   .distribution-bar-container {
