@@ -933,12 +933,12 @@
 
 /* ========== BUTTON STYLES ========== */
 .tenant-form-btn-cancel {
-  padding: 0.625rem 2rem;
+  padding: 0.5rem 1.25rem;
   background: transparent;
-  border: 1px solid #d1d5db;
-  border-radius: var(--tenant-radius);
-  color: #6b7280;
-  font-size: 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -946,16 +946,17 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-width: 160px;
+  min-width: 140px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(to bottom, white, #f9fafb);
-  height: 44px;
+  background: white;
+  height: 40px;
   flex: 1;
-  max-width: 200px;
+  max-width: 180px;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .tenant-form-btn-cancel::before {
@@ -982,12 +983,12 @@
 }
 
 .tenant-form-btn-submit {
-  padding: 0.625rem 2rem;
+  padding: 0.5rem 1.25rem;
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: none;
-  border-radius: var(--tenant-radius);
+  border: 1px solid transparent;
+  border-radius: 12px;
   color: white;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -998,13 +999,14 @@
   position: relative;
   overflow: hidden;
   letter-spacing: 0.3px;
-  min-width: 160px;
+  min-width: 140px;
   text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-  height: 44px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+  height: 40px;
   flex: 1;
-  max-width: 200px;
+  max-width: 180px;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .tenant-form-btn-submit::before {
@@ -1021,8 +1023,8 @@
 .tenant-form-btn-submit:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
-  letter-spacing: 0.5px;
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  letter-spacing: 0.5px;
 }
 
 .tenant-form-btn-submit:hover:not(:disabled)::before {
@@ -1036,16 +1038,9 @@
   box-shadow: none !important;
 }
 
-/* ========== BUTTON GROUP FIX - PREVENTS HOVER OVERLAP ========== */
+/* ========== BUTTON GROUP REMOVED FROM JSX - REPLACED WITH ROW FLEX ========== */
 .tenant-form-button-group {
-  display: flex;
-  gap: 1rem;
-  /* Increased from 0.75rem to 1rem */
-  align-items: center;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  position: relative;
-  z-index: 1;
+  display: none;
 }
 
 /* Ensure buttons have their own stacking context */
@@ -1084,12 +1079,12 @@
 
 
 .tenant-form-btn-danger {
-  padding: 0.625rem 2rem;
+  padding: 0.5rem 1.25rem;
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border: none;
-  border-radius: var(--tenant-radius);
+  border: 1px solid transparent;
+  border-radius: 12px;
   color: white;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1097,16 +1092,17 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-width: 160px;
+  min-width: 140px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
   position: relative;
   overflow: hidden;
-  height: 44px;
+  height: 40px;
   flex: 1;
-  max-width: 200px;
+  max-width: 180px;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .tenant-form-btn-danger::before {
@@ -1461,9 +1457,12 @@
   }
 
   .tenant-form-btn-cancel,
-  .tenant-form-button-group {
+  .tenant-form-btn-submit,
+  .tenant-form-btn-danger {
     width: 100%;
+    max-width: 280px;
     justify-content: center;
+    align-self: center;
   }
 
   .tenant-form-button-group {
@@ -1546,18 +1545,14 @@
   .tenant-form-btn-cancel,
   .tenant-form-btn-submit,
   .tenant-form-btn-danger {
-    padding: 0.5rem 1.25rem;
+    padding: 0.5rem 1rem;
     font-size: 0.75rem;
-    height: 36px;
+    height: 40px;
+    /* Refined height for mobile */
     min-width: 140px;
-  }
-
-  .tenant-form-btn-cancel,
-  .tenant-form-btn-submit,
-  .tenant-form-btn-danger {
     width: 100%;
-    justify-content: center;
-    min-width: 0;
+    max-width: 240px;
+    border-radius: 12px !important;
   }
 
   .tenant-form-info-box {
