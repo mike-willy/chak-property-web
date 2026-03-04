@@ -279,7 +279,7 @@ const AnalyticsDashboard = () => {
                   <div className="dropdown-section-title">Full Report</div>
                   <button
                     className="export-option"
-                    onClick={() => handleExportReport('csv', 'full')}
+                    onClick={() => handleExportReport('xlsx', 'full')}
                   >
                     <FaFileExcel className="excel-icon" /> Excel (Full Report)
                   </button>
@@ -297,7 +297,7 @@ const AnalyticsDashboard = () => {
                   <div className="dropdown-section-title">Current Tab</div>
                   <button
                     className="export-option"
-                    onClick={() => handleExportReport('csv', 'current')}
+                    onClick={() => handleExportReport('xlsx', 'current')}
                   >
                     <FaFileExcel /> Export Current Tab (Excel)
                   </button>

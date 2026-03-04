@@ -24,6 +24,8 @@ import {
 // Import jsPDF for PDF generation
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+// Import xlsx for professional Excel reports
+import * as XLSX from 'xlsx';
 
 /**
  * Main Analytics Service - FIXED WITH SINGLE PDF DOWNLOAD
@@ -567,6 +569,9 @@ class AnalyticsService {
             filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
             const csvContent = this._generateFullReportCSV(reportData);
             this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'xlsx') {
+            filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+            this._generateFullReportXLSX(reportData, filename);
           } else if (format === 'pdf') {
             filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
             // FIXED: Use the corrected method that doesn't call save multiple times
@@ -580,6 +585,9 @@ class AnalyticsService {
             filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
             const rentCSV = this._generateRentCollectionCSV(reportData);
             this._triggerFileDownload(rentCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'xlsx') {
+            filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.xlsx`;
+            this._generateRentCollectionXLSX(reportData, filename);
           } else if (format === 'pdf') {
             filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateRentCollectionPDF(reportData, filename);
@@ -592,6 +600,9 @@ class AnalyticsService {
             filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
             const vacancyCSV = this._generateVacancyRateCSV(reportData);
             this._triggerFileDownload(vacancyCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'xlsx') {
+            filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.xlsx`;
+            this._generateVacancyRateXLSX(reportData, filename);
           } else if (format === 'pdf') {
             filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateVacancyRatePDF(reportData, filename);
@@ -604,6 +615,9 @@ class AnalyticsService {
             filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
             const tenantCSV = this._generateTenantBehaviorCSV(reportData);
             this._triggerFileDownload(tenantCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'xlsx') {
+            filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.xlsx`;
+            this._generateTenantBehaviorXLSX(reportData, filename);
           } else if (format === 'pdf') {
             filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateTenantBehaviorPDF(reportData, filename);
@@ -616,6 +630,9 @@ class AnalyticsService {
             filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
             const insightsCSV = this._generateInsightsCSV(reportData);
             this._triggerFileDownload(insightsCSV, filename, 'text/csv;charset=utf-8;');
+          } else if (format === 'xlsx') {
+            filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.xlsx`;
+            this._generateInsightsXLSX(reportData, filename);
           } else if (format === 'pdf') {
             filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateInsightsPDF(reportData, filename);
@@ -1986,6 +2003,208 @@ class AnalyticsService {
     });
 
     return csvContent;
+  }
+
+  // ============ PROFESSIONAL XLSX GENERATION METHODS ============
+
+  _generateRentCollectionXLSX(data, filename) {
+    const ws_data = [
+      ["JESMA INVESTMENTS - RENT COLLECTION REPORT"],
+      [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
+      [],
+      ["Date", "Tenant Name", "Property", "Unit", "Amount (KES)", "Month", "Status", "Method", "Transaction ID"]
+    ];
+
+    data.details.payments.forEach(payment => {
+      ws_data.push([
+        payment.createdAt?.toDate?.().toLocaleDateString('en-KE') || 'N/A',
+        payment.tenantName || 'Unknown',
+        payment.propertyName || 'N/A',
+        payment.unitNumber || payment.unitId || 'N/A',
+        payment.amount,
+        payment.month || 'N/A',
+        payment.status,
+        payment.method || 'N/A',
+        payment.id || 'N/A'
+      ]);
+    });
+
+    this._exportToXLSX(ws_data, filename, "Rent Collection");
+  }
+
+  _generateTenantBehaviorXLSX(data, filename) {
+    const ws_data = [
+      ["JESMA INVESTMENTS - TENANT BEHAVIOR REPORT"],
+      [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
+      [],
+      ["Tenant Name", "Property", "Unit", "Risk Score", "Status", "Monthly Rent", "Balance", "On-Time Rate %", "Avg Days Late", "Last Payment"]
+    ];
+
+    data.details.tenants.forEach(tenant => {
+      const lastPaymentDate = tenant.lastPayment
+        ? (tenant.lastPayment.toDate ? tenant.lastPayment.toDate().toLocaleDateString('en-KE') : tenant.lastPayment)
+        : 'Never';
+
+      ws_data.push([
+        tenant.tenantName,
+        tenant.propertyName || 'N/A',
+        tenant.unitNumber || tenant.unitId || 'N/A',
+        tenant.riskScore,
+        tenant.status,
+        tenant.monthlyRent,
+        tenant.balance,
+        (tenant.paymentPatterns.onTimeRate * 100).toFixed(1),
+        tenant.paymentPatterns.avgDaysLate || 0,
+        lastPaymentDate
+      ]);
+    });
+
+    this._exportToXLSX(ws_data, filename, "Tenant Behavior");
+  }
+
+  _generateVacancyRateXLSX(data, filename) {
+    const ws_data = [
+      ["JESMA INVESTMENTS - VACANCY RATE REPORT"],
+      [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
+      [],
+      ["Property Name", "Total Units", "Occupied Units", "Vacant Units", "Vacancy Rate %", "Under Maintenance", "Occupancy Rate %", "Avg Vacancy Days"]
+    ];
+
+    data.details.byProperty.forEach(property => {
+      ws_data.push([
+        property.propertyName,
+        property.totalUnits,
+        property.occupiedUnits,
+        property.vacantUnits,
+        (property.vacancyRate * 100).toFixed(1),
+        property.maintenanceUnits,
+        (property.occupancyRate * 100).toFixed(1),
+        property.avgVacancyDays || 0
+      ]);
+    });
+
+    this._exportToXLSX(ws_data, filename, "Vacancy Rates");
+  }
+
+  _generateInsightsXLSX(data, filename) {
+    const ws_data = [
+      ["JESMA INVESTMENTS - ANALYTICS INSIGHTS REPORT"],
+      [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
+      [],
+      ["Priority", "Title", "Category", "Description", "Recommendation"]
+    ];
+
+    data.forEach(insight => {
+      ws_data.push([
+        insight.priority.toUpperCase(),
+        insight.title,
+        insight.category || 'general',
+        insight.description,
+        insight.recommendation
+      ]);
+    });
+
+    this._exportToXLSX(ws_data, filename, "Insights");
+  }
+
+  _generateFullReportXLSX(reportData, filename) {
+    const wb = XLSX.utils.book_new();
+
+    // 1. Overview Sheet
+    const overview_data = [
+      ["JESMA INVESTMENTS - COMPLETE ANALYTICS REPORT"],
+      [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
+      [`Timeframe: ${reportData.timeframe}`],
+      [],
+      ["SECTION", "METRIC", "VALUE"],
+      ["Rent Collection", "Collection Rate", `${(reportData.rentCollection.summary.collectionRate * 100).toFixed(1)}%`],
+      ["Rent Collection", "Expected Rent", reportData.rentCollection.summary.expectedRent],
+      ["Rent Collection", "Collected Rent", reportData.rentCollection.summary.collectedRent],
+      ["Vacancy", "Vacancy Rate", `${(reportData.vacancyRate.summary.vacancyRate * 100).toFixed(1)}%`],
+      ["Vacancy", "Occupied Units", reportData.vacancyRate.summary.occupiedUnits],
+      ["Vacancy", "Vacant Units", reportData.vacancyRate.summary.vacantUnits],
+      ["Tenants", "Average Risk Score", reportData.tenantBehavior.summary.averageRiskScore.toFixed(1)],
+      ["Tenants", "Total Outstanding", reportData.tenantBehavior.summary.totalOutstandingBalance]
+    ];
+    const ws_overview = XLSX.utils.aoa_to_sheet(overview_data);
+    this._styleXLSXSheet(ws_overview, overview_data);
+    XLSX.utils.book_append_sheet(wb, ws_overview, "Overview Summary");
+
+    // 2. Rent Collection Sheet
+    const rent_data = [
+      ["RENT COLLECTION DETAILS"],
+      [],
+      ["Date", "Tenant Name", "Property", "Unit", "Amount (KES)", "Month", "Status"]
+    ];
+    reportData.rentCollection.details.payments.forEach(p => {
+      rent_data.push([
+        p.createdAt?.toDate?.().toLocaleDateString('en-KE') || 'N/A',
+        p.tenantName, p.propertyName, p.unitNumber, p.amount, p.month, p.status
+      ]);
+    });
+    const ws_rent = XLSX.utils.aoa_to_sheet(rent_data);
+    this._styleXLSXSheet(ws_rent, rent_data);
+    XLSX.utils.book_append_sheet(wb, ws_rent, "Rent Details");
+
+    // 3. Vacancy Sheet
+    const vacancy_data = [
+      ["VACANCY BY PROPERTY"],
+      [],
+      ["Property", "Total", "Occupied", "Vacant", "Vacancy %", "Maintenance"]
+    ];
+    reportData.vacancyRate.details.byProperty.forEach(p => {
+      vacancy_data.push([
+        p.propertyName, p.totalUnits, p.occupiedUnits, p.vacantUnits,
+        `${(p.vacancyRate * 100).toFixed(1)}%`, p.maintenanceUnits
+      ]);
+    });
+    const ws_vacancy = XLSX.utils.aoa_to_sheet(vacancy_data);
+    this._styleXLSXSheet(ws_vacancy, vacancy_data);
+    XLSX.utils.book_append_sheet(wb, ws_vacancy, "Vacancy Details");
+
+    // 4. Insights Sheet
+    const insights_data = [
+      ["KEY INSIGHTS & RECOMMENDATIONS"],
+      [],
+      ["Priority", "Title", "Description", "Recommendation"]
+    ];
+    reportData.insights.forEach(i => {
+      insights_data.push([i.priority.toUpperCase(), i.title, i.description, i.recommendation]);
+    });
+    const ws_insights = XLSX.utils.aoa_to_sheet(insights_data);
+    this._styleXLSXSheet(ws_insights, insights_data);
+    XLSX.utils.book_append_sheet(wb, ws_insights, "Insights");
+
+    // Save Workbook
+    XLSX.writeFile(wb, filename);
+  }
+
+  // XLSX Helper: Style and export
+  _exportToXLSX(aoaData, filename, sheetName) {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoaData);
+
+    // Apply auto-column widths
+    this._styleXLSXSheet(ws, aoaData);
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, filename);
+  }
+
+  // XLSX Helper: Auto-size columns
+  _styleXLSXSheet(ws, aoaData) {
+    if (!aoaData || aoaData.length === 0) return;
+
+    // Calculate max width for each column
+    const colWidths = aoaData[0].map((_, colIndex) => {
+      const maxWidth = aoaData.reduce((max, row) => {
+        const cellValue = row[colIndex] ? String(row[colIndex]) : "";
+        return Math.max(max, cellValue.length);
+      }, 10);
+      return { wch: maxWidth + 5 }; // Add padding
+    });
+
+    ws['!cols'] = colWidths;
   }
 
   _triggerFileDownload(content, filename, mimeType) {
