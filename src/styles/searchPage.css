@@ -194,8 +194,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .no-search-query {
@@ -425,33 +430,33 @@
   .search-results-page {
     padding: 16px;
   }
-  
+
   .search-header h1 {
     font-size: 24px;
   }
-  
+
   .search-box-large {
     flex-direction: column;
     gap: 10px;
     padding: 16px;
   }
-  
+
   .search-input-wrapper {
     padding: 0;
   }
-  
+
   .search-submit-btn {
     width: 100%;
   }
-  
+
   .results-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .filter-buttons {
     justify-content: center;
   }
-  
+
   .filter-btn {
     padding: 8px 16px;
     font-size: 13px;

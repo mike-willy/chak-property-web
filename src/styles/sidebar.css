@@ -143,7 +143,8 @@
 .sidebar-scrollable {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 0 40px 0; /* FIXED: Reduced from 100px to 40px */
+  padding: 12px 0 40px 0;
+  /* FIXED: Reduced from 100px to 40px */
   display: flex;
   flex-direction: column;
 }
@@ -161,7 +162,7 @@
   transition: all 0.3s ease;
 }
 
-.sidebar-scrollable > .sidebar-title:first-child {
+.sidebar-scrollable>.sidebar-title:first-child {
   margin-top: 0;
 }
 
@@ -241,10 +242,12 @@
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
   }
+
   50% {
     transform: scale(1.05);
     box-shadow: 0 0 0 3px rgba(255, 71, 87, 0);
   }
+
   100% {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
@@ -256,7 +259,8 @@
 ================================ */
 .sidebar-system {
   margin-top: auto;
-  padding-bottom: 20px; /* FIXED: Reduced from 40px to 20px */
+  padding-bottom: 20px;
+  /* FIXED: Reduced from 40px to 20px */
 }
 
 .sidebar-bottom {
@@ -504,99 +508,100 @@
     transition: transform 0.3s ease, width 0.3s ease !important;
     transform: translateX(0);
   }
-  
+
   .sidebar.collapsed {
-    width: 60px !important;
-    transform: translateX(0) !important;
+    width: 250px !important;
+    /* Give it full width before moving it */
+    transform: translateX(-100%) !important;
   }
-  
+
   .sidebar:not(.collapsed) {
     width: 250px !important;
     transform: translateX(0) !important;
   }
-  
+
   .sidebar.collapsed .sidebar-profile {
     padding: 10px 4px !important;
   }
-  
+
   .sidebar:not(.collapsed) .sidebar-profile {
     padding: 15px 16px !important;
   }
-  
+
   .sidebar.collapsed .profile-avatar-container {
     width: 40px !important;
     height: 40px !important;
     margin: 0 auto 6px !important;
   }
-  
+
   .sidebar:not(.collapsed) .profile-avatar-container {
     width: 60px !important;
     height: 60px !important;
     margin: 0 auto 10px !important;
   }
-  
+
   .avatar-initial {
     font-size: 16px !important;
   }
-  
+
   .sidebar.collapsed .profile-info,
   .sidebar.collapsed .sidebar-title,
   .sidebar.collapsed .sidebar-item-content span:not(.sidebar-badge) {
     display: none !important;
   }
-  
+
   .sidebar:not(.collapsed) .profile-info,
   .sidebar:not(.collapsed) .sidebar-title,
   .sidebar:not(.collapsed) .sidebar-item-content span:not(.sidebar-badge) {
     display: block !important;
   }
-  
+
   .sidebar.collapsed .sidebar-menu,
   .sidebar.collapsed .sidebar-bottom {
     margin: 0 2px !important;
     padding: 0 !important;
   }
-  
+
   .sidebar:not(.collapsed) .sidebar-menu,
   .sidebar:not(.collapsed) .sidebar-bottom {
     margin: 0 8px !important;
   }
-  
+
   .sidebar.collapsed .sidebar-menu li,
   .sidebar.collapsed .sidebar-bottom li {
     padding: 8px 0 !important;
     margin: 0 0 2px 0 !important;
     justify-content: center !important;
   }
-  
+
   .sidebar:not(.collapsed) .sidebar-menu li,
   .sidebar:not(.collapsed) .sidebar-bottom li {
     padding: 10px 12px !important;
     margin: 0 0 4px 0 !important;
   }
-  
+
   .sidebar.collapsed .sidebar-item-content {
     justify-content: center !important;
     width: 100% !important;
     gap: 0 !important;
   }
-  
+
   .sidebar:not(.collapsed) .sidebar-item-content {
     justify-content: flex-start !important;
     gap: 12px !important;
   }
-  
+
   .sidebar.collapsed .sidebar-item-content svg {
     margin: 0 auto !important;
     width: 18px !important;
     height: 18px !important;
   }
-  
+
   .sidebar:not(.collapsed) .sidebar-item-content svg {
     width: 16px !important;
     height: 16px !important;
   }
-  
+
   .sidebar.collapsed .sidebar-badge {
     top: 4px !important;
     right: 4px !important;
@@ -604,31 +609,32 @@
     height: 14px !important;
     font-size: 8px !important;
   }
-  
+
   .sidebar:not(.collapsed) .sidebar-badge {
     min-width: 18px !important;
     height: 18px !important;
     font-size: 10px !important;
   }
-  
+
   /* FIXED: Reduced mobile padding to match desktop */
   .sidebar-scrollable {
-    padding: 8px 0 40px 0 !important; /* FIXED: Reduced from 60px to 40px */
+    padding: 8px 0 40px 0 !important;
+    /* FIXED: Reduced from 60px to 40px */
   }
-  
+
   .sidebar-submenu {
     margin-left: 32px;
   }
-  
+
   .sidebar-subitem {
     padding: 6px 10px;
     font-size: 12px;
   }
-  
+
   .subitem-label {
     font-size: 0.8rem;
   }
-  
+
   .subitem-description {
     font-size: 0.65rem;
   }

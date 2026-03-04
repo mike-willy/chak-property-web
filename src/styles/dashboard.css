@@ -34,14 +34,14 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  min-width: 0; 
+  min-width: 0;
 }
 
 /* Right Column Styling: The "Equalizer" */
 .row-side {
   display: flex;
   flex-direction: column;
-  gap: 24px; 
+  gap: 24px;
   min-width: 0;
 }
 
@@ -60,20 +60,21 @@
 
 /* Specific Heights for Alignment */
 .financial-chart-card {
-  height: 480px; 
+  height: 480px;
 }
 
 .quick-actions-card,
 .property-status-card {
-  flex: 1; 
-  height: 228px; 
-  min-height: 0; 
+  flex: 1;
+  height: 228px;
+  min-height: 0;
 }
 
 /* FIXED: Bottom Rows Alignment */
 .overdue-payments-card,
 .recent-activity-card {
-  height: 580px; /* Locked height so they are always the same */
+  height: 580px;
+  /* Locked height so they are always the same */
   display: flex;
   flex-direction: column;
   background: white;
@@ -89,7 +90,8 @@
 .scrollable-content {
   flex: 1;
   overflow-y: auto;
-  min-height: 0; /* Important for flex-grow to work */
+  min-height: 0;
+  /* Important for flex-grow to work */
   padding-right: 8px;
 }
 
@@ -97,9 +99,11 @@
 .scrollable-content::-webkit-scrollbar {
   width: 5px;
 }
+
 .scrollable-content::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .scrollable-content::-webkit-scrollbar-thumb {
   background: #e5e7eb;
   border-radius: 10px;
@@ -119,8 +123,16 @@
     grid-template-columns: 1fr;
     height: auto;
   }
-  .row-side { height: auto; }
-  .financial-chart-card,
+
+  .row-side {
+    height: auto;
+  }
+
+  .financial-chart-card {
+    height: 450px;
+    /* Instead of auto, give a fixed height on tablet/mobile so Recharts has space */
+  }
+
   .quick-actions-card,
   .property-status-card {
     height: auto;

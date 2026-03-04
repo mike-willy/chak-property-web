@@ -12,11 +12,13 @@
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
-  height: 480px;
+  /* Removed height: 480px to allow flex scaling */
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
+  height: 100%;
+  /* Fill parent dashboard card */
 }
 
 /* Header */
@@ -135,7 +137,9 @@
 }
 
 @keyframes fc-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .fc-chart-loading p {
@@ -247,19 +251,20 @@
     align-items: flex-start;
     gap: 12px;
   }
-  
-  .fc-stats, .fc-filter {
+
+  .fc-stats,
+  .fc-filter {
     width: 100%;
   }
-  
+
   .fc-filter {
     justify-content: flex-start;
   }
-  
+
   .fc-summary {
     gap: 20px;
   }
-  
+
   .fc-summary-item {
     min-width: 100px;
   }
@@ -268,15 +273,21 @@
 @media (max-width: 640px) {
   .fc-card {
     padding: 16px;
-    height: auto;
-    min-height: 420px;
+    height: 100%;
+    /* Keep 100% height instead of auto */
   }
-  
+
+  /* CRITICAL FIX: Give the chart a specific height so Recharts can render */
+  .fc-chart-wrapper {
+    min-height: 250px;
+    margin-bottom: 20px;
+  }
+
   .fc-summary {
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .fc-summary-item {
     min-width: 100%;
   }
