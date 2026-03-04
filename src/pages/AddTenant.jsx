@@ -998,7 +998,8 @@ const AddTenant = () => {
   };
 
   // Loading state
-  if (loading && !applicationData) {
+  // Loading state removed as per user request to avoid "funny spinner"
+  /* if (loading && !applicationData) {
     return (
       <div className="tenant-form-container">
         <div className="tenant-form-content">
@@ -1009,7 +1010,7 @@ const AddTenant = () => {
         </div>
       </div>
     );
-  }
+  } */
 
   // Error state
   if (error) {
