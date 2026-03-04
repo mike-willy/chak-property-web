@@ -1040,8 +1040,9 @@ class AnalyticsService {
         doc.setPage(i);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 10);
+        doc.setTextColor(50, 50, 50); // Darker gray for visibility
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
+        doc.text('Jesma Investments', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1158,8 +1159,9 @@ class AnalyticsService {
         doc.setPage(i);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 10);
+        doc.setTextColor(50, 50, 50); // Darker gray for visibility
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
+        doc.text('Jesma Investments', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1229,8 +1231,9 @@ class AnalyticsService {
         doc.setPage(i);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 10);
+        doc.setTextColor(50, 50, 50); // Darker gray for visibility
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
+        doc.text('Jesma Investments', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1305,8 +1308,9 @@ class AnalyticsService {
         doc.setPage(i);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 10);
+        doc.setTextColor(50, 50, 50); // Darker gray for visibility
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
+        doc.text('Jesma Investments', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1344,44 +1348,36 @@ class AnalyticsService {
       doc.setLineWidth(1);
       doc.line(50, 145, pageWidth - 50, 145);
 
-      // Add page numbers to title page
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(100, 100, 100);
-      doc.text('Page 1', pageWidth - 20, pageHeight - 10, { align: 'right' });
-      doc.text('Jesma Investments', 20, pageHeight - 10);
-
+      // Generate Report Content
       // Table of Contents Page
       doc.addPage();
       this._addTableOfContents(doc, reportData);
 
-      // Rent Collection Section - WITH TABLES AND STYLING
+      // Rent Collection Section
       doc.addPage();
       this._addRentCollectionSectionWithTables(doc, reportData.rentCollection);
 
-      // Vacancy Rate Section - WITH TABLES AND STYLING
+      // Vacancy Rate Section
       doc.addPage();
       this._addVacancyRateSectionWithTables(doc, reportData.vacancyRate);
 
-      // Tenant Behavior Section - WITH TABLES AND STYLING
+      // Tenant Behavior Section
       doc.addPage();
       this._addTenantBehaviorSectionWithTables(doc, reportData.tenantBehavior);
 
-      // Insights Section - WITH STYLING
+      // Insights Section
       doc.addPage();
       this._addInsightsSectionWithStyling(doc, reportData.insights);
 
-      // Update all page numbers
+      // Update all page numbers (consistent footer)
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'italic');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
-        if (i !== 1) {
-          doc.text('Jesma Investments', 20, pageHeight - 10);
-        }
+        doc.setTextColor(50, 50, 50); // Darker gray for visibility
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
+        doc.text('Jesma Investments', 20, pageHeight - 15);
       }
 
       // Save only once
@@ -1402,7 +1398,7 @@ class AnalyticsService {
     doc.setTextColor(26, 54, 93);
     doc.text('TABLE OF CONTENTS', pageWidth / 2, yPosition, { align: 'center' });
 
-    yPosition += 20;
+    yPosition += 30; // Increased spacing after title
     doc.setFontSize(14);
     doc.setTextColor(0, 0, 0);
 
@@ -1414,9 +1410,26 @@ class AnalyticsService {
     ];
 
     sections.forEach((section, index) => {
-      doc.text(section, 60, yPosition);
-      doc.text(`...... Page ${index + 3}`, pageWidth - 60, yPosition, { align: 'right' });
-      yPosition += 15;
+      const pageNum = `Page ${index + 3}`;
+
+      // Draw section title
+      doc.text(section, 40, yPosition);
+
+      // Draw page number right-aligned
+      doc.text(pageNum, pageWidth - 40, yPosition, { align: 'right' });
+
+      // Draw dot leaders dynamically
+      const sectionWidth = doc.getTextWidth(section);
+      const pageNumWidth = doc.getTextWidth(pageNum);
+      const startX = 40 + sectionWidth + 5;
+      const endX = pageWidth - 40 - pageNumWidth - 5;
+
+      if (startX < endX) {
+        const dots = ".".repeat(Math.floor((endX - startX) / 1.5));
+        doc.text(dots, startX, yPosition);
+      }
+
+      yPosition += 20; // Consistent vertical spacing
     });
   }
 
