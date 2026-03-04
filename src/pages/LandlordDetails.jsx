@@ -1,23 +1,23 @@
 // src/pages/LandlordDetails.jsx - UPDATED WITH UNIQUE CLASSES
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { 
-  doc, 
-  getDoc, 
-  collection, 
-  query, 
-  where, 
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
   getDocs,
-  updateDoc 
+  updateDoc
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import "../styles/LandlordDetails.css";
-import { 
-  FaArrowLeft, 
-  FaEdit, 
-  FaEnvelope, 
-  FaPhone, 
-  FaHome, 
+import {
+  FaArrowLeft,
+  FaEdit,
+  FaEnvelope,
+  FaPhone,
+  FaHome,
   FaMapMarkerAlt,
   FaBuilding,
   FaUserCheck,
@@ -34,7 +34,7 @@ import {
 const LandlordDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [landlord, setLandlord] = useState(null);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,10 +48,10 @@ const LandlordDetails = () => {
   const fetchLandlordAndProperties = async () => {
     try {
       setLoading(true);
-      
+
       // 1. Fetch landlord details
       const landlordDoc = await getDoc(doc(db, "landlords", id));
-      
+
       if (!landlordDoc.exists()) {
         console.log("Landlord not found, trying fallback to users collection...");
         const userDoc = await getDoc(doc(db, "users", id));
@@ -76,16 +76,16 @@ const LandlordDetails = () => {
           updatedAt: landlordData.updatedAt?.toDate() || null
         });
       }
-      
+
       // 2. Fetch properties for this landlord
       const propertiesQuery = query(
         collection(db, "properties"),
         where("landlordId", "==", id)
       );
-      
+
       const propertiesSnapshot = await getDocs(propertiesQuery);
       const propertiesData = [];
-      
+
       propertiesSnapshot.forEach((doc) => {
         const data = doc.data();
         propertiesData.push({
@@ -93,14 +93,14 @@ const LandlordDetails = () => {
           ...data,
           createdAt: data.createdAt?.toDate() || new Date(),
           // Calculate occupancy rate for property card
-          occupancyRate: data.unitDetails?.leasedCount && data.unitDetails?.totalUnits 
+          occupancyRate: data.unitDetails?.leasedCount && data.unitDetails?.totalUnits
             ? Math.round((data.unitDetails.leasedCount / data.unitDetails.totalUnits) * 100)
             : 0
         });
       });
-      
+
       setProperties(propertiesData);
-      
+
     } catch (error) {
       console.error("Error fetching landlord details:", error);
       alert("Failed to load landlord details");
@@ -112,16 +112,16 @@ const LandlordDetails = () => {
 
   const handleStatusToggle = async () => {
     if (!landlord) return;
-    
+
     try {
       setUpdatingStatus(true);
       const newStatus = landlord.status === "active" ? "inactive" : "active";
-      
+
       await updateDoc(doc(db, "landlords", id), {
         status: newStatus,
         updatedAt: new Date()
       });
-      
+
       setLandlord(prev => ({ ...prev, status: newStatus }));
       alert(`Landlord status updated to ${newStatus}`);
     } catch (error) {
@@ -200,9 +200,9 @@ const LandlordDetails = () => {
         <button onClick={() => navigate("/landlords")} className="landlord-details-back-btn">
           <FaArrowLeft /> Back to Landlords
         </button>
-        
+
         <div className="landlord-details-header-actions">
-          <button 
+          <button
             className={`landlord-details-status-toggle ${landlord.status}`}
             onClick={handleStatusToggle}
             disabled={updatingStatus}
@@ -236,10 +236,10 @@ const LandlordDetails = () => {
             )}
           </div>
         </div>
-        
+
         <div className="landlord-basic-info">
           <h1>{landlord.name}</h1>
-          
+
           <div className="landlord-meta">
             <span className={`landlord-status-badge ${landlord.status}`}>
               {landlord.status.charAt(0).toUpperCase() + landlord.status.slice(1)}
@@ -248,7 +248,7 @@ const LandlordDetails = () => {
               <FaCalendar /> Joined {formatDate(landlord.createdAt)}
             </span>
           </div>
-          
+
           <div className="contact-info">
             <div className="contact-item">
               <FaEnvelope />
@@ -259,9 +259,9 @@ const LandlordDetails = () => {
               <div className="phone-container">
                 <span>{landlord.phone || "Not provided"}</span>
                 {landlord.phone && (
-                  <a 
-                    href={`https://wa.me/${landlord.phone.replace(/\D/g, '')}`} 
-                    target="_blank" 
+                  <a
+                    href={`https://wa.me/${landlord.phone.replace(/\D/g, '')}`}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="whatsapp-link"
                   >
@@ -284,7 +284,7 @@ const LandlordDetails = () => {
             )}
           </div>
         </div>
-        
+
         <div className="landlord-stats">
           <div className="landlord-stat-card">
             <div className="landlord-stat-icon total-properties">
@@ -295,7 +295,7 @@ const LandlordDetails = () => {
               <span className="landlord-stat-label">Properties</span>
             </div>
           </div>
-          
+
           <div className="landlord-stat-card">
             <div className="landlord-stat-icon total-units">
               <FaBuilding />
@@ -307,7 +307,7 @@ const LandlordDetails = () => {
               <span className="landlord-stat-label">Total Units</span>
             </div>
           </div>
-          
+
           <div className="landlord-stat-card">
             <div className="landlord-stat-icon revenue">
               <FaIdCard />
@@ -319,7 +319,7 @@ const LandlordDetails = () => {
               <span className="landlord-stat-label">Monthly Revenue</span>
             </div>
           </div>
-          
+
           <div className="landlord-stat-card">
             <div className="landlord-stat-icon occupancy">
               <FaUserCheck />
@@ -336,13 +336,13 @@ const LandlordDetails = () => {
 
       {/* Tabs */}
       <div className="landlord-tabs">
-        <button 
+        <button
           className={`landlord-tab-button ${activeTab === "properties" ? "active" : ""}`}
           onClick={() => setActiveTab("properties")}
         >
           <FaHome /> Properties ({properties.length})
         </button>
-        <button 
+        <button
           className={`landlord-tab-button ${activeTab === "details" ? "active" : ""}`}
           onClick={() => setActiveTab("details")}
         >
@@ -354,13 +354,13 @@ const LandlordDetails = () => {
       <div className="tab-content">
         {activeTab === "properties" ? (
           <div className="properties-section">
-            <div className="section-header">
+            <div className="ld-section-header">
               <h2>Managed Properties</h2>
               <Link to="/properties/add" className="add-property-link">
                 + Add New Property
               </Link>
             </div>
-            
+
             {properties.length === 0 ? (
               <div className="empty-properties">
                 <FaHome className="empty-icon" />
@@ -386,10 +386,10 @@ const LandlordDetails = () => {
                         {property.status || "Available"}
                       </div>
                     </div>
-                    
+
                     <div className="property-info">
                       <h3>{property.name}</h3>
-                      
+
                       <div className="property-meta">
                         <div className="meta-item">
                           <FaMapMarkerAlt />
@@ -400,7 +400,7 @@ const LandlordDetails = () => {
                           <span>{property.units || property.unitDetails?.totalUnits || 1} Units</span>
                         </div>
                       </div>
-                      
+
                       <div className="property-stats">
                         <div className="stat">
                           <span className="label">Rent:</span>
@@ -413,15 +413,15 @@ const LandlordDetails = () => {
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="property-actions">
-                        <button 
+                        <button
                           className="ld-view-btn"
                           onClick={() => handleViewProperty(property.id)}
                         >
                           <FaEye /> View Units
                         </button>
-                        <Link 
+                        <Link
                           to={`/properties/edit/${property.id}`}
                           className="ld-edit-btn"
                         >
@@ -464,7 +464,7 @@ const LandlordDetails = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="detail-card">
                 <h3>Contact Information</h3>
                 <div className="detail-list">
@@ -506,7 +506,7 @@ const LandlordDetails = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="detail-card">
                 <h3>Properties Summary</h3>
                 <div className="detail-list">
@@ -540,14 +540,14 @@ const LandlordDetails = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="actions-section">
               <h3>Quick Actions</h3>
               <div className="landlord-details-action-buttons">
                 <button className="landlord-details-action-btn primary" onClick={handleEdit}>
                   <FaEdit /> Edit Landlord Details
                 </button>
-                <button 
+                <button
                   className="landlord-details-action-btn secondary"
                   onClick={handleStatusToggle}
                   disabled={updatingStatus}
