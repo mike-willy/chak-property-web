@@ -30,10 +30,6 @@
   font-size: 28px;
   margin-bottom: 8px;
   font-weight: 800;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .applications-title p {
@@ -121,6 +117,7 @@
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -164,13 +161,38 @@
 }
 
 /* Make columns flexible instead of fixed widths */
-.applications-th-status { min-width: 140px; }
-.applications-th-applicant { min-width: 180px; }
-.applications-th-property { min-width: 220px; }
-.applications-th-contact { min-width: 180px; }
-.applications-th-date { min-width: 120px; }
-.applications-th-actions { min-width: 200px; } /* Reduced width */
-.applications-th-expand { min-width: 40px; width: 40px; padding-left: 0 !important; } /* Reduced width */
+.applications-th-status {
+  min-width: 140px;
+}
+
+.applications-th-applicant {
+  min-width: 180px;
+}
+
+.applications-th-property {
+  min-width: 220px;
+}
+
+.applications-th-contact {
+  min-width: 180px;
+}
+
+.applications-th-date {
+  min-width: 120px;
+}
+
+.applications-th-actions {
+  min-width: 200px;
+}
+
+/* Reduced width */
+.applications-th-expand {
+  min-width: 40px;
+  width: 40px;
+  padding-left: 0 !important;
+}
+
+/* Reduced width */
 
 /* Table Body */
 .applications-table tbody tr {
@@ -224,19 +246,19 @@
 }
 
 .applications-status.pending {
-  background: linear-gradient(135deg, #fffbeb 0%, #fde68a 100%);
+  background: #fffbeb;
   color: #92400e;
   border-color: #f59e0b;
 }
 
 .applications-status.approved {
-  background: linear-gradient(135deg, #d1fae5 0%, #86efac 100%);
+  background: #d1fae5;
   color: #065f46;
   border-color: #10b981;
 }
 
 .applications-status.rejected {
-  background: linear-gradient(135deg, #fee2e2 0%, #fca5a5 100%);
+  background: #fee2e2;
   color: #7f1d1d;
   border-color: #dc2626;
 }
@@ -270,7 +292,7 @@
 .applications-avatar {
   width: 44px;
   height: 44px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1e293b;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -447,9 +469,9 @@
 }
 
 .applications-btn-review {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: #3b82f6;
   color: white;
-  border-color: #1e40af;
+  border-color: #2563eb;
 }
 
 .applications-btn-review:hover {
@@ -459,9 +481,9 @@
 }
 
 .applications-btn-view {
-  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  background: #475569;
   color: white;
-  border-color: #1e293b;
+  border-color: #334155;
 }
 
 .applications-btn-view:hover {
@@ -499,9 +521,17 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
 }
 
 /* Expand Cell - MOVED CLOSER TO ACTIONS */
@@ -616,9 +646,9 @@
 }
 
 .applications-btn-approve-main {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: #10b981;
   color: white;
-  border-color: #047857;
+  border-color: #059669;
 }
 
 .applications-btn-approve-main:hover {
@@ -628,9 +658,9 @@
 }
 
 .applications-btn-view-main {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: #3b82f6;
   color: white;
-  border-color: #1d4ed8;
+  border-color: #2563eb;
 }
 
 .applications-btn-view-main:hover {
@@ -710,8 +740,13 @@
 }
 
 @keyframes applications-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .applications-loading p {
@@ -753,6 +788,7 @@
     opacity: 0;
     transform: translateY(-30px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -947,11 +983,11 @@
   .applications-container {
     padding: 20px;
   }
-  
+
   .applications-table {
     min-width: 900px;
   }
-  
+
   .applications-details-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -961,15 +997,15 @@
   .applications-container {
     padding: 16px;
   }
-  
+
   .applications-header {
     padding: 20px;
   }
-  
+
   .applications-title h1 {
     font-size: 24px;
   }
-  
+
   .applications-table {
     min-width: 800px;
   }
@@ -979,41 +1015,41 @@
   .applications-container {
     padding: 12px;
   }
-  
+
   .applications-header {
     padding: 16px;
   }
-  
+
   .applications-title h1 {
     font-size: 22px;
   }
-  
+
   .applications-status-tabs {
     flex-direction: column;
   }
-  
+
   .applications-tab {
     width: 100%;
     justify-content: center;
   }
-  
+
   .applications-table {
     min-width: 700px;
   }
-  
+
   .applications-details-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .applications-action-buttons {
     flex-direction: column;
   }
-  
+
   .applications-actions {
     flex-wrap: wrap;
     gap: 4px;
   }
-  
+
   .applications-btn-review,
   .applications-btn-view,
   .applications-btn-delete {
@@ -1021,11 +1057,11 @@
     font-size: 10px;
     min-height: 32px;
   }
-  
+
   .applications-modal-footer {
     flex-direction: column;
   }
-  
+
   .applications-modal-footer button {
     width: 100%;
     justify-content: center;
@@ -1036,24 +1072,24 @@
   .applications-container {
     padding: 8px;
   }
-  
+
   .applications-header {
     padding: 12px;
   }
-  
+
   .applications-title h1 {
     font-size: 20px;
   }
-  
+
   .applications-table {
     min-width: 600px;
   }
-  
+
   .applications-detail-section strong {
     min-width: 100px;
     font-size: 14px;
   }
-  
+
   .applications-btn-review,
   .applications-btn-view,
   .applications-btn-delete {
@@ -1061,7 +1097,7 @@
     font-size: 9px;
     min-height: 30px;
   }
-  
+
   .applications-status {
     padding: 6px 10px;
     font-size: 10px;
@@ -1069,22 +1105,22 @@
     justify-content: center;
     text-align: center;
   }
-  
+
   .applications-avatar {
     width: 36px;
     height: 36px;
     font-size: 16px;
   }
-  
+
   .applications-name {
     font-size: 14px;
     max-width: 120px;
   }
-  
+
   .applications-empty-icon {
     font-size: 48px;
   }
-  
+
   .applications-modal-content {
     width: 95%;
   }

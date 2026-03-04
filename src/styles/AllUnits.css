@@ -219,12 +219,14 @@
 }
 
 .all-units-property-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1e293b;
+  /* Premium Deep Slate */
   color: white;
   padding: 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .all-units-property-info {

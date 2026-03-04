@@ -43,12 +43,12 @@
 }
 
 .refresh-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #3b82f6;
   color: white;
 }
 
 .refresh-btn:hover {
-  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  background: #2563eb;
 }
 
 /* Stats Cards */
@@ -146,8 +146,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-cell {
@@ -236,7 +241,7 @@
 }
 
 .modal-header {
-  background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
+  background: #1e293b;
   color: white;
   padding: 24px;
 }
@@ -295,36 +300,36 @@
   .payment-page {
     padding: 16px;
   }
-  
+
   .page-header {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .header-actions {
     justify-content: flex-start;
   }
-  
+
   .filters-section {
     padding: 16px;
   }
-  
+
   .table-header th,
   .payment-row td {
     padding: 12px 8px;
     font-size: 14px;
   }
-  
+
   .tenant-avatar {
     width: 32px;
     height: 32px;
     font-size: 0.8rem;
   }
-  
+
   .tenant-name {
     font-size: 0.9rem;
   }
-  
+
   .MuiTableCell-root {
     padding: 8px !important;
   }
@@ -334,15 +339,15 @@
   .stats-grid {
     gap: 16px;
   }
-  
+
   .stat-card {
     margin-bottom: 16px;
   }
-  
+
   .MuiGrid-item {
     width: 100%;
   }
-  
+
   /* Mobile table view */
   .payment-row {
     display: block;
@@ -351,14 +356,14 @@
     border-radius: 8px;
     background: white;
   }
-  
+
   .payment-row td {
     display: block;
     text-align: left;
     padding: 12px 16px;
     border-bottom: 1px solid #e2e8f0;
   }
-  
+
   .payment-row td:before {
     content: attr(data-label);
     display: block;
@@ -367,29 +372,31 @@
     font-size: 0.8rem;
     margin-bottom: 4px;
   }
-  
+
   .payment-row td:last-child {
     border-bottom: none;
   }
-  
+
   .table-header {
     display: none;
   }
-  
+
   /* Mobile tenant display */
   .tenant-avatar-display {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
-  
+
   .tenant-avatar {
     align-self: center;
   }
-  
+
   /* Hide some columns on mobile */
-  .payment-row td:nth-child(4), /* M-Pesa Code */
-  .payment-row td:nth-child(6) { /* Phone */
+  .payment-row td:nth-child(4),
+  /* M-Pesa Code */
+  .payment-row td:nth-child(6) {
+    /* Phone */
     display: none;
   }
 }
@@ -399,7 +406,7 @@
   .tenant-details {
     flex-wrap: wrap;
   }
-  
+
   .payment-row td {
     padding: 12px;
   }
@@ -407,8 +414,13 @@
 
 /* Animation for new payments */
 @keyframes highlightNew {
-  0% { background-color: rgba(67, 97, 238, 0.1); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: rgba(67, 97, 238, 0.1);
+  }
+
+  100% {
+    background-color: transparent;
+  }
 }
 
 .new-payment {

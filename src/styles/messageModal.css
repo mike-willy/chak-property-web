@@ -29,7 +29,7 @@
   align-items: center;
   padding: 20px 24px;
   border-bottom: 1px solid #eaeaea;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1e293b;
   color: white;
   border-radius: 12px 12px 0 0;
 }
@@ -241,8 +241,13 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .form-actions {
@@ -280,7 +285,7 @@
 }
 
 .send-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #3b82f6;
   border: none;
   color: white;
 }
@@ -301,15 +306,15 @@
   .modal-overlay {
     padding: 10px;
   }
-  
+
   .type-buttons {
     grid-template-columns: 1fr;
   }
-  
+
   .form-actions {
     flex-direction: column;
   }
-  
+
   .cancel-btn,
   .send-btn {
     width: 100%;

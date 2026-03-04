@@ -110,7 +110,7 @@
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1e293b;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -264,19 +264,19 @@
 }
 
 .landlord-stat-icon.total-properties {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1e293b;
 }
 
 .landlord-stat-icon.total-units {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: #3b82f6;
 }
 
 .landlord-stat-icon.revenue {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: #10b981;
 }
 
 .landlord-stat-icon.occupancy {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: #8b5cf6;
 }
 
 .landlord-stat-content {
