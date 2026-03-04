@@ -671,9 +671,6 @@ const Units = () => {
     <div className="all-units-container">
       {/* Header */}
       <div className="all-units-header">
-        <button className="all-units-back-btn" onClick={() => navigate("/properties")}>
-          <FaArrowLeft /> Back to Properties
-        </button>
         <div className="all-units-header-content">
           <h1>All Units</h1>
           <p className="all-units-subtitle">Units from all properties, grouped by property</p>
