@@ -26,7 +26,8 @@ import {
   FaExclamationTriangle,
   FaWrench,
   FaLock,
-  FaUserMinus
+  FaUserMinus,
+  FaCamera
 } from "react-icons/fa";
 
 const PropertyUnits = () => {
@@ -1340,6 +1341,22 @@ const PropertyUnits = () => {
                     <span className={`unit-status-badge ${getStatusClass(unit)}`}>
                       {getStatusIcon(unit)}
                       <span>{getDisplayStatusText(unit)}</span>
+                      {unit.images && unit.images.length > 0 && (
+                        <FaCamera
+                          style={{
+                            marginLeft: '8px',
+                            color: '#3498db',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer'
+                          }}
+                          title={`${unit.images.length} Photos available`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingUnit(unit);
+                            setShowDetailsModal(true);
+                          }}
+                        />
+                      )}
                     </span>
                     {isUnderMaintenance && (
                       <div className="maintenance-indicator" title="Under Maintenance">
@@ -1486,6 +1503,20 @@ const PropertyUnits = () => {
                         onClick={() => handleRequestDeleteTenant(index)}
                       >
                         <FaUserMinus /> Delete Tenant
+                      </button>
+                    )}
+
+                    {unit.images && unit.images.length > 0 && (
+                      <button
+                        className="action-btn view-btn photos-btn"
+                        onClick={() => {
+                          setViewingUnit(unit);
+                          setShowDetailsModal(true);
+                        }}
+                        title="View Photos"
+                        style={{ backgroundColor: '#e1f5fe', color: '#0288d1', borderColor: '#b3e5fc' }}
+                      >
+                        <FaCamera /> Photos
                       </button>
                     )}
 

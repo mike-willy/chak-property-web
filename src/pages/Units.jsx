@@ -35,7 +35,8 @@ import {
   FaExclamationTriangle,
   FaWrench,
   FaLock,
-  FaUserMinus
+  FaUserMinus,
+  FaCamera
 } from "react-icons/fa";
 import "../styles/AllUnits.css";
 
@@ -970,6 +971,21 @@ const Units = () => {
                             {getStatusIcon(unit)}
                             <span>{getDisplayStatusText(unit)}</span>
                             {isOccupancyLocked && <FaLock style={{ marginLeft: '4px', fontSize: '0.6rem' }} />}
+                            {unit.images && unit.images.length > 0 && (
+                              <FaCamera
+                                style={{
+                                  marginLeft: '8px',
+                                  color: '#3498db',
+                                  fontSize: '0.9rem',
+                                  cursor: 'pointer'
+                                }}
+                                title={`${unit.images.length} Photos available`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewUnit(item.property.id, unit.id);
+                                }}
+                              />
+                            )}
                           </div>
                         </div>
 
@@ -1111,6 +1127,17 @@ const Units = () => {
                                 title="Delete Tenant"
                               >
                                 <FaUserMinus />
+                              </button>
+                            )}
+
+                            {unit.images && unit.images.length > 0 && (
+                              <button
+                                className="all-units-action-btn all-units-view-btn photos-btn"
+                                onClick={() => handleViewUnit(item.property.id, unit.id)}
+                                title="View Photos"
+                                style={{ backgroundColor: '#e1f5fe', color: '#0288d1', borderColor: '#b3e5fc' }}
+                              >
+                                <FaCamera />
                               </button>
                             )}
 
