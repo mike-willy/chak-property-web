@@ -30,6 +30,8 @@ import ApprovedTenants from './pages/ApprovedTenants';
 import AllActivities from './pages/AllActivities';
 import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard';
 
+// NEW: Import Public Landing Page
+import LandingPage from "./pages/LandingPage";
 
 // NEW: Import SearchResultsPage
 import SearchResultsPage from "./pages/SearchResultsPage";
@@ -268,8 +270,8 @@ function App() {
         }
       />
 
-      {/* DEFAULT ROUTE */}
-      <Route path="/" element={<Navigate to="/dashboard" />} />
+      {/* DEFAULT PUBLIC ROUTE - LANDING PAGE */}
+      <Route path="/" element={<LandingPage />} />
     </Routes>
   );
 }

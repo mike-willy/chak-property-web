@@ -164,7 +164,7 @@ export default function AdminLogin() {
         });
       }
 
-      navigate("/"); // Redirect to Dashboard
+      navigate("/dashboard"); // Redirect to Dashboard
     } catch (err) {
       console.error("Login Error:", err);
       // Security: Sanitize error messages
@@ -333,7 +333,7 @@ export default function AdminLogin() {
               </Box>
 
               <Typography variant="caption" sx={{ position: 'absolute', bottom: 30, opacity: 0.6, zIndex: 1, letterSpacing: 1 }}>
-                © {new Date().getFullYear()} CHAK Property System
+                © {new Date().getFullYear()} Jesma Investments
               </Typography>
             </Paper>
 
