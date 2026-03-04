@@ -11,7 +11,7 @@ import {
     serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase/firebase';
-import { FaSearch, FaPaperPlane, FaTrash, FaEnvelopeOpen, FaSpinner, FaPlus } from 'react-icons/fa';
+import { FaSearch, FaPaperPlane, FaTrash, FaEnvelopeOpen, FaSpinner, FaPlus, FaArrowLeft } from 'react-icons/fa';
 import '../styles/messages.css';
 import MessageModal from '../components/dashboard/MessageModal';
 
@@ -488,10 +488,17 @@ const Messages = () => {
                 </div>
 
                 {/* CHAT DETAIL PANEL */}
-                <div className="message-detail">
+                <div className={`message-detail ${selectedSender ? 'chat-active' : ''}`}>
                     {selectedSender ? (
                         <>
                             <div className="detail-header">
+                                <button 
+                                    className="mobile-back-btn" 
+                                    onClick={() => setSelectedSender(null)}
+                                    type="button"
+                                >
+                                    <FaArrowLeft />
+                                </button>
                                 <div className="detail-info">
                                     <h2>{selectedSender.senderName}</h2>
                                     <div className="detail-meta">

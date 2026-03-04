@@ -8,7 +8,7 @@
     --danger: #ff3b30;
     --warning: #ff9500;
     --info: #5ac8fa;
-    
+
     --bg-primary: #f0f2f5;
     --bg-secondary: #f5f6f8;
     --bg-surface: #ffffff;
@@ -16,24 +16,24 @@
     --bg-chat-user: #ffffff;
     --bg-chat-admin: #d9fdd3;
     --bg-chat-header: #f0f2f5;
-    
+
     --border-light: #e9edef;
     --border-medium: #d1d7db;
-    
+
     --text-primary: #111b21;
     --text-secondary: #667781;
     --text-muted: #8696a0;
     --text-white: #ffffff;
-    
+
     --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.03);
     --shadow-md: 0 2px 5px rgba(0, 0, 0, 0.1);
-    
+
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
     --radius-xl: 20px;
     --radius-full: 9999px;
-    
+
     --transition: all 0.15s ease;
 }
 
@@ -129,7 +129,8 @@
 }
 
 .search-icon {
-    display: none; /* WhatsApp doesn't show icon */
+    display: none;
+    /* WhatsApp doesn't show icon */
 }
 
 .search-input {
@@ -212,7 +213,8 @@
 }
 
 .message-subject {
-    display: none; /* WhatsApp doesn't show subject */
+    display: none;
+    /* WhatsApp doesn't show subject */
 }
 
 .message-preview {
@@ -271,8 +273,13 @@
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ================= RIGHT CHAT PANEL ================= */
@@ -291,9 +298,23 @@
     border-bottom: 1px solid var(--border-light);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 12px;
     min-height: 62px;
+}
+
+/* Mobile Back Button */
+.mobile-back-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-size: 20px;
+    padding: 8px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
 }
 
 .detail-info {
@@ -333,6 +354,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-left: auto;
+    /* Push actions to the complete right */
 }
 
 .action-btn {
@@ -619,36 +642,67 @@
 @media (max-width: 768px) {
     .messages-container {
         height: 100vh;
-    }
-    
-    .messages-content {
+        display: flex;
         flex-direction: column;
     }
-    
+
+    .messages-content {
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        /* Relative for absolute swapping */
+    }
+
     .messages-list {
         width: 100%;
         max-width: 100%;
-        height: 300px;
+        flex: 1;
+        /* Take up 100% of height when visible */
         border-right: none;
         border-bottom: 1px solid var(--border-light);
+        display: flex;
+        /* Default state */
     }
-    
+
     .message-detail {
-        height: calc(100vh - 380px);
+        flex: 1;
+        min-height: 0;
+        display: none;
+        /* Hidden by default on mobile */
+        flex-direction: column;
+        position: absolute;
+        /* Cover the entire area when active */
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-primary);
+        z-index: 10;
     }
-    
+
+    /* Toggle State: When a chat is active */
+    .message-detail.chat-active {
+        display: flex;
+    }
+
+    /* Toggle the Back Button */
+    .mobile-back-btn {
+        display: flex;
+    }
+
     .chat-content {
         padding: 16px;
     }
-    
+
     .chat-bubble {
         max-width: 85%;
     }
-    
+
     .reply-section {
         padding: 8px 16px;
     }
-    
+
     .messages-header {
         padding: 12px 16px;
     }
@@ -658,27 +712,29 @@
     .messages-container {
         height: 100vh;
     }
-    
+
     .messages-list {
-        height: 280px;
+        flex: 0 0 35%;
+        /* Take up slightly less space on very small screens */
+        min-height: 150px;
     }
-    
+
     .message-detail {
-        height: calc(100vh - 360px);
+        flex: 1;
     }
-    
+
     .chat-content {
         padding: 12px;
     }
-    
+
     .chat-bubble {
         max-width: 90%;
     }
-    
+
     .messages-header h1 {
         font-size: 18px;
     }
-    
+
     .new-message-btn {
         padding: 8px 16px;
         font-size: 13px;
