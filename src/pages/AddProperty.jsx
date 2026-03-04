@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../pages/firebase/firebase";
 import { uploadMultipleImages } from "../services/cloudinary"; // Import from your service
-import "../styles/Addproperty.css";
+import "../styles/AddProperty.css";
 import {
   FaImage,
   FaUpload,
