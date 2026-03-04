@@ -10,12 +10,12 @@ import {
   Timestamp
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import { 
-  FaUser, 
-  FaHome, 
-  FaPhone, 
-  FaEnvelope, 
-  FaEye, 
+import {
+  FaUser,
+  FaHome,
+  FaPhone,
+  FaEnvelope,
+  FaEye,
   FaTrash,
   FaCalendar,
   FaCheckCircle,
@@ -69,7 +69,7 @@ const Applications = () => {
 
       // Filter out admin deleted applications locally
       const filteredApps = apps.filter(app => !app.adminDeleted);
-      
+
       // Sort by date (newest first)
       filteredApps.sort((a, b) => (b.appliedDate || 0) - (a.appliedDate || 0));
       setApplications(filteredApps);
@@ -83,7 +83,7 @@ const Applications = () => {
   // Calculate duplicate applications for each unit
   const duplicateApplications = useMemo(() => {
     const unitMap = {};
-    
+
     applications.forEach(app => {
       if (app.unitId) {
         const key = `${app.propertyId}-${app.unitId}`;
@@ -93,7 +93,7 @@ const Applications = () => {
         unitMap[key].push(app);
       }
     });
-    
+
     return unitMap;
   }, [applications]);
 
@@ -102,8 +102,8 @@ const Applications = () => {
     if (!application.unitId) return [];
     const key = `${application.propertyId}-${application.unitId}`;
     const apps = duplicateApplications[key] || [];
-    return apps.filter(app => 
-      app.status === "pending" && 
+    return apps.filter(app =>
+      app.status === "pending" &&
       app.id !== application.id
     );
   };
@@ -114,7 +114,7 @@ const Applications = () => {
       setSelectedApp(application);
       return;
     }
-    
+
     const prefillData = {
       fullName: application.fullName,
       email: application.email,
@@ -152,19 +152,19 @@ const Applications = () => {
 
     try {
       setDeletingId(application.id);
-      
+
       // Mark as admin deleted (soft delete)
       await updateDoc(doc(db, "tenantApplications", application.id), {
         adminDeleted: true,
         adminDeletedAt: Timestamp.now(),
         adminDeletedBy: "admin"
       });
-      
+
       // Remove from local state
       setApplications(prev => prev.filter(app => app.id !== application.id));
-      
+
       alert("Application removed from admin dashboard.");
-      
+
     } catch (error) {
       console.error("Error removing application:", error);
       alert("Failed to remove application. Please try again.");
@@ -175,7 +175,7 @@ const Applications = () => {
 
   // Get status badge class
   const getStatusClass = (status) => {
-    switch(status) {
+    switch (status) {
       case "approved": return "approved";
       case "rejected": return "rejected";
       case "pending": return "pending";
@@ -185,7 +185,7 @@ const Applications = () => {
 
   // Get status text
   const getStatusText = (status) => {
-    switch(status) {
+    switch (status) {
       case "approved": return "Approved";
       case "rejected": return "Rejected";
       case "pending": return "Pending Review";
@@ -251,28 +251,28 @@ const Applications = () => {
           <h1>Tenant Applications</h1>
           <p>Review and approve tenant registration requests</p>
         </div>
-        
+
         {/* Status Tabs */}
         <div className="applications-status-tabs">
-          <button 
+          <button
             className={`applications-tab ${statusFilter === "all" ? "active" : ""}`}
             onClick={() => setStatusFilter("all")}
           >
             All <span className="applications-tab-count">{totalCount}</span>
           </button>
-          <button 
+          <button
             className={`applications-tab ${statusFilter === "pending" ? "active" : ""}`}
             onClick={() => setStatusFilter("pending")}
           >
             Pending <span className="applications-tab-count">{pendingCount}</span>
           </button>
-          <button 
+          <button
             className={`applications-tab ${statusFilter === "approved" ? "active" : ""}`}
             onClick={() => setStatusFilter("approved")}
           >
             Approved <span className="applications-tab-count">{approvedCount}</span>
           </button>
-          <button 
+          <button
             className={`applications-tab ${statusFilter === "rejected" ? "active" : ""}`}
             onClick={() => setStatusFilter("rejected")}
           >
@@ -282,17 +282,17 @@ const Applications = () => {
       </div>
 
       {/* Duplicate Applications Warning Banner */}
-      {Object.keys(duplicateApplications).some(key => 
+      {Object.keys(duplicateApplications).some(key =>
         duplicateApplications[key].filter(app => app.status === "pending").length > 1
       ) && (
-        <div className="applications-warning">
-          <FaExclamationTriangle />
-          <span>
-            <strong>Note:</strong> Multiple tenants have applied for the same units. 
-            Approving one will automatically reject others for the same unit.
-          </span>
-        </div>
-      )}
+          <div className="applications-warning">
+            <FaExclamationTriangle />
+            <span>
+              <strong>Note:</strong> Multiple tenants have applied for the same units.
+              Approving one will automatically reject others for the same unit.
+            </span>
+          </div>
+        )}
 
       {applications.length === 0 ? (
         <div className="applications-empty">
@@ -318,69 +318,51 @@ const Applications = () => {
                 const competingCount = getCompetingCount(app);
                 const hasCompeting = competingCount > 0 && app.status === "pending";
                 const isExpanded = expandedId === app.id;
-                
+
                 return (
                   <React.Fragment key={app.id}>
                     <tr className={`applications-table-row ${app.status} ${hasCompeting ? 'has-competing' : ''}`}>
                       <td className="applications-td-status">
                         <span className={`applications-status ${getStatusClass(app.status)}`}>
-                          {app.status === "pending" && <FaExclamationTriangle />}
-                          {app.status === "approved" && <FaCheckCircle />}
-                          {app.status === "rejected" && <FaThumbsDown />}
                           <span className="applications-status-text">{getStatusText(app.status)}</span>
                           {hasCompeting && (
                             <span className="applications-competing-badge">
-                              <FaUsers /> {competingCount}
+                              {competingCount} Competing
                             </span>
                           )}
                         </span>
                       </td>
                       <td className="applications-td-applicant">
                         <div className="applications-applicant">
-                          <div className="applications-avatar">
-                            <FaUser />
-                          </div>
                           <div className="applications-applicant-info">
                             <div className="applications-name">{app.fullName}</div>
-                            {app.idNumber && (
-                              <div className="applications-id">ID: {app.idNumber}</div>
-                            )}
                           </div>
                         </div>
                       </td>
                       <td className="applications-td-property">
                         <div className="applications-property">
                           <div className="applications-property-name">
-                            <FaBuilding /> {app.propertyName || `Property ${app.propertyId}`}
+                            {app.propertyName || `Property ${app.propertyId}`}
                           </div>
                           <div className="applications-unit-info">
-                            <FaDoorOpen /> {app.unitNumber || `Unit ${app.unitId}`}
+                            {app.unitNumber || `Unit ${app.unitId}`}
                             {app.monthlyRent && (
                               <span className="applications-rent">
-                                • KSh {parseInt(app.monthlyRent).toLocaleString()}/month
+                                KSh {parseInt(app.monthlyRent).toLocaleString()}
                               </span>
                             )}
-                          </div>
-                          <div className="applications-unit-details">
-                            {app.bedrooms && <span><FaBed /> {app.bedrooms} bed</span>}
-                            {app.bathrooms && <span><FaBath /> {app.bathrooms} bath</span>}
-                            {app.unitType && <span><FaHome /> {app.unitType}</span>}
                           </div>
                         </div>
                       </td>
                       <td className="applications-td-contact">
                         <div className="applications-contact">
-                          <div className="applications-email">
-                            <FaEnvelope /> {app.email}
-                          </div>
-                          <div className="applications-phone">
-                            <FaPhone /> {app.phone}
-                          </div>
+                          <div className="applications-email">{app.email}</div>
+                          <div className="applications-phone">{app.phone}</div>
                         </div>
                       </td>
                       <td className="applications-td-date">
                         <div className="applications-date">
-                          <FaCalendar /> {formatDate(app.appliedDate)}
+                          {formatDate(app.appliedDate)}
                         </div>
                       </td>
                       <td className="applications-td-actions">
@@ -441,7 +423,7 @@ const Applications = () => {
                         </div>
                       </td>
                     </tr>
-                    
+
                     {/* Expanded Row Details */}
                     {isExpanded && (
                       <tr className="applications-expanded-row">
@@ -460,7 +442,7 @@ const Applications = () => {
                                 {app.emergencyContactPhone && <div><strong>Emergency Phone:</strong> {app.emergencyContactPhone}</div>}
                               </div>
                             </div>
-                            
+
                             <div className="applications-action-buttons">
                               {app.status === "pending" ? (
                                 <>
