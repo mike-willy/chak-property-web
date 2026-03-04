@@ -212,6 +212,8 @@
   flex-direction: column;
   gap: 0.375rem;
   overflow: visible;
+  min-width: 0;
+  /* Crucial for CSS Grid item wrapping */
 }
 
 .tenant-form-group-full-width {
@@ -299,37 +301,39 @@
 }
 
 /* ========== READONLY INPUTS - FULLY VISIBLE ========== */
-.tenant-form-input.tenant-form-readonly,
 .tenant-form-textarea.tenant-form-readonly {
+  display: block;
   background: #f8fafc;
   border-color: #e2e8f0;
   color: #64748b;
   cursor: not-allowed;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  overflow-x: auto;
+  user-select: text;
   white-space: pre-wrap;
   word-wrap: break-word;
-  min-height: 42px;
-  max-height: none;
-}
-
-.tenant-form-textarea.tenant-form-readonly {
-  white-space: pre-wrap;
-  overflow-y: auto;
+  overflow-wrap: anywhere;
+  /* More aggressive than break-word */
   min-height: 120px;
-  max-height: 400px;
+  max-height: none;
   line-height: 1.6;
   padding: 1rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 .tenant-form-input.tenant-form-readonly {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+  user-select: text;
   overflow-x: auto;
   white-space: nowrap;
-  text-overflow: clip;
-  min-width: 0;
+  text-overflow: ellipsis;
+  min-height: 42px;
+  width: 100%;
 }
 
 /* ========== HELPER TEXT ========== */
@@ -673,8 +677,15 @@
 }
 
 @keyframes pet-paw {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 .pet-info-content {
@@ -751,6 +762,7 @@
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -872,8 +884,13 @@
 }
 
 @keyframes tenant-form-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Loading state spinner */
@@ -900,11 +917,12 @@
 
 .tenant-form-buttons-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
   width: 100%;
   flex-wrap: wrap;
+  margin-top: 1rem;
 }
 
 .tenant-form-info-row {
@@ -915,12 +933,12 @@
 
 /* ========== BUTTON STYLES ========== */
 .tenant-form-btn-cancel {
-  padding: 0.625rem 1.75rem;
+  padding: 0.625rem 2rem;
   background: transparent;
   border: 1px solid #d1d5db;
   border-radius: var(--tenant-radius);
   color: #6b7280;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -934,8 +952,9 @@
   position: relative;
   overflow: hidden;
   background: linear-gradient(to bottom, white, #f9fafb);
-  height: 40px;
-  flex-shrink: 0;
+  height: 44px;
+  flex: 1;
+  max-width: 200px;
   white-space: nowrap;
 }
 
@@ -968,7 +987,7 @@
   border: none;
   border-radius: var(--tenant-radius);
   color: white;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -982,7 +1001,9 @@
   min-width: 160px;
   text-transform: uppercase;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-  height: 40px;
+  height: 44px;
+  flex: 1;
+  max-width: 200px;
   white-space: nowrap;
 }
 
@@ -1018,7 +1039,8 @@
 /* ========== BUTTON GROUP FIX - PREVENTS HOVER OVERLAP ========== */
 .tenant-form-button-group {
   display: flex;
-  gap: 1rem; /* Increased from 0.75rem to 1rem */
+  gap: 1rem;
+  /* Increased from 0.75rem to 1rem */
   align-items: center;
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -1031,7 +1053,8 @@
 .tenant-form-btn-submit {
   position: relative;
   z-index: 2;
-  isolation: isolate; /* Creates a new stacking context */
+  isolation: isolate;
+  /* Creates a new stacking context */
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -1058,17 +1081,15 @@
 }
 
 /* Add visual separation between buttons */
-.tenant-form-btn-danger {
-  margin-right: 0.25rem; /* Add small margin for extra separation */
-}
+
 
 .tenant-form-btn-danger {
-  padding: 0.625rem 1.75rem;
+  padding: 0.625rem 2rem;
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   border: none;
   border-radius: var(--tenant-radius);
   color: white;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1082,7 +1103,9 @@
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
   position: relative;
   overflow: hidden;
-  height: 40px;
+  height: 44px;
+  flex: 1;
+  max-width: 200px;
   white-space: nowrap;
 }
 
@@ -1373,15 +1396,15 @@
   .tenant-form-container {
     padding: 1.5rem;
   }
-  
+
   .tenant-form-content {
     padding: 2rem;
   }
-  
+
   .tenant-form-grid {
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   }
-  
+
   .tenant-form-fees-grid,
   .tenant-form-status-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -1392,97 +1415,98 @@
   .tenant-form-container {
     padding: 1rem;
   }
-  
+
   .tenant-form-header {
     flex-direction: column;
     align-items: stretch;
     gap: 1.25rem;
   }
-  
+
   .tenant-form-header-actions {
     flex-direction: column;
     width: 100%;
   }
-  
+
   .tenant-form-view-tenants-btn {
     width: 100%;
     justify-content: center;
   }
-  
+
   .tenant-form-content {
     padding: 1.5rem;
   }
-  
+
   .tenant-form-section {
     padding: 1.5rem;
   }
-  
+
   .tenant-form-grid {
     grid-template-columns: 1fr;
     gap: 1.25rem;
   }
-  
+
   .tenant-form-fees-grid,
   .tenant-form-status-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .tenant-form-actions {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .tenant-form-buttons-row {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .tenant-form-btn-cancel,
   .tenant-form-button-group {
     width: 100%;
     justify-content: center;
   }
-  
+
   .tenant-form-button-group {
     flex-direction: column;
-    gap: 0.75rem; /* Adjusted for mobile */
+    gap: 0.75rem;
+    /* Adjusted for mobile */
   }
-  
+
   .tenant-form-info-box {
     padding: 1rem;
     max-width: 100%;
   }
-  
+
   .tenant-form-info-box-content {
     flex-direction: column;
     text-align: center;
     gap: 1rem;
     flex-wrap: wrap;
   }
-  
+
   .tenant-form-info-box-content p {
     white-space: normal;
     text-align: center;
   }
-  
+
   .tenant-form-view-approved-link {
     margin-left: 0;
     width: 100%;
   }
-  
+
   .competing-applicant-item {
     grid-template-columns: 1fr;
     gap: 0.25rem;
   }
-  
+
   .tenant-form-rejection-modal {
     padding: 1.5rem;
   }
-  
+
   .rejection-form-buttons {
     flex-direction: column;
   }
-  
+
   .rejection-btn-cancel,
   .rejection-btn-confirm {
     width: 100%;
@@ -1493,32 +1517,32 @@
   .tenant-form-container {
     padding: 0.75rem;
   }
-  
+
   .tenant-form-title {
     font-size: 1.75rem;
   }
-  
+
   .tenant-form-content {
     padding: 1.25rem;
   }
-  
+
   .tenant-form-section {
     padding: 1.25rem;
   }
-  
+
   .tenant-form-input,
   .tenant-form-select,
   .tenant-form-textarea {
     padding: 0.375rem 0.875rem;
     font-size: 0.8125rem;
   }
-  
+
   .tenant-form-total-cost-summary,
   .tenant-form-property-fees-info,
   .tenant-form-unit-status-info {
     padding: 1rem;
   }
-  
+
   .tenant-form-btn-cancel,
   .tenant-form-btn-submit,
   .tenant-form-btn-danger {
@@ -1527,7 +1551,7 @@
     height: 36px;
     min-width: 140px;
   }
-  
+
   .tenant-form-btn-cancel,
   .tenant-form-btn-submit,
   .tenant-form-btn-danger {
@@ -1535,21 +1559,21 @@
     justify-content: center;
     min-width: 0;
   }
-  
+
   .tenant-form-info-box {
     padding: 0.75rem;
   }
-  
+
   .tenant-form-info-box-content p {
     font-size: 0.75rem;
   }
-  
+
   .tenant-form-view-approved-link {
     padding: 0.375rem 0.75rem;
     font-size: 0.6875rem;
     min-width: 100px;
   }
-  
+
   .pet-details-section p {
     font-size: 0.75rem;
   }
@@ -1560,15 +1584,13 @@
   display: none;
 }
 
-/* ========== ENSURE ALL CONTENT IS VISIBLE ========== */
-.tenant-form-container * {
-  max-height: none !important;
-  overflow: visible !important;
-}
+/* ========== REMOVED OVERLY AGGRESSIVE GLOBAL RULES THAT CAUSED OVERFLOW ========== */
+/* .tenant-form-container * { max-height: none !important; overflow: visible !important; } */
+/* .tenant-form-content, .tenant-form-sections, .tenant-form-section { max-height: none !important; overflow: visible !important; } */
 
 .tenant-form-content,
 .tenant-form-sections,
 .tenant-form-section {
-  max-height: none !important;
-  overflow: visible !important;
+  max-height: none;
+  overflow: visible;
 }

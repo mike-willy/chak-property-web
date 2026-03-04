@@ -1477,46 +1477,41 @@ const AddTenant = () => {
                 <FaTimes /> Cancel
               </button>
 
-              <div className="tenant-form-button-group">
-                <button
-                  type="button"
-                  className="tenant-form-btn-danger"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleRejectClick(e);
-                  }}
-                  disabled={loading || isRejecting}
-                >
-                  <FaThumbsDown /> Reject Application
-                </button>
+              <button
+                type="button"
+                className="tenant-form-btn-danger"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleRejectClick(e);
+                }}
+                disabled={loading || isRejecting}
+              >
+                <FaThumbsDown /> Reject
+              </button>
 
-                <button
-                  type="button"
-                  className="tenant-form-btn-submit"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleApproveTenant(e);
-                  }}
-                  disabled={loading || isRejecting}
-                  title={!unitRef ? "Warning: Unit document not found in database. Tenant will be created but unit status won't be updated." : ""}
-                >
-                  {loading ? (
-                    <>
-                      <span className="tenant-form-spinner-small"></span>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <FaCheckCircle />
-                      {competingApplications.length > 0
-                        ? ` Approve & Auto-Reject ${competingApplications.length} Other${competingApplications.length > 1 ? 's' : ''}`
-                        : !unitRef ? " Approve (Unit Not Found)" : " Approve & Send to Payment"}
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="button"
+                className="tenant-form-btn-submit"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleApproveTenant(e);
+                }}
+                disabled={loading || isRejecting}
+                title={!unitRef ? "Warning: Unit document not found in database. Tenant will be created but unit status won't be updated." : ""}
+              >
+                {loading ? (
+                  <>
+                    <span className="tenant-form-spinner-small"></span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <FaCheckCircle /> Approve
+                  </>
+                )}
+              </button>
             </div>
 
             <div className="tenant-form-info-row">
