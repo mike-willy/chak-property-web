@@ -54,7 +54,7 @@
 
 .tenant-form-title {
   font-size: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--tenant-dark);
   margin: 0;
   display: flex;

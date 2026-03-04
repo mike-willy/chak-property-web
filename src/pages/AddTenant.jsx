@@ -1055,10 +1055,7 @@ const AddTenant = () => {
       {/* Header */}
       <div className="tenant-form-header">
         <div className="tenant-form-header-left">
-          <h1 className="tenant-form-title"><FaClipboardCheck /> Review Tenant Application</h1>
-          <div className="tenant-form-prefill-notice">
-            <FaEye /> Viewing application #{tenantData.applicationId || "N/A"}
-          </div>
+          <h1 className="tenant-form-title">Tenant Application</h1>
           {tenantData.appliedDate && (
             <div className="tenant-form-applied-date">
               Applied on: {formatTimestamp(tenantData.appliedDate)}
@@ -1067,13 +1064,6 @@ const AddTenant = () => {
         </div>
 
         <div className="tenant-form-header-actions">
-          <button
-            className="tenant-form-view-tenants-btn"
-            onClick={handleCancel}
-            type="button"
-          >
-            <FaUsers /> View Applications
-          </button>
         </div>
       </div>
 
