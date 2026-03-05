@@ -501,22 +501,22 @@ class AnalyticsService {
       switch (analyticsType) {
         case 'rent-collection':
           csvContent = this._generateRentCollectionCSV(data);
-          filename = customFilename || `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Chak_Property_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
           break;
 
         case 'tenant-behavior':
           csvContent = this._generateTenantBehaviorCSV(data);
-          filename = customFilename || `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Chak_Property_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
           break;
 
         case 'vacancy-rate':
           csvContent = this._generateVacancyRateCSV(data);
-          filename = customFilename || `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Chak_Property_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
           break;
 
         case 'analytics-insights':
           csvContent = this._generateInsightsCSV(data);
-          filename = customFilename || `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
+          filename = customFilename || `Chak_Property_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
           break;
 
         default:
@@ -566,14 +566,14 @@ class AnalyticsService {
           };
 
           if (format === 'csv') {
-            filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Chak_Property_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.csv`;
             const csvContent = this._generateFullReportCSV(reportData);
             this._triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'xlsx') {
-            filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Chak_Property_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
             this._generateFullReportXLSX(reportData, filename);
           } else if (format === 'pdf') {
-            filename = `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Chak_Property_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
             // FIXED: Use the corrected method that doesn't call save multiple times
             await this._generateFullReportPDF(reportData, filename);
           }
@@ -582,14 +582,14 @@ class AnalyticsService {
         case 'rent':
           reportData = await this.getRentCollectionAnalytics(timeframe);
           if (format === 'csv') {
-            filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Chak_Property_Rent_Collection_${new Date().toISOString().split('T')[0]}.csv`;
             const rentCSV = this._generateRentCollectionCSV(reportData);
             this._triggerFileDownload(rentCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'xlsx') {
-            filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Chak_Property_Rent_Collection_${new Date().toISOString().split('T')[0]}.xlsx`;
             this._generateRentCollectionXLSX(reportData, filename);
           } else if (format === 'pdf') {
-            filename = `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Chak_Property_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateRentCollectionPDF(reportData, filename);
           }
           break;
@@ -597,14 +597,14 @@ class AnalyticsService {
         case 'vacancy':
           reportData = await this.getVacancyRateAnalytics();
           if (format === 'csv') {
-            filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Chak_Property_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.csv`;
             const vacancyCSV = this._generateVacancyRateCSV(reportData);
             this._triggerFileDownload(vacancyCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'xlsx') {
-            filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Chak_Property_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.xlsx`;
             this._generateVacancyRateXLSX(reportData, filename);
           } else if (format === 'pdf') {
-            filename = `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Chak_Property_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateVacancyRatePDF(reportData, filename);
           }
           break;
@@ -612,14 +612,14 @@ class AnalyticsService {
         case 'tenants':
           reportData = await this.getTenantBehaviorAnalytics();
           if (format === 'csv') {
-            filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Chak_Property_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.csv`;
             const tenantCSV = this._generateTenantBehaviorCSV(reportData);
             this._triggerFileDownload(tenantCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'xlsx') {
-            filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Chak_Property_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.xlsx`;
             this._generateTenantBehaviorXLSX(reportData, filename);
           } else if (format === 'pdf') {
-            filename = `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Chak_Property_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateTenantBehaviorPDF(reportData, filename);
           }
           break;
@@ -627,14 +627,14 @@ class AnalyticsService {
         case 'insights':
           reportData = await this.generateAnalyticsInsights();
           if (format === 'csv') {
-            filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
+            filename = `Chak_Property_Analytics_Insights_${new Date().toISOString().split('T')[0]}.csv`;
             const insightsCSV = this._generateInsightsCSV(reportData);
             this._triggerFileDownload(insightsCSV, filename, 'text/csv;charset=utf-8;');
           } else if (format === 'xlsx') {
-            filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Chak_Property_Analytics_Insights_${new Date().toISOString().split('T')[0]}.xlsx`;
             this._generateInsightsXLSX(reportData, filename);
           } else if (format === 'pdf') {
-            filename = `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
+            filename = `Chak_Property_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
             await this._generateInsightsPDF(reportData, filename);
           }
           break;
@@ -670,21 +670,21 @@ class AnalyticsService {
         case 'rent-collection':
           reportData = await this.getRentCollectionAnalytics(timeframe);
           title = 'Rent Collection Report';
-          filename = filename || `Jesma_Investments_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Chak_Property_Rent_Collection_${new Date().toISOString().split('T')[0]}.pdf`;
           await this._generateRentCollectionPDF(reportData, filename);
           break;
 
         case 'vacancy-rate':
           reportData = await this.getVacancyRateAnalytics();
           title = 'Vacancy Rate Report';
-          filename = filename || `Jesma_Investments_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Chak_Property_Vacancy_Rate_${new Date().toISOString().split('T')[0]}.pdf`;
           await this._generateVacancyRatePDF(reportData, filename);
           break;
 
         case 'tenant-behavior':
           reportData = await this.getTenantBehaviorAnalytics();
           title = 'Tenant Behavior Report';
-          filename = filename || `Jesma_Investments_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Chak_Property_Tenant_Behavior_${new Date().toISOString().split('T')[0]}.pdf`;
 
           // SAFEGUARD: Large tenant list PDF generation
           if (reportData.summary.totalTenants > 200) {
@@ -699,7 +699,7 @@ class AnalyticsService {
         case 'analytics-insights':
           reportData = await this.generateAnalyticsInsights();
           title = 'Analytics Insights Report';
-          filename = filename || `Jesma_Investments_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Chak_Property_Analytics_Insights_${new Date().toISOString().split('T')[0]}.pdf`;
           await this._generateInsightsPDF(reportData, filename);
           break;
 
@@ -720,7 +720,7 @@ class AnalyticsService {
             timeframe: timeframe
           };
           // title = 'Complete Analytics Report';
-          filename = filename || `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+          filename = filename || `Chak_Property_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
           // SAFEGUARD: Large total dataset
           if (tenantData.summary.totalTenants > 200 || rentData.summary.totalUnits > 400) {
@@ -1059,7 +1059,7 @@ class AnalyticsService {
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(50, 50, 50); // Darker gray for visibility
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 15);
+        doc.text('Chak Property', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1178,7 +1178,7 @@ class AnalyticsService {
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(50, 50, 50); // Darker gray for visibility
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 15);
+        doc.text('Chak Property', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1250,7 +1250,7 @@ class AnalyticsService {
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(50, 50, 50); // Darker gray for visibility
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 15);
+        doc.text('Chak Property', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1327,7 +1327,7 @@ class AnalyticsService {
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(50, 50, 50); // Darker gray for visibility
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 15);
+        doc.text('Chak Property', 20, pageHeight - 15);
       }
 
       doc.save(filename);
@@ -1353,7 +1353,7 @@ class AnalyticsService {
       doc.setFontSize(16);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text('Jesma Investments', pageWidth / 2, 100, { align: 'center' });
+      doc.text('Chak Property', pageWidth / 2, 100, { align: 'center' });
 
       doc.setFontSize(14);
       doc.setTextColor(150, 150, 150);
@@ -1394,7 +1394,7 @@ class AnalyticsService {
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(50, 50, 50); // Darker gray for visibility
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
-        doc.text('Jesma Investments', 20, pageHeight - 15);
+        doc.text('Chak Property', 20, pageHeight - 15);
       }
 
       // Save only once
@@ -2009,7 +2009,7 @@ class AnalyticsService {
 
   _generateRentCollectionXLSX(data, filename) {
     const ws_data = [
-      ["JESMA INVESTMENTS - RENT COLLECTION REPORT"],
+      ["CHAK PROPERTY - RENT COLLECTION REPORT"],
       [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
       [],
       ["Date", "Tenant Name", "Property", "Unit", "Amount (KES)", "Month", "Status", "Method", "Transaction ID"]
@@ -2034,7 +2034,7 @@ class AnalyticsService {
 
   _generateTenantBehaviorXLSX(data, filename) {
     const ws_data = [
-      ["JESMA INVESTMENTS - TENANT BEHAVIOR REPORT"],
+      ["CHAK PROPERTY - TENANT BEHAVIOR REPORT"],
       [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
       [],
       ["Tenant Name", "Property", "Unit", "Risk Score", "Status", "Monthly Rent", "Balance", "On-Time Rate %", "Avg Days Late", "Last Payment"]
@@ -2064,7 +2064,7 @@ class AnalyticsService {
 
   _generateVacancyRateXLSX(data, filename) {
     const ws_data = [
-      ["JESMA INVESTMENTS - VACANCY RATE REPORT"],
+      ["CHAK PROPERTY - VACANCY RATE REPORT"],
       [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
       [],
       ["Property Name", "Total Units", "Occupied Units", "Vacant Units", "Vacancy Rate %", "Under Maintenance", "Occupancy Rate %", "Avg Vacancy Days"]
@@ -2088,7 +2088,7 @@ class AnalyticsService {
 
   _generateInsightsXLSX(data, filename) {
     const ws_data = [
-      ["JESMA INVESTMENTS - ANALYTICS INSIGHTS REPORT"],
+      ["CHAK PROPERTY - ANALYTICS INSIGHTS REPORT"],
       [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
       [],
       ["Priority", "Title", "Category", "Description", "Recommendation"]
@@ -2112,7 +2112,7 @@ class AnalyticsService {
 
     // 1. Overview Sheet
     const overview_data = [
-      ["JESMA INVESTMENTS - COMPLETE ANALYTICS REPORT"],
+      ["CHAK PROPERTY - COMPLETE ANALYTICS REPORT"],
       [`Generated: ${new Date().toLocaleDateString('en-KE')}`],
       [`Timeframe: ${reportData.timeframe}`],
       [],

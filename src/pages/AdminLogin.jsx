@@ -294,7 +294,7 @@ export default function AdminLogin() {
                 </Box>
 
                 <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 800, letterSpacing: 1, textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>
-                  Jesma Investments
+                  Chak Property
                 </Typography>
                 <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 300, mb: 6, letterSpacing: 0.5 }}>
                   Administrative Control Center
@@ -333,7 +333,7 @@ export default function AdminLogin() {
               </Box>
 
               <Typography variant="caption" sx={{ position: 'absolute', bottom: 30, opacity: 0.6, zIndex: 1, letterSpacing: 1 }}>
-                © {new Date().getFullYear()} Jesma Investments
+                © {new Date().getFullYear()} Chak Property
               </Typography>
             </Paper>
 

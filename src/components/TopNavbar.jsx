@@ -20,7 +20,7 @@ const TopNavbar = () => {
   const [isSearching, setIsSearching] = useState(false);
   const dropdownRef = useRef(null);
   const searchRef = useRef(null);
-  
+
   const { toggleSidebar } = useSidebar();
 
   useEffect(() => {
@@ -43,7 +43,7 @@ const TopNavbar = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
-      
+
       // Close search results
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowSearchResults(false);
@@ -76,7 +76,7 @@ const TopNavbar = () => {
     }
 
     setIsSearching(true);
-    
+
     try {
       // Use the real globalSearch function
       const results = await globalSearch(term, 3);
@@ -97,7 +97,7 @@ const TopNavbar = () => {
   const generateMockResults = (term) => {
     const lowerTerm = term.toLowerCase();
     const results = [];
-    
+
     const mockData = [
       { id: 1, type: 'property', title: 'Rosewood Apartments', subtitle: 'Property • Nairobi • 4 Units', route: '/properties' },
       { id: 2, type: 'tenant', title: 'John Doe', subtitle: 'Tenant • john@email.com • Unit 3A', route: '/tenants' },
@@ -109,8 +109,8 @@ const TopNavbar = () => {
     ];
 
     return mockData
-      .filter(item => 
-        item.title.toLowerCase().includes(lowerTerm) || 
+      .filter(item =>
+        item.title.toLowerCase().includes(lowerTerm) ||
         item.subtitle.toLowerCase().includes(lowerTerm) ||
         item.type.toLowerCase().includes(lowerTerm)
       )
@@ -189,7 +189,7 @@ const TopNavbar = () => {
   const handleMarkAllAsRead = async () => {
     const user = auth.currentUser;
     if (!user) return;
-    
+
     await markAllAsRead("admin");
     const updatedNotifications = notifications.map(n => ({ ...n, read: true }));
     setNotifications(updatedNotifications);
@@ -216,7 +216,7 @@ const TopNavbar = () => {
     const diffMs = now - new Date(date);
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
-    
+
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -245,9 +245,9 @@ const TopNavbar = () => {
         <div className="navbar-hamburger" onClick={toggleSidebar}>
           <FaBars className="hamburger-icon" />
         </div>
-        
+
         <div className="navbar-brand">
-          <h2>Jesma Investments</h2>
+          <h2>Chak Property</h2>
         </div>
       </div>
 
@@ -255,9 +255,9 @@ const TopNavbar = () => {
       <div className="navbar-search-container" ref={searchRef}>
         <form onSubmit={handleSearchSubmit} className="navbar-search-box">
           <FaSearch className="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Search properties, tenants, landlords, applications..." 
+          <input
+            type="text"
+            placeholder="Search properties, tenants, landlords, applications..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => {
@@ -267,8 +267,8 @@ const TopNavbar = () => {
             }}
           />
           {searchTerm && (
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="clear-search-btn"
               onClick={clearSearch}
             >
@@ -276,7 +276,7 @@ const TopNavbar = () => {
             </button>
           )}
         </form>
-        
+
         {/* SEARCH RESULTS DROPDOWN */}
         {showSearchResults && searchTerm.trim().length > 0 && (
           <div className="search-results-dropdown">
@@ -286,7 +286,7 @@ const TopNavbar = () => {
                 {isSearching ? "Searching..." : `${searchResults.length} results`}
               </span>
             </div>
-            
+
             <div className="search-results-list">
               {isSearching ? (
                 <div className="search-loading">
@@ -295,12 +295,12 @@ const TopNavbar = () => {
                 </div>
               ) : searchResults.length > 0 ? (
                 searchResults.map((result) => (
-                  <div 
+                  <div
                     key={`${result.type}-${result.id}`}
                     className="search-result-item"
                     onClick={() => handleResultClick(result)}
                   >
-                    <div 
+                    <div
                       className="result-icon"
                       style={{ backgroundColor: getResultTypeColor(result.type) }}
                     >
@@ -309,9 +309,9 @@ const TopNavbar = () => {
                     <div className="result-content">
                       <div className="result-title-row">
                         <h5 className="result-title">{result.title}</h5>
-                        <span 
+                        <span
                           className="result-type-badge-small"
-                          style={{ 
+                          style={{
                             backgroundColor: getResultTypeColor(result.type) + '20',
                             color: getResultTypeColor(result.type)
                           }}
@@ -332,10 +332,10 @@ const TopNavbar = () => {
                 </div>
               )}
             </div>
-            
+
             {searchResults.length > 0 && (
               <div className="search-results-footer">
-                <button 
+                <button
                   className="view-all-results-btn"
                   onClick={() => {
                     navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
@@ -354,7 +354,7 @@ const TopNavbar = () => {
       <div className="navbar-actions">
         {/* NOTIFICATION BELL */}
         <div className="notification-container" ref={dropdownRef}>
-          <div 
+          <div
             className="notification-bell-wrapper"
             onClick={() => setShowDropdown(!showDropdown)}
           >
@@ -373,7 +373,7 @@ const TopNavbar = () => {
                 <div className="header-top">
                   <h3>Notifications</h3>
                   {unreadCount > 0 && (
-                    <button 
+                    <button
                       className="mark-all-read-btn"
                       onClick={handleMarkAllAsRead}
                     >
@@ -385,7 +385,7 @@ const TopNavbar = () => {
                   {unreadCount} unread • {notifications.length} total
                 </div>
               </div>
-              
+
               <div className="notifications-list">
                 {notifications.length === 0 ? (
                   <div className="empty-notifications">
@@ -395,7 +395,7 @@ const TopNavbar = () => {
                   </div>
                 ) : (
                   notifications.slice(0, 5).map((notification) => (
-                    <div 
+                    <div
                       key={notification.id}
                       className={`notification-item ${notification.read ? "" : "unread"}`}
                       onClick={() => handleNotificationClick(notification)}
@@ -403,7 +403,7 @@ const TopNavbar = () => {
                       <div className="notification-icon-container">
                         {getNotificationIcon(notification.type)}
                       </div>
-                      
+
                       <div className="notification-content">
                         <div className="notification-title-row">
                           <h4 className="notification-title">{notification.title}</h4>
@@ -413,15 +413,15 @@ const TopNavbar = () => {
                         </div>
                         <p className="notification-message">{notification.message}</p>
                       </div>
-                      
+
                       <FaChevronRight className="chevron-icon" />
                     </div>
                   ))
                 )}
               </div>
-              
+
               <div className="notifications-footer">
-                <button 
+                <button
                   className="view-all-notifications-btn"
                   onClick={handleViewAllNotifications}
                 >
@@ -431,7 +431,7 @@ const TopNavbar = () => {
             </div>
           )}
         </div>
-        
+
         <div className="admin-profile">
           <span>Admin</span>
         </div>

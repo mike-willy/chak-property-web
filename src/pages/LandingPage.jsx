@@ -18,7 +18,7 @@ const LandingPage = () => {
                 <div className="nav-container">
                     <div className="nav-logo">
                         <FaBuilding className="logo-icon" />
-                        <span>Jesma Investments</span>
+                        <span>Chak Property</span>
                     </div>
                     <div className="nav-links">
                         <a href="#features">Features</a>
@@ -41,7 +41,7 @@ const LandingPage = () => {
                             Modern Property Management for the Digital Age
                         </h1>
                         <p className="hero-subtitle">
-                            The premier platform used by Jesma Investments to automate rent collection, manage properties, and track maintenance seamlessly.
+                            The premier platform used by Chak Property to automate rent collection, manage properties, and track maintenance seamlessly.
                         </p>
                         <div className="hero-buttons">
                             <button
@@ -111,7 +111,7 @@ const LandingPage = () => {
             <section id="how-it-works" className="how-it-works-section">
                 <div className="section-container">
                     <div className="section-header">
-                        <h2>How Jesma Investments Works</h2>
+                        <h2>How Chak Property Works</h2>
                         <p>A simple, powerful workflow designed to streamline your property management lifecycle.</p>
                     </div>
                     <div className="steps-container">
@@ -202,7 +202,7 @@ const LandingPage = () => {
             <section className="faq-section">
                 <div className="section-container faq-container">
                     <div className="faq-text">
-                        <h2>Why choose Jesma?</h2>
+                        <h2>Why choose Chak Property?</h2>
                         <p>We built this platform to handle scale without sacrificing security or simplicity.</p>
                     </div>
                     <div className="faq-accordion">
@@ -230,7 +230,7 @@ const LandingPage = () => {
                 <div className="section-container">
                     <div className="section-header">
                         <h2>Why Download the Mobile App?</h2>
-                        <p>Get the full Jesma Investments experience directly from your smartphone.</p>
+                        <p>Get the full Chak Property experience directly from your smartphone.</p>
                     </div>
                     <div className="app-benefits-grid">
                         <div className="app-benefit-card">
@@ -262,7 +262,7 @@ const LandingPage = () => {
             <section className="global-cta-section">
                 <div className="global-cta-content">
                     <h2>Ready to scale your property portfolio?</h2>
-                    <p>Start managing smarter today with Jesma Investments.</p>
+                    <p>Start managing smarter today with Chak Property.</p>
                     <div className="cta-actions">
                         <a
                             className="btn-download-large"
@@ -285,8 +285,8 @@ const LandingPage = () => {
                 <div className="footer-container">
                     <div className="footer-brand">
                         <FaBuilding className="footer-logo" />
-                        <span>Jesma Investments</span>
-                        <p>© {new Date().getFullYear()} Jesma Investments. All rights reserved.</p>
+                        <span>Chak Property</span>
+                        <p>© {new Date().getFullYear()} Chak Property. All rights reserved.</p>
                     </div>
                 </div>
             </footer>

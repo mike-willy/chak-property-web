@@ -479,7 +479,7 @@ const PaymentPage = () => {
         <Box>
           <Typography variant="h4" fontWeight="bold" className="page-title">
             <PaymentIcon className="header-icon" sx={{ mr: 1 }} />
-            Jesma Payments
+            Chak Property Payments
             {!loading && (
               <Chip
                 label="LIVE"
