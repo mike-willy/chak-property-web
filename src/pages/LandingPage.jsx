@@ -52,8 +52,7 @@ const LandingPage = () => {
                             </button>
                             <a
                                 className="btn-secondary"
-                                href="/jesma-investments-app.apk"
-                                download="jesma-investments-app.apk"
+                                href="https://github.com/mike-willy/chak-property-system/releases/download/v1.0.0/jesma-investment-app.apk"
                                 style={{ textDecoration: 'none' }}
                             >
                                 <FaAndroid style={{ fontSize: '1.2rem', color: '#3DDC84' }} /> Download Client App
@@ -226,7 +225,38 @@ const LandingPage = () => {
                 </div>
             </section>
 
-
+            {/* Why Download The App Section */}
+            <section className="app-benefits-section">
+                <div className="section-container">
+                    <div className="section-header">
+                        <h2>Why Download the Mobile App?</h2>
+                        <p>Get the full Jesma Investments experience directly from your smartphone.</p>
+                    </div>
+                    <div className="app-benefits-grid">
+                        <div className="app-benefit-card">
+                            <div className="benefit-icon bg-green">
+                                <FaFileInvoiceDollar />
+                            </div>
+                            <h3>Pay & Track Rent</h3>
+                            <p>Tenants can view overdue balances and make direct rent payments. Landlords receive instant deposit notifications.</p>
+                        </div>
+                        <div className="app-benefit-card">
+                            <div className="benefit-icon bg-orange">
+                                <FaWrench />
+                            </div>
+                            <h3>Snap & Fix Maintenance</h3>
+                            <p>Spot an issue? Just open the app, snap a photo, and submit a maintenance ticket in under thirty seconds.</p>
+                        </div>
+                        <div className="app-benefit-card">
+                            <div className="benefit-icon bg-blue">
+                                <FaComments />
+                            </div>
+                            <h3>Direct Messaging</h3>
+                            <p>Skip the phone calls. Chat directly with administration, vendors, or tenants through our secure messaging portal.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             {/* Final Global CTA */}
             <section className="global-cta-section">
@@ -236,8 +266,7 @@ const LandingPage = () => {
                     <div className="cta-actions">
                         <a
                             className="btn-download-large"
-                            href="/jesma-investments-app.apk"
-                            download="jesma-investments-app.apk"
+                            href="https://github.com/mike-willy/chak-property-system/releases/download/v1.0.0/jesma-investment-app.apk"
                         >
                             <FaAndroid /> Download the App
                         </a>
