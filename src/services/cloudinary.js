@@ -34,7 +34,7 @@ export const uploadImageToCloudinary = async (file, options = {}) => {
 
     // ✅ CORRECT URL with cloud_name
     const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-    
+
     console.log('📤 Uploading to Cloudinary:', {
       url: cloudinaryUrl,
       cloudName: CLOUDINARY_CLOUD_NAME,
@@ -74,7 +74,7 @@ export const uploadImageToCloudinary = async (file, options = {}) => {
     console.error('Status:', error.response?.status);
     console.error('Response data:', error.response?.data);
     console.error('Error message:', error.response?.data?.error?.message || error.message);
-    
+
     return {
       success: false,
       error: error.response?.data?.error?.message || error.message || 'Unknown upload error'
@@ -96,17 +96,19 @@ export const uploadMultipleImages = async (files, options = {}) => {
     .map(file => uploadImageToCloudinary(file, options));
 
   const results = await Promise.all(uploadPromises);
-  
+
   console.log('📊 Multiple upload results:', {
     total: results.length,
     successful: results.filter(r => r.success).length,
     failed: results.filter(r => !r.success).length
   });
-  
+
   return results;
 };
 
-export default {
+const cloudinaryService = {
   uploadImage: uploadImageToCloudinary,
   uploadMultiple: uploadMultipleImages
 };
+
+export default cloudinaryService;

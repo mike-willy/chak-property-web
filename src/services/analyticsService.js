@@ -719,7 +719,7 @@ class AnalyticsService {
             generatedAt: new Date(),
             timeframe: timeframe
           };
-          title = 'Complete Analytics Report';
+          // title = 'Complete Analytics Report';
           filename = filename || `Jesma_Investments_Full_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
           // SAFEGUARD: Large total dataset
