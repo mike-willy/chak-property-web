@@ -52,7 +52,7 @@ const LandingPage = () => {
                             </button>
                             <a
                                 className="btn-secondary"
-                                href="https://github.com/mike-willy/chak-property-system/releases/download/v1.0.0/jesma-investment-app.apk"
+                                href="https://github.com/mike-willy/chak-property-system/releases/download/v1.0.0/chak-app.apk"
                                 style={{ textDecoration: 'none' }}
                             >
                                 <FaAndroid style={{ fontSize: '1.2rem', color: '#3DDC84' }} /> Download Client App
