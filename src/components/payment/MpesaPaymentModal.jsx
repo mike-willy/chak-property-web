@@ -142,7 +142,8 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
       }
 
       // Call backend API
-      const response = await fetch('http://localhost:5000/api/mpesa/pay', {
+      const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${API_BASE}/api/mpesa/pay`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -175,7 +176,8 @@ const MpesaPaymentModal = ({ open, onClose, tenant }) => {
   const pollPaymentStatus = async (checkoutId) => {
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/mpesa/status/${checkoutId}`);
+        const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${API_BASE}/api/mpesa/status/${checkoutId}`);
         const payment = await response.json();
 
         if (payment.status === 'completed') {
